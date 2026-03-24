@@ -15,17 +15,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check for Flutter project
+        id: check_flutter
+        run: |
+          if [ -f "pubspec.yaml" ]; then
+            echo "flutter_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "flutter_exists=false" >> $GITHUB_OUTPUT
+            echo "No Flutter project found yet — skipping checks until Phase E1"
+          fi
+
       - name: Setup Flutter
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.x'
           channel: 'stable'
 
       - name: Install dependencies
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
         run: flutter pub get
 
       - name: Run Flutter analyze
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
         run: flutter analyze
 
       - name: Check Dart formatting
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
         run: dart format --output=none --set-exit-if-changed .
