@@ -16,8 +16,8 @@ You are currently executing task E1.6 Mobile Foundation under Phase E1.
 **Environment:** Staging  
 **OS:** Windows 11 — always use Git Bash for git commands, never PowerShell  
 
-**Backend API (staging):** https://api-staging.wellapath.org  
-**CloudFront artifacts:** https://d179u2ex0g66o3.cloudfront.net  
+**Backend API (staging):** https://wellapath-backend-staging.onrender.com  
+**R2 artifacts:** https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev  
 
 ---
 
@@ -144,6 +144,16 @@ APP_ENV=staging
 ENABLE_OFFLINE_MODE=true
 API_TIMEOUT_MS=10000
 ```
+
+**IMPORTANT — Local Development:**  
+The `.env` file is now committed to the repo with placeholder values for CI.  
+When developing locally, do NOT edit `.env` directly.  
+Instead create `.env.local` with your real local values — it is gitignored.  
+`flutter_dotenv` loads `.env` by default. To override locally, the team lead  
+needs to confirm if `flutter_dotenv` supports `.env.local` or if developers  
+should manually update `.env` locally and never stage it.  
+For now: update `.env` locally for dev but always run `git restore .env`  
+before committing to avoid pushing real IP addresses.
 
 ---
 
