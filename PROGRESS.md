@@ -230,3 +230,36 @@
 - [x] 22/22 total engine tests passing (E3.1 + E3.2 + E3.3)
 - [x] dart format . returns no changes needed
 - [x] flutter analyze returns zero errors
+
+---
+
+## E3.4 — Output Formatter and Engine Controller
+
+- [x] Add EngineOutput class to engine_output.dart
+- [x] Create lib/core/engine/output_formatter.dart — OutputFormatter class
+- [x] OutputFormatter: topCauses from scoredConditions, max 3
+- [x] OutputFormatter: explanationPoints from red flag name + top condition template
+- [x] OutputFormatter: careInstruction mapped from 4 exact fixed strings
+- [x] OutputFormatter: artifactsUsed sourced from configMetadata (never hardcoded)
+- [x] OutputFormatter: validates urgency is one of 4 locked values
+- [x] Create lib/core/engine/engine_controller.dart — EngineController class
+- [x] EngineController: red flag path skips scoring, returns immediately
+- [x] EngineController: scoring path calls all 4 modules in correct order
+- [x] flutter analyze returns zero errors
+- [x] Write 8 unit tests in test/engine/output_formatter_test.dart
+- [x] All 8 tests pass — 30/30 total engine tests ✅
+
+---
+
+## EXIT CRITERIA FOR E3.4 (all must be met before PR)
+
+- [x] EngineOutput added to engine_output.dart with correct fields
+- [x] output_formatter.dart created with correct format() method
+- [x] engine_controller.dart created with correct run() pipeline
+- [x] careInstruction uses exact 4 fixed strings — no variations
+- [x] explanation always from explanation_template — never generated
+- [x] artifactsUsed sourced from configMetadata, never hardcoded
+- [x] Urgency validation throws ArgumentError on invalid value
+- [x] Red flag path returns without calling scoring engine
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors

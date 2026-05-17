@@ -71,3 +71,25 @@ class UrgencyResult {
   final String? topCondition;
   final String? urgencyDefaultWas;
 }
+
+class EngineOutput {
+  const EngineOutput({
+    required this.urgency,
+    required this.redFlagTriggered,
+    this.matchedRuleId,
+    this.matchedRuleName,
+    required this.topCauses,
+    required this.explanationPoints,
+    required this.careInstruction,
+    required this.artifactsUsed,
+  });
+
+  final String urgency;
+  final bool redFlagTriggered;
+  final String? matchedRuleId;
+  final String? matchedRuleName;
+  final List<Map<String, dynamic>> topCauses;
+  final List<String> explanationPoints;
+  final String careInstruction;
+  final Map<String, String> artifactsUsed;
+}
