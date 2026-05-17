@@ -130,13 +130,58 @@
 # Phase E3 — CDSS Engine Core
 
 **Phase:** E3 — CDSS Engine Core  
-**Task:** E3.1 — Red Flag Evaluation Module  
-**Branch:** feature/e3-cdss-engine (to be created)  
-**Last Updated:** 2026-05-17
+**Tasks completed:** E3.1 → E3.2 → E3.3 → E3.4 → E3.5 (all complete)  
+**Branch:** `feature/e3-cdss-engine-core` (pushed to origin, PR not yet opened)  
+**Base branch for PR:** `develop`  
+**Last Updated:** 2026-05-18  
+**Test count:** 42/42 passing  
+**flutter analyze:** zero errors  
+**dart format:** clean  
 
 ---
 
-## CURRENT STATUS: E3.1 COMPLETE ✅
+## CURRENT STATUS: ALL E3.1–E3.5 COMPLETE ✅
+
+---
+
+## ⚡ NEXT ACTION FOR A FRESH SESSION
+
+Open the PR for Phase E3. The branch `feature/e3-cdss-engine-core` is fully
+pushed and all checks are green. `gh` CLI is NOT installed on this machine —
+the PR must be opened manually via GitHub.
+
+**PR details:**
+- Title: `feat(engine): implement cdss engine core — E3.1 to E3.5`
+- Base branch: `develop`
+- Files changed: all engine files under `lib/core/engine/` and `test/engine/`
+- 42 unit tests covering: red flag evaluation, scoring, urgency determination,
+  output formatting, full pipeline, and 12 pilot case validations
+
+---
+
+## ENGINE FILES CREATED (lib/core/engine/)
+
+| File | Module | Status |
+|------|--------|--------|
+| models/engine_input.dart | EngineInput + validate() | ✅ |
+| models/engine_output.dart | RedFlagResult, ScoredCondition, ScoringResult, UrgencyResult, EngineOutput | ✅ |
+| red_flag_evaluator.dart | Global + condition-specific red flag evaluation | ✅ |
+| scoring_engine.dart | Semi-weighted scoring, demographics, seasonal modifiers | ✅ |
+| urgency_determiner.dart | 5-tier priority hierarchy (+ Priority 4b fix) | ✅ |
+| output_formatter.dart | Formats engine output, careInstruction, artifactsUsed | ✅ |
+| engine_controller.dart | Full pipeline orchestrator | ✅ |
+
+## TEST FILES CREATED (test/engine/)
+
+| File | Tests | Status |
+|------|-------|--------|
+| red_flag_evaluator_test.dart | 7 | ✅ |
+| scoring_engine_test.dart | 7 | ✅ |
+| urgency_determiner_test.dart | 8 | ✅ |
+| output_formatter_test.dart | 8 | ✅ |
+| pilot_case_validation_test.dart | 12 | ✅ |
+
+---
 
 ---
 
