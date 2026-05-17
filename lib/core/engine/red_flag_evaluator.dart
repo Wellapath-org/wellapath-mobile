@@ -59,6 +59,38 @@ class RedFlagEvaluator {
       }
     }
 
+    // Second pass — condition-specific rules matched against candidateConditionIds
+    final conditionSpecificRules =
+        rules.where((rule) {
+          final appliesTo = rule['applies_to'];
+          return appliesTo is List && !appliesTo.contains('all');
+        }).toList()..sort((a, b) {
+          final aPriority = (a['priority'] as num?)?.toInt() ?? 999;
+          final bPriority = (b['priority'] as num?)?.toInt() ?? 999;
+          return aPriority.compareTo(bPriority);
+        });
+
+    final candidateSet = input.candidateConditionIds.toSet();
+
+    for (final rule in conditionSpecificRules) {
+      final appliesTo = rule['applies_to'];
+      if (appliesTo is! List) continue;
+      final ruleConditions = appliesTo.whereType<String>().toSet();
+      if (!ruleConditions.any((id) => candidateSet.contains(id))) continue;
+
+      final ruleToken = rule['token'] as String?;
+      if (ruleToken != null && symptomSet.contains(ruleToken)) {
+        return RedFlagResult(
+          redFlagTriggered: true,
+          proceedToScoring: false,
+          redFlagType: 'condition_specific',
+          matchedRuleId: rule['rule_id'] as String?,
+          matchedRuleName: rule['rule_name'] as String?,
+          overrideUrgency: 'emergency',
+        );
+      }
+    }
+
     return const RedFlagResult(redFlagTriggered: false, proceedToScoring: true);
   }
 }
