@@ -124,3 +124,44 @@
 - flutter_lints version in repo is ^6.0.0 (brief says ^3.0.0) — kept ^6.0.0 as it is newer
 - .env.example and .env created manually during pre-setup session on 2026-03-25
 - All pre-setup work done via Git Bash on Windows 11
+
+---
+
+# Phase E3 — CDSS Engine Core
+
+**Phase:** E3 — CDSS Engine Core  
+**Task:** E3.1 — Red Flag Evaluation Module  
+**Branch:** feature/e3-cdss-engine (to be created)  
+**Last Updated:** 2026-05-17
+
+---
+
+## CURRENT STATUS: E3.1 COMPLETE ✅
+
+---
+
+## E3.1 — Red Flag Evaluation Module
+
+- [x] Create lib/core/engine/models/ folder with .gitkeep placeholders
+- [x] Create lib/core/engine/models/engine_input.dart — EngineInput class with validate()
+- [x] Create lib/core/engine/models/engine_output.dart — RedFlagResult class
+- [x] Create lib/core/engine/red_flag_evaluator.dart — RedFlagEvaluator with evaluate()
+- [x] Create test/engine/ folder
+- [x] Write 7 mandatory unit tests in test/engine/red_flag_evaluator_test.dart
+- [x] All 7 tests pass — flutter test 7/7 ✅
+- [x] flutter analyze returns zero errors
+
+---
+
+## EXIT CRITERIA FOR E3.1 (all must be met before PR)
+
+- [x] engine_input.dart created with correct EngineInput fields and validate() method
+- [x] engine_output.dart created with correct RedFlagResult fields and defaults
+- [x] red_flag_evaluator.dart created — correct global rule filtering, priority sort, first-match halt
+- [x] PHI rule enforced — no token values logged via debugPrint
+- [x] Validation throws ArgumentError on unknown tokens — never silently passes
+- [x] Red flag result always sets proceedToScoring: false when triggered
+- [x] No global rule match returns proceedToScoring: true correctly
+- [x] All 7 unit tests written and passing (test/engine/red_flag_evaluator_test.dart)
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
