@@ -53,3 +53,21 @@ class ScoringResult {
 
   final List<ScoredCondition> scoredConditions;
 }
+
+class UrgencyResult {
+  const UrgencyResult({
+    required this.finalUrgency,
+    required this.urgencySource,
+    required this.redFlagTriggered,
+    this.matchedRuleId,
+    this.topCondition,
+    this.urgencyDefaultWas,
+  });
+
+  final String finalUrgency;
+  final String urgencySource;
+  final bool redFlagTriggered;
+  final String? matchedRuleId;
+  final String? topCondition;
+  final String? urgencyDefaultWas;
+}

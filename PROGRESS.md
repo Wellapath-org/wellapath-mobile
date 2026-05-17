@@ -198,3 +198,35 @@
 - [x] No PHI (tokens, scores) logged at any point
 - [x] dart format . returns no changes needed
 - [x] flutter analyze returns zero errors
+
+---
+
+## E3.3 — Urgency Determination Logic
+
+- [x] Add UrgencyResult class to engine_output.dart
+- [x] Create lib/core/engine/urgency_determiner.dart — UrgencyDeterminer class
+- [x] 5-tier priority hierarchy implemented in exact order
+- [x] Priority 1: global red flag → emergency (absolute, cannot be overridden)
+- [x] Priority 2: condition-specific red flag → rule's override_urgency
+- [x] Priority 3: escalate_emergency demographic → emergency
+- [x] Priority 4: escalate_urgent demographic → urgent
+- [x] Priority 5: urgency_default of top-ranked condition
+- [x] urgency_source field correctly set for each path
+- [x] All 4 urgency enum values handled (emergency, urgent, non_urgent, self_care)
+- [x] Write 8 unit tests in test/engine/urgency_determiner_test.dart
+- [x] All 8 tests pass — 22/22 total engine tests ✅
+- [x] flutter analyze returns zero errors
+
+---
+
+## EXIT CRITERIA FOR E3.3 (all must be met before PR)
+
+- [x] urgency_determiner.dart created
+- [x] 5-tier priority hierarchy implemented in exact order
+- [x] Global red flag always produces emergency — cannot be downgraded
+- [x] urgency_source correctly identifies cause for each path
+- [x] All 4 urgency enum values handled and tested
+- [x] All 8 unit tests passing
+- [x] 22/22 total engine tests passing (E3.1 + E3.2 + E3.3)
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
