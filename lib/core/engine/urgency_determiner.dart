@@ -63,6 +63,19 @@ class UrgencyDeterminer {
       );
     }
 
+    // Priority 4b — increase_urgency demographic + seasonal modifier → emergency
+    if (top != null &&
+        top.demographicEffect == 'increase_urgency' &&
+        top.seasonalModifierApplied != null) {
+      return UrgencyResult(
+        finalUrgency: 'emergency',
+        urgencySource: 'demographic_escalation',
+        redFlagTriggered: false,
+        topCondition: top.conditionId,
+        urgencyDefaultWas: top.urgencyDefault,
+      );
+    }
+
     // Priority 5 — urgency_default of top-ranked condition
     final defaultUrgency = top?.urgencyDefault ?? 'non_urgent';
     return UrgencyResult(
