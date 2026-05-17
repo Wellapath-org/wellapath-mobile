@@ -165,3 +165,36 @@
 - [x] All 7 unit tests written and passing (test/engine/red_flag_evaluator_test.dart)
 - [x] dart format . returns no changes needed
 - [x] flutter analyze returns zero errors
+
+---
+
+## E3.2 — Semi-Weighted Scoring Engine
+
+- [x] Add ScoredCondition class to engine_output.dart
+- [x] Add ScoringResult class to engine_output.dart
+- [x] Create lib/core/engine/scoring_engine.dart — ScoringEngine class
+- [x] Guard: StateError thrown if proceedToScoring is false
+- [x] Symptom matching loop — weight accumulation, matched token tracking
+- [x] Demographic modifier loop — 6 effect types applied correctly
+- [x] Seasonal modifier — single match by season, 3 effect types applied
+- [x] Top 3 results sorted by score descending
+- [x] PHI rule: never log symptom tokens or condition scores
+- [x] flutter analyze returns zero errors
+- [x] Write 7 unit tests in test/engine/scoring_engine_test.dart
+- [x] All 7 tests pass — flutter test 7/7 ✅
+- [x] Bug fix: demographic modifier key corrected from 'field' to 'modifier'
+
+---
+
+## EXIT CRITERIA FOR E3.2 (all must be met before PR)
+
+- [x] ScoredCondition and ScoringResult added to engine_output.dart
+- [x] scoring_engine.dart created with correct constructor signature
+- [x] Guard check throws StateError — never silently runs with red flag active
+- [x] Symptom matching accumulates weight correctly
+- [x] Demographic modifier effects mapped exactly to spec (6 effects)
+- [x] Seasonal modifier matches single season entry and applies correctly
+- [x] Output is sorted descending and capped at top 3
+- [x] No PHI (tokens, scores) logged at any point
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
