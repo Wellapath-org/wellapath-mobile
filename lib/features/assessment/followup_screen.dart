@@ -55,8 +55,7 @@ class _FollowupScreenState extends State<FollowupScreen> {
     }
   }
 
-  void _onDurationChanged(String? token) {
-    if (token == null) return;
+  void _onDurationChanged(String token) {
     setState(() => _durationSelection = token);
     widget.assessmentController.setDurationToken(token);
   }
@@ -122,12 +121,22 @@ class _FollowupScreenState extends State<FollowupScreen> {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 12%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: _primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 12%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -161,35 +170,28 @@ class _FollowupScreenState extends State<FollowupScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        Slider(
+        _SegmentedSeveritySlider(
           value: _sliderValue,
           onChanged: _onSliderChanged,
-          activeColor: _primary,
-          inactiveColor: const Color(0xFFE0E0E0),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'Mild',
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-              Text(
-                'Moderate',
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-              Text(
-                'Severe',
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-              Text(
-                'Unbearable',
-                style: TextStyle(fontSize: 13, color: Colors.black54),
-              ),
-            ],
-          ),
+        const SizedBox(height: 8),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Mild', style: TextStyle(fontSize: 12, color: Colors.black54)),
+            Text(
+              'Moderate',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            Text(
+              'Severe',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            Text(
+              'Unbearable',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
         ),
       ],
     );
@@ -208,39 +210,68 @@ class _FollowupScreenState extends State<FollowupScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        RadioGroup<String>(
-          groupValue: _durationSelection,
-          onChanged: _onDurationChanged,
-          child: Column(
-            children: _durationTokens.entries.map((entry) {
-              final isSelected = _durationSelection == entry.value;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: isSelected ? _primary : const Color(0xFFE0E0E0),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
+        ..._durationTokens.entries.map((entry) {
+          final isSelected = _durationSelection == entry.value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isSelected ? _primary : const Color(0xFFE0E0E0),
+                width: isSelected ? 2 : 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: InkWell(
+              onTap: () => _onDurationChanged(entry.value),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
                 ),
-                child: RadioListTile<String>(
-                  value: entry.value,
-                  title: Text(
-                    entry.key,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
+                child: Row(
+                  children: [
+                    _buildRadioCircle(isSelected),
+                    const SizedBox(width: 14),
+                    Text(
+                      entry.key,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
-                  ),
-                  activeColor: _primary,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  ],
                 ),
-              );
-            }).toList(),
-          ),
-        ),
+              ),
+            ),
+          );
+        }),
       ],
+    );
+  }
+
+  Widget _buildRadioCircle(bool isSelected) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? _primary : const Color(0xFFBDBDBD),
+          width: 2,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: isSelected
+          ? Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary,
+              ),
+            )
+          : null,
     );
   }
 
@@ -257,8 +288,8 @@ class _FollowupScreenState extends State<FollowupScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        ..._additionalSymptoms.map((name) {
-          return CheckboxListTile(
+        ..._additionalSymptoms.map(
+          (name) => CheckboxListTile(
             title: Text(name, style: const TextStyle(fontSize: 15)),
             value: _additionalSelected.contains(name),
             onChanged: (v) => _onAdditionalToggled(name, v),
@@ -266,8 +297,8 @@ class _FollowupScreenState extends State<FollowupScreen> {
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: EdgeInsets.zero,
             visualDensity: const VisualDensity(vertical: -2),
-          );
-        }),
+          ),
+        ),
       ],
     );
   }
@@ -314,6 +345,51 @@ class _FollowupScreenState extends State<FollowupScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─── Segmented severity slider ────────────────────────────────────────────────
+
+class _SegmentedSeveritySlider extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _SegmentedSeveritySlider({
+    required this.value,
+    required this.onChanged,
+  });
+
+  static const List<Color> _segmentColors = [
+    Color(0xFF4ADE80),
+    Color(0xFF86EFAC),
+    Color(0xFFFDE68A),
+    Color(0xFFFBBF24),
+    Color(0xFFF97316),
+    Color(0xFFEF4444),
+    Color(0xFFDC2626),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCount = (value * 7).ceil().clamp(0, 7);
+    return Row(
+      children: List.generate(7, (i) {
+        final isActive = i < activeCount;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => onChanged((i + 1) / 7),
+            child: Container(
+              height: 36,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: isActive ? _segmentColors[i] : const Color(0xFFE5E7EB),
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }

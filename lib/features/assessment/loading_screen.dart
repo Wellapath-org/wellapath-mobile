@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../core/engine/engine_controller.dart';
 import '../../core/engine/models/engine_input.dart';
@@ -43,40 +44,72 @@ class _LoadingScreenState extends State<LoadingScreen> {
       final config = StorageService.getLastKnownConfig();
 
       if (config != null) {
-        final rules =
-            (config['rules'] as List?)
-                ?.map((e) => Map<String, dynamic>.from(e as Map))
-                .toList() ??
-            [];
-        final tokenDict = config['token_dictionary'] != null
-            ? Map<String, dynamic>.from(config['token_dictionary'] as Map)
-            : <String, dynamic>{};
-        final kb =
-            (config['knowledge_base'] as List?)
-                ?.map((e) => Map<String, dynamic>.from(e as Map))
-                .toList() ??
-            [];
-        final meta = config['metadata'] != null
-            ? Map<String, dynamic>.from(config['metadata'] as Map)
-            : <String, dynamic>{};
+        final artifacts = config['artifacts'];
+        if (artifacts is Map) {
+          final kbUrl =
+              (artifacts['knowledge_base'] as Map?)?['url'] as String?;
+          final rulesUrl = (artifacts['rules'] as Map?)?['url'] as String?;
+          final tokenDictUrl =
+              (artifacts['token_dictionary'] as Map?)?['url'] as String?;
 
-        final engine = EngineController(
-          rules: rules,
-          tokenDictionary: tokenDict,
-          knowledgeBase: kb,
-          configMetadata: meta,
-        );
-        final engineInput = EngineInput(
-          symptomTokens: assessmentInput.symptomTokens,
-          candidateConditionIds: const [],
-        );
-        final output = engine.run(engineInput);
-        debugPrint('Assessment complete — urgency: ${output.urgency}');
+          if (kbUrl != null && rulesUrl != null && tokenDictUrl != null) {
+            final dio = Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 30),
+                receiveTimeout: const Duration(seconds: 30),
+              ),
+            );
+
+            final responses = await Future.wait([
+              dio.get<dynamic>(kbUrl),
+              dio.get<dynamic>(rulesUrl),
+              dio.get<dynamic>(tokenDictUrl),
+            ]);
+
+            final kbData = Map<String, dynamic>.from(responses[0].data as Map);
+            final rulesData = Map<String, dynamic>.from(
+              responses[1].data as Map,
+            );
+            final tokenDictData = Map<String, dynamic>.from(
+              responses[2].data as Map,
+            );
+
+            final conditions =
+                (kbData['conditions'] as List?)
+                    ?.map((e) => Map<String, dynamic>.from(e as Map))
+                    .toList() ??
+                [];
+            final rules =
+                (rulesData['rules'] as List?)
+                    ?.map((e) => Map<String, dynamic>.from(e as Map))
+                    .toList() ??
+                [];
+
+            final engine = EngineController(
+              rules: rules,
+              tokenDictionary: tokenDictData,
+              knowledgeBase: conditions,
+              configMetadata: Map<String, dynamic>.from(config),
+            );
+
+            final engineInput = EngineInput(
+              symptomTokens: assessmentInput.symptomTokens,
+              candidateConditionIds: const [],
+            );
+
+            final output = engine.run(engineInput);
+            debugPrint('Assessment complete — urgency: ${output.urgency}');
+          } else {
+            debugPrint('Artifact URLs missing — engine skipped');
+          }
+        } else {
+          debugPrint('Artifacts config missing — engine skipped');
+        }
       } else {
         debugPrint('No config cached — engine skipped');
       }
     } catch (_) {
-      // Generic log to avoid leaking PHI from exception messages
+      // Generic log only — never log artifact content or symptom tokens
       debugPrint('Engine run failed — assessment incomplete');
       if (!mounted) return;
       setState(() => _hasError = true);
