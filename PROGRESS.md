@@ -310,3 +310,63 @@
 - [x] 42/42 total engine tests passing (E3.1–E3.5)
 - [x] dart format . returns no changes needed
 - [x] flutter analyze returns zero errors
+
+---
+
+# Phase E4 — Mobile Flow Integration
+
+**Phase:** E4 — Mobile Flow Integration  
+**Task:** E4.1 — User Flow Screens  
+**Branch:** feature/e4-user-flow-screens  
+**Last Updated:** 2026-05-30
+
+---
+
+## CURRENT STATUS: COMPLETE ✅
+
+---
+
+## E4.1 — Foundation Files
+
+- [x] Update PROGRESS.md with E4 section
+- [x] Create lib/features/assessment/ folder with .gitkeep
+- [x] Create lib/features/assessment/models/ folder with .gitkeep
+- [x] Create lib/features/assessment/models/assessment_input.dart — AssessmentInput class
+- [x] Create lib/features/assessment/assessment_controller.dart — AssessmentController class
+- [x] Create lib/core/constants/symptom_display_map.dart — kSymptomDisplayMap const
+- [x] flutter analyze returns zero errors
+
+## E4.1 — Screen Files (Screens 1–5)
+
+- [x] Create lib/features/assessment/intro_screen.dart — IntroScreen (StatelessWidget)
+- [x] Create lib/features/assessment/sex_screen.dart — SexScreen (StatelessWidget + ListenableBuilder)
+- [x] Create lib/features/assessment/age_screen.dart — AgeScreen (StatelessWidget + ListenableBuilder)
+- [x] Create lib/features/assessment/medical_conditions_screen.dart — MedicalConditionsScreen (StatefulWidget)
+- [x] Create lib/features/assessment/pregnancy_screen.dart — PregnancyScreen (StatefulWidget, initState guard)
+- [x] Create lib/features/assessment/body_area_screen.dart — placeholder (compilation dependency)
+- [x] Migrated from deprecated RadioListTile.groupValue/onChanged to RadioGroup<String> (Flutter 3.32+ API)
+- [x] flutter analyze returns zero errors — all 5 screens clean
+
+## E4.1 — Screen Files (Screens 6–9)
+
+- [x] Replace lib/features/assessment/body_area_screen.dart — Search tab + Point-on-body tab (StatelessWidget, private _SearchTab/_BodyDiagramTab)
+- [x] Create lib/features/assessment/symptom_selection_screen.dart — chip display + _SymptomPickerSheet bottom sheet (StatefulWidget)
+- [x] Create lib/features/assessment/followup_screen.dart — severity slider + duration RadioGroup + additional symptom checkboxes (StatefulWidget)
+- [x] Create lib/features/assessment/loading_screen.dart — animated steps + engine call + error/retry (StatefulWidget)
+- [x] Updated kSymptomDisplayMap with 'Feeling sick or queasy' → 'nausea' and 'Muscle pain' → 'body_pain'
+- [x] flutter analyze returns zero errors — all 9 screens clean
+
+---
+
+## EXIT CRITERIA FOR E4.1
+
+- [x] AssessmentInput model created with correct fields
+- [x] AssessmentController created with all required state and methods
+- [x] Age token mapping correct (5 ranges → 5 tokens)
+- [x] Medical condition mapping correct (4 conditions → 4 tokens)
+- [x] shouldShowPregnancyScreen returns true only when sex == female
+- [x] symptom_display_map.dart created with all 17+ mappings (19 total)
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
+- [x] SystemStatusScreen wired with Start Symptom Assessment button
+- [x] onCancel uses popUntil to return cleanly to SystemStatusScreen from any depth
