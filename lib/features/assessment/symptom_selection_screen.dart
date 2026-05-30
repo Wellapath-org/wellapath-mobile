@@ -6,11 +6,13 @@ import 'followup_screen.dart';
 class SymptomSelectionScreen extends StatefulWidget {
   final AssessmentController assessmentController;
   final VoidCallback onCancel;
+  final String? selectedBodyArea;
 
   const SymptomSelectionScreen({
     super.key,
     required this.assessmentController,
     required this.onCancel,
+    this.selectedBodyArea,
   });
 
   @override
@@ -43,6 +45,7 @@ class _SymptomSelectionScreenState extends State<SymptomSelectionScreen> {
         height: MediaQuery.of(sheetContext).size.height * 0.72,
         child: _SymptomPickerSheet(
           assessmentController: widget.assessmentController,
+          selectedBodyArea: widget.selectedBodyArea,
         ),
       ),
     );
@@ -88,6 +91,17 @@ class _SymptomSelectionScreenState extends State<SymptomSelectionScreen> {
                             color: Colors.black87,
                           ),
                         ),
+                        if (widget.selectedBodyArea != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Showing symptoms for: ${widget.selectedBodyArea}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B4EFF),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         if (tokens.isNotEmpty) ...[
                           Wrap(
@@ -116,9 +130,9 @@ class _SymptomSelectionScreenState extends State<SymptomSelectionScreen> {
                                 ),
                                 onDeleted: () => widget.assessmentController
                                     .removeSymptomToken(token),
+                                side: BorderSide.none,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
-                                  side: BorderSide.none,
                                 ),
                               );
                             }).toList(),
@@ -161,12 +175,22 @@ class _SymptomSelectionScreenState extends State<SymptomSelectionScreen> {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 15%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B4EFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 15%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -238,8 +262,12 @@ class _SymptomSelectionScreenState extends State<SymptomSelectionScreen> {
 
 class _SymptomPickerSheet extends StatefulWidget {
   final AssessmentController assessmentController;
+  final String? selectedBodyArea;
 
-  const _SymptomPickerSheet({required this.assessmentController});
+  const _SymptomPickerSheet({
+    required this.assessmentController,
+    this.selectedBodyArea,
+  });
 
   @override
   State<_SymptomPickerSheet> createState() => _SymptomPickerSheetState();
@@ -249,6 +277,7 @@ class _SymptomPickerSheetState extends State<_SymptomPickerSheet> {
   static const Color _primary = Color(0xFF6B4EFF);
   final TextEditingController _queryController = TextEditingController();
   String _query = '';
+  bool _showAll = false;
 
   @override
   void dispose() {
@@ -256,12 +285,26 @@ class _SymptomPickerSheetState extends State<_SymptomPickerSheet> {
     super.dispose();
   }
 
+  bool get _hasAreaFilter =>
+      !_showAll &&
+      widget.selectedBodyArea != null &&
+      kBodyAreaSymptoms.containsKey(widget.selectedBodyArea);
+
+  List<MapEntry<String, String>> get _baseEntries {
+    if (_hasAreaFilter) {
+      final names = kBodyAreaSymptoms[widget.selectedBodyArea]!;
+      return names
+          .where((n) => kSymptomDisplayMap.containsKey(n))
+          .map((n) => MapEntry(n, kSymptomDisplayMap[n]!))
+          .toList();
+    }
+    return kSymptomDisplayMap.entries.toList();
+  }
+
   List<MapEntry<String, String>> get _filtered {
-    if (_query.isEmpty) return kSymptomDisplayMap.entries.toList();
+    if (_query.isEmpty) return _baseEntries;
     final q = _query.toLowerCase();
-    return kSymptomDisplayMap.entries
-        .where((e) => e.key.toLowerCase().contains(q))
-        .toList();
+    return _baseEntries.where((e) => e.key.toLowerCase().contains(q)).toList();
   }
 
   @override
@@ -283,12 +326,14 @@ class _SymptomPickerSheetState extends State<_SymptomPickerSheet> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Select symptoms',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            Text(
+              _hasAreaFilter
+                  ? '${widget.selectedBodyArea} symptoms'
+                  : 'Select symptoms',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: TextField(
                 controller: _queryController,
                 onChanged: (v) => setState(() => _query = v),
@@ -309,12 +354,19 @@ class _SymptomPickerSheetState extends State<_SymptomPickerSheet> {
                 ),
               ),
             ),
+            if (_hasAreaFilter)
+              TextButton(
+                onPressed: () => setState(() => _showAll = true),
+                child: const Text(
+                  'Show all symptoms',
+                  style: TextStyle(color: Color(0xFF6B4EFF), fontSize: 13),
+                ),
+              ),
             Expanded(
               child: ListView.separated(
                 itemCount: entries.length,
                 separatorBuilder: (_, _) =>
                     const Divider(height: 1, indent: 16),
-
                 itemBuilder: (context, index) {
                   final entry = entries[index];
                   final isSelected = selected.contains(entry.value);

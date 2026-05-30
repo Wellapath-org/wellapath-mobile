@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'assessment_controller.dart';
 import 'symptom_selection_screen.dart';
 
@@ -34,6 +35,7 @@ class BodyAreaScreen extends StatelessWidget {
         builder: (_) => SymptomSelectionScreen(
           assessmentController: assessmentController,
           onCancel: onCancel,
+          selectedBodyArea: area,
         ),
       ),
     );
@@ -97,12 +99,22 @@ class BodyAreaScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 15%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: _primary,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 15%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -263,26 +275,161 @@ class _BodyDiagramTabState extends State<_BodyDiagramTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildToggleButton('Front', _showFront, () {
+            _buildToggle('Front', _showFront, () {
               setState(() => _showFront = true);
             }),
             const SizedBox(width: 12),
-            _buildToggleButton('Back', !_showFront, () {
+            _buildToggle('Back', !_showFront, () {
               setState(() => _showFront = false);
             }),
           ],
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 16),
         Expanded(
-          child: Center(
-            child: Icon(Icons.person, size: 220, color: Colors.grey[300]),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 60),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // SVG viewBox is 200×500 — aspect ratio 2:5
+                const svgAspect = 200.0 / 500.0;
+                final availW = constraints.maxWidth;
+                final availH = constraints.maxHeight;
+                final double w;
+                final double h;
+                if (availW / availH > svgAspect) {
+                  h = availH;
+                  w = h * svgAspect;
+                } else {
+                  w = availW;
+                  h = w / svgAspect;
+                }
+                return Center(
+                  child: SizedBox(
+                    width: w,
+                    height: h,
+                    child: Stack(
+                      children: [
+                        SvgPicture.asset(
+                          _showFront
+                              ? 'assets/svg/body_front.svg'
+                              : 'assets/svg/body_back.svg',
+                          width: w,
+                          height: h,
+                          fit: BoxFit.fill,
+                        ),
+                        _tapRegion(
+                          w * 0.37,
+                          h * 0.02,
+                          w * 0.26,
+                          h * 0.14,
+                          'Head',
+                        ),
+                        _tapRegion(
+                          w * 0.40,
+                          h * 0.14,
+                          w * 0.20,
+                          h * 0.06,
+                          'Neck',
+                        ),
+                        _tapRegion(
+                          w * 0.00,
+                          h * 0.20,
+                          w * 0.20,
+                          h * 0.38,
+                          'Arms',
+                        ),
+                        _tapRegion(
+                          w * 0.80,
+                          h * 0.20,
+                          w * 0.20,
+                          h * 0.38,
+                          'Arms',
+                        ),
+                        if (_showFront) ...[
+                          _tapRegion(
+                            w * 0.22,
+                            h * 0.18,
+                            w * 0.56,
+                            h * 0.16,
+                            'Chest',
+                          ),
+                          _tapRegion(
+                            w * 0.22,
+                            h * 0.34,
+                            w * 0.56,
+                            h * 0.16,
+                            'Abdomen',
+                          ),
+                          _tapRegion(
+                            w * 0.22,
+                            h * 0.50,
+                            w * 0.56,
+                            h * 0.12,
+                            'Pelvis',
+                          ),
+                        ] else ...[
+                          _tapRegion(
+                            w * 0.22,
+                            h * 0.18,
+                            w * 0.56,
+                            h * 0.32,
+                            'Back',
+                          ),
+                          _tapRegion(
+                            w * 0.22,
+                            h * 0.50,
+                            w * 0.56,
+                            h * 0.12,
+                            'Buttocks',
+                          ),
+                        ],
+                        _tapRegion(
+                          w * 0.22,
+                          h * 0.64,
+                          w * 0.25,
+                          h * 0.36,
+                          'Legs',
+                        ),
+                        _tapRegion(
+                          w * 0.53,
+                          h * 0.64,
+                          w * 0.25,
+                          h * 0.36,
+                          'Legs',
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
+        const SizedBox(height: 8),
       ],
     );
   }
 
-  Widget _buildToggleButton(String label, bool isActive, VoidCallback onTap) {
+  Positioned _tapRegion(
+    double left,
+    double top,
+    double width,
+    double height,
+    String area,
+  ) {
+    return Positioned(
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onAreaSelected(area),
+      ),
+    );
+  }
+
+  Widget _buildToggle(String label, bool isActive, VoidCallback onTap) {
     const primary = Color(0xFF6B4EFF);
     return GestureDetector(
       onTap: onTap,
