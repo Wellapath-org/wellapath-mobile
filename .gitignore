@@ -1,11 +1,4 @@
-# Misc
-
-# Environment
-.env
-.env.local
-
-# Stray env fragment (no secrets — documentation snippet)
-.github/.envellaneous
+# Miscellaneous
 *.class
 *.log
 *.pyc
@@ -50,5 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment
+.env
 .env.local
+
+# Stray env fragment (no secrets — documentation snippet)
+.github/.env
+
 .claude/
