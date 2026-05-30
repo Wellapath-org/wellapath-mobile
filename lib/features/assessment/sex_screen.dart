@@ -50,18 +50,8 @@ class SexScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      RadioGroup<String>(
-                        groupValue: assessmentController.sex,
-                        onChanged: (v) {
-                          if (v != null) assessmentController.setSex(v);
-                        },
-                        child: Column(
-                          children: [
-                            _buildRadioOption('Male', 'male'),
-                            _buildRadioOption('Female', 'female'),
-                          ],
-                        ),
-                      ),
+                      _buildOption('Male', 'male'),
+                      _buildOption('Female', 'female'),
                     ],
                   ),
                 ),
@@ -81,12 +71,22 @@ class SexScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 5%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B4EFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 5%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -107,7 +107,7 @@ class SexScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRadioOption(String label, String value) {
+  Widget _buildOption(String label, String value) {
     final isSelected = assessmentController.sex == value;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -119,15 +119,50 @@ class SexScreen extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: RadioListTile<String>(
-        value: value,
-        title: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+      child: InkWell(
+        onTap: () => assessmentController.setSex(value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              _buildRadioCircle(isSelected),
+              const SizedBox(width: 14),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
         ),
-        activeColor: _primary,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       ),
+    );
+  }
+
+  Widget _buildRadioCircle(bool isSelected) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? _primary : const Color(0xFFBDBDBD),
+          width: 2,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: isSelected
+          ? Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary,
+              ),
+            )
+          : null,
     );
   }
 

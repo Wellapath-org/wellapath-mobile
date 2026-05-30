@@ -50,19 +50,11 @@ class AgeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 32),
                       // labels must exactly match AssessmentController._ageTokenMap keys
-                      RadioGroup<String>(
-                        groupValue: assessmentController.ageToken,
-                        onChanged: (_) {},
-                        child: Column(
-                          children: [
-                            _buildAgeOption('0–12', 'children_under_5'),
-                            _buildAgeOption('13–17', 'children_school_age'),
-                            _buildAgeOption('18–40', 'adults'),
-                            _buildAgeOption('41–60', 'over_40'),
-                            _buildAgeOption('60+', 'elderly'),
-                          ],
-                        ),
-                      ),
+                      _buildOption('0–12', 'children_under_5'),
+                      _buildOption('13–17', 'children_school_age'),
+                      _buildOption('18–40', 'adults'),
+                      _buildOption('41–60', 'over_40'),
+                      _buildOption('60+', 'elderly'),
                     ],
                   ),
                 ),
@@ -82,12 +74,22 @@ class AgeScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 10%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B4EFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 10%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -108,32 +110,63 @@ class AgeScreen extends StatelessWidget {
     );
   }
 
-  // token is RadioListTile value; label is passed to setAgeRange so it must
-  // match the key in AssessmentController._ageTokenMap exactly.
-  Widget _buildAgeOption(String label, String token) {
+  // label must exactly match the key in AssessmentController._ageTokenMap
+  Widget _buildOption(String label, String token) {
     final isSelected = assessmentController.ageToken == token;
-    return GestureDetector(
-      onTap: () => assessmentController.setAgeRange(label),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? _primary : const Color(0xFFE0E0E0),
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: isSelected ? _primary : const Color(0xFFE0E0E0),
+          width: isSelected ? 2 : 1,
         ),
-        child: RadioListTile<String>(
-          value: token,
-          title: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: () => assessmentController.setAgeRange(label),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              _buildRadioCircle(isSelected),
+              const SizedBox(width: 14),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+            ],
           ),
-          activeColor: _primary,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         ),
       ),
+    );
+  }
+
+  Widget _buildRadioCircle(bool isSelected) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? _primary : const Color(0xFFBDBDBD),
+          width: 2,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: isSelected
+          ? Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary,
+              ),
+            )
+          : null,
     );
   }
 

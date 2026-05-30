@@ -127,12 +127,22 @@ class _MedicalConditionsScreenState extends State<MedicalConditionsScreen> {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 15%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B4EFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 15%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -167,54 +177,59 @@ class _MedicalConditionsScreenState extends State<MedicalConditionsScreen> {
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildSmallRadio('Yes', 'yes', conditionKey),
-              const SizedBox(width: 20),
-              _buildSmallRadio('No', 'no', conditionKey),
-              const SizedBox(width: 20),
-              _buildSmallRadio("Don't know", 'dont_know', conditionKey),
-            ],
-          ),
+          const SizedBox(height: 8),
+          _buildOptionRow('Yes', 'yes', conditionKey),
+          const Divider(height: 1, color: Color(0xFFEEEEEE)),
+          _buildOptionRow('No', 'no', conditionKey),
+          const Divider(height: 1, color: Color(0xFFEEEEEE)),
+          _buildOptionRow("Don't Know", 'dont_know', conditionKey),
         ],
       ),
     );
   }
 
-  Widget _buildSmallRadio(String label, String value, String conditionKey) {
+  Widget _buildOptionRow(String label, String value, String conditionKey) {
     final isSelected = _selections[conditionKey] == value;
-    return GestureDetector(
+    return InkWell(
       onTap: () => _onOptionChanged(conditionKey, value),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? _primary : const Color(0xFFBDBDBD),
-                width: 2,
-              ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          children: [
+            _buildRadioCircle(isSelected),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 15, color: Colors.black87),
             ),
-            alignment: Alignment.center,
-            child: isSelected
-                ? Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _primary,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 14)),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildRadioCircle(bool isSelected) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? _primary : const Color(0xFFBDBDBD),
+          width: 2,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: isSelected
+          ? Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary,
+              ),
+            )
+          : null,
     );
   }
 

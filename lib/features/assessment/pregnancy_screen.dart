@@ -80,19 +80,9 @@ class _PregnancyScreenState extends State<PregnancyScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    RadioGroup<String>(
-                      groupValue: _selection,
-                      onChanged: (v) {
-                        if (v != null) _onSelectionChanged(v);
-                      },
-                      child: Column(
-                        children: [
-                          _buildRadioOption('Yes', 'yes'),
-                          _buildRadioOption('No', 'no'),
-                          _buildRadioOption("Don't Know", 'dont_know'),
-                        ],
-                      ),
-                    ),
+                    _buildOption('Yes', 'yes'),
+                    _buildOption('No', 'no'),
+                    _buildOption("Don't Know", 'dont_know'),
                   ],
                 ),
               ),
@@ -111,12 +101,22 @@ class _PregnancyScreenState extends State<PregnancyScreen> {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 15%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B4EFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 15%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -137,7 +137,7 @@ class _PregnancyScreenState extends State<PregnancyScreen> {
     );
   }
 
-  Widget _buildRadioOption(String label, String value) {
+  Widget _buildOption(String label, String value) {
     final isSelected = _selection == value;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -149,15 +149,50 @@ class _PregnancyScreenState extends State<PregnancyScreen> {
         ),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: RadioListTile<String>(
-        value: value,
-        title: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+      child: InkWell(
+        onTap: () => _onSelectionChanged(value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              _buildRadioCircle(isSelected),
+              const SizedBox(width: 14),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
         ),
-        activeColor: _primary,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       ),
+    );
+  }
+
+  Widget _buildRadioCircle(bool isSelected) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? _primary : const Color(0xFFBDBDBD),
+          width: 2,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: isSelected
+          ? Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: _primary,
+              ),
+            )
+          : null,
     );
   }
 

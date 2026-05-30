@@ -58,12 +58,22 @@ class IntroScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
           child: Row(
             children: [
-              const Text(
-                'Symptom assessment 1%',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6B4EFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Symptom assessment 1%',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Spacer(),
