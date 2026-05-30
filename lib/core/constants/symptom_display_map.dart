@@ -19,3 +19,19 @@ const Map<String, String> kSymptomDisplayMap = {
   'Feeling sick or queasy': 'nausea',
   'Muscle pain': 'body_pain',
 };
+
+/// Maps each selectable body area to the display names of relevant symptoms.
+/// Keys must match the area strings used in body_area_screen.dart and
+/// AssessmentController.setBodyArea(). A null or absent key shows all symptoms.
+const Map<String, List<String>> kBodyAreaSymptoms = {
+  'Head': ['Headache', 'Dizziness', 'Fever'],
+  'Neck': ['Headache', 'Fever', 'Weakness'],
+  'Chest': ['Cough', 'Fast breathing', 'Fever', 'Weakness'],
+  'Abdomen': ['Nausea', 'Vomiting', 'Abdominal cramps', 'Watery stool'],
+  'Arms': ['Swollen hands', 'Wrist pain', 'Weakness'],
+  'Legs': ['Weakness', 'Fatigue'],
+  'Back': ['Weakness', 'Fatigue', 'Body pain'],
+  'Pelvis': ['Abdominal cramps', 'Weakness'],
+  'Buttocks': ['Weakness', 'Fatigue'],
+  'Skin symptoms': ['Sweating', 'Fever', 'Chills'],
+};
