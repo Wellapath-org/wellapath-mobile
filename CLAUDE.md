@@ -138,12 +138,19 @@ Already in pubspec.yaml (do not change):
 ## ENVIRONMENT VARIABLES (.env)
 
 ```
-API_BASE_URL=https://api-staging.wellapath.org
-ARTIFACT_BASE_URL=https://d179u2ex0g66o3.cloudfront.net
+API_BASE_URL=https://wellapath-backend-staging.onrender.com
+ARTIFACT_BASE_URL=https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev
 APP_ENV=staging
 ENABLE_OFFLINE_MODE=true
 API_TIMEOUT_MS=10000
 ```
+
+> **NOTE — .env is committed with PLACEHOLDER values only.**
+> `flutter_dotenv` loads `.env` through the Flutter asset bundle (declared in
+> `pubspec.yaml`), so the file must exist in the repo for CI builds to pass.
+> The committed `.env` contains only non-secret staging config (public URLs and
+> flags) — never real secrets or credentials. Developers override values locally
+> in `.env.local` (gitignored). This is the documented exception to principle #10.
 
 ---
 

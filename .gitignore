@@ -43,5 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment
+# .env holds placeholder values committed for CI asset bundling (see CLAUDE.md).
+# Real/local overrides go in .env.local, which stays ignored.
 .env.local
+
+# Stray env fragment (no secrets — documentation snippet)
+.github/.env
+
 .claude/
