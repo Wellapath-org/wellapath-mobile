@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
+import '../assessment/assessment_controller.dart';
+import '../assessment/intro_screen.dart';
 import '../boot/boot_controller.dart';
 
 class SystemStatusScreen extends StatelessWidget {
   final BootResult result;
 
   const SystemStatusScreen({super.key, required this.result});
+
+  static const Color _primary = Color(0xFF6B4EFF);
+
+  void _startAssessment(BuildContext context) {
+    final controller = AssessmentController();
+    final myRoute = ModalRoute.of(context);
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => IntroScreen(
+          assessmentController: controller,
+          onCancel: () =>
+              Navigator.of(context).popUntil((r) => r == myRoute || r.isFirst),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +45,25 @@ class SystemStatusScreen extends StatelessWidget {
                 style: const TextStyle(color: Colors.red),
               ),
             ],
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _startAssessment(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Start Symptom Assessment',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
           ],
         ),
       ),
