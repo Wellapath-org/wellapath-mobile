@@ -2,7 +2,10 @@
 
 # Environment
 .env
-.env.localellaneous
+.env.local
+
+# Stray env fragment (no secrets — documentation snippet)
+.github/.envellaneous
 *.class
 *.log
 *.pyc
