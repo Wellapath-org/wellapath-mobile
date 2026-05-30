@@ -1,4 +1,8 @@
-# Miscellaneous
+# Misc
+
+# Environment
+.env
+.env.localellaneous
 *.class
 *.log
 *.pyc
