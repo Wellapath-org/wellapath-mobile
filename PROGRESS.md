@@ -356,6 +356,24 @@
 - [x] Updated kSymptomDisplayMap with 'Feeling sick or queasy' → 'nausea' and 'Muscle pain' → 'body_pain'
 - [x] flutter analyze returns zero errors — all 9 screens clean
 
+## E4.1 — Post-build fixes & polish (emulator-verified)
+
+- [x] Wire SystemStatusScreen "Start Symptom Assessment" button → IntroScreen with onCancel popUntil
+- [x] Bug fix: radio taps not registering — replaced RadioGroup/RadioListTile with
+      InkWell + custom radio circle on sex, age, pregnancy and medical conditions screens
+- [x] Bug fix: .env API_BASE_URL pointed at localhost:3000 (unreachable from emulator) —
+      switched to Render staging URL (.env is gitignored, not committed)
+- [x] Add flutter_svg ^2.0.10 dependency
+- [x] Add assets/svg/body_front.svg and assets/svg/body_back.svg anatomical silhouettes
+- [x] Body diagram tab renders SVG with tappable Positioned regions → setBodyArea + navigate
+- [x] Add kBodyAreaSymptoms map — symptom picker filters by selected body area with "Show all" fallback
+- [x] Loading screen downloads kb/rules/token_dictionary artifacts from R2 CDN URLs in
+      config['artifacts'] via Dio, parses JSON, runs EngineController (PHI-safe logging only)
+- [x] UI polish: purple progress pill, segmented severity slider, full-width duration cards,
+      vertical stacked medical-condition options
+- [x] Manual testing complete — all screens verified on Android emulator
+- [x] flutter analyze zero errors, dart format clean
+
 ---
 
 ## EXIT CRITERIA FOR E4.1
