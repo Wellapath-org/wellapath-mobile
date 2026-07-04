@@ -529,7 +529,7 @@ the app root, with no further code change needed here.
 
 ---
 
-## CURRENT STATUS: Foundation files created — analyze/format clean, pending manual verification and commit
+## CURRENT STATUS: Manual verification complete — committed, pending PR
 
 ---
 
@@ -565,9 +565,40 @@ the app root, with no further code change needed here.
 - [x] flutter analyze returns zero errors
 - [x] test/results/red_flag_interrupt_test.dart — 5 widget tests written,
       all passing (mockRedFlagOutput / mockNormalOutput fixtures)
-- [ ] Manual verification on simulator
-- [ ] Work committed and pushed
+- [x] Manual verification on simulator (iPhone 17 Pro) — see below
+- [x] Work committed and pushed
 - [ ] PR opened against `develop`
+
+## E4.3 — Manual Verification (iOS Simulator, iPhone 17 Pro)
+
+- [x] TEST 1 — Seizures → interrupt screen: full assessment flow with
+      'Seizures' as the only symptom correctly reached RedFlagInterruptScreen.
+      EMERGENCY banner + 'Seek medical care immediately' shown; explanation
+      card read exactly 'Active Seizures — this is a universal danger sign' —
+      confirms 'seizures' is a real global red-flag token (matchedRuleName
+      'Active Seizures') in the live staging rules data, not just the unit
+      test mock. Both CTAs visible above the fold; disclaimer visible;
+      Possible Conditions section correctly showed nothing (topCauses empty
+      on the red-flag path)
+- [x] TEST 2 — Fever + Headache → results screen: full assessment flow
+      correctly routed to ResultsScreen ('Results Screen — Coming in E4.4'),
+      confirming non-red-flag cases skip the interrupt screen entirely
+- [ ] TEST 3 — Back button / PopScope confirmation dialog: **could not be
+      live-verified**. This Mac has no Android device/emulator, and iOS has
+      no hardware back button; MaterialPageRoute has no default iOS
+      edge-swipe-back gesture either (confirmed via a simulated edge-swipe
+      drag, which had no effect), and RedFlagInterruptScreen has no back/X
+      button by design. Code-level review confirms
+      `PopScope(canPop: false, onPopInvokedWithResult: _onPopInvoked)`
+      unconditionally shows the leave-confirmation dialog on any pop
+      attempt — sound on review, but recommend validating live on Android
+      hardware/emulator before final sign-off if full assurance is needed
+- [x] 'Seizures' → 'seizures' added to kSymptomDisplayMap during TEST 1 setup
+      (it wasn't selectable in the picker before, which blocked the test).
+      **User decision: keep this permanently, not just as a test artifact** —
+      global red-flag-only symptom tokens must be selectable somewhere in
+      the app, otherwise the red flag interrupt screen could never trigger
+      from real user input in production. Committed as a real fix.
 
 ## E4.3 — Unit Tests
 
