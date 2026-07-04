@@ -37,6 +37,17 @@ void main() {
     expect(durationCount, 1);
   });
 
+  test('unmapped symptom token returns the default duration question', () {
+    final questions = QuestionEngine.generateQuestions(['unmapped_symptom']);
+
+    expect(questions.length, 1);
+    expect(questions.single.type, QuestionType.duration);
+    expect(
+      questions.single.questionText,
+      'How long have you had this symptom?',
+    );
+  });
+
   test('result is capped at 5 questions even for many symptom tokens', () {
     final questions = QuestionEngine.generateQuestions([
       'headache',
