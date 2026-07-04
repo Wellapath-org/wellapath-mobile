@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 200 480" xmlns="http://www.w3.org/2000/svg">
+  <!-- Head: proper oval -->
+  <ellipse cx="100" cy="45" rx="28" ry="35"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Ears -->
+  <ellipse cx="72" cy="48" rx="5" ry="8"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.2"/>
+  <ellipse cx="128" cy="48" rx="5" ry="8"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.2"/>
+  <!-- Neck -->
+  <path d="M90,78 Q90,88 88,92 L112,92 Q110,88 110,78 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Torso: shoulders, chest, waist, hips -->
+  <path d="M88,92
+    Q60,95 52,108 L48,160
+    Q46,185 50,195
+    Q52,210 58,218
+    Q70,225 88,226
+    L88,228 Q100,232 112,228
+    L112,226 Q130,225 142,218
+    Q148,210 150,195
+    Q154,185 152,160
+    L148,108 Q140,95 112,92 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Left arm -->
+  <path d="M52,108
+    Q40,112 34,125
+    Q28,145 30,165
+    Q31,178 36,188
+    Q38,196 42,200
+    L44,212 Q46,218 44,224
+    L40,230 Q38,234 42,236
+    L52,236 Q56,234 54,228
+    L52,218 Q56,210 58,200
+    Q62,188 60,170
+    Q62,150 66,135
+    Q70,118 72,108 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Left hand -->
+  <path d="M40,230 Q36,238 38,244 Q40,250 44,252
+    L44,258 Q44,262 46,262 Q48,262 48,258 L48,252
+    Q50,256 50,262 Q50,266 52,266 Q54,266 54,262 L54,252
+    Q56,256 56,262 Q56,265 58,265 Q60,265 60,262 L60,252
+    Q62,255 62,260 Q62,263 64,263 Q66,263 66,260
+    L64,244 Q62,238 58,234 L52,234 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.2"/>
+  <!-- Right arm (mirror) -->
+  <path d="M148,108
+    Q160,112 166,125
+    Q172,145 170,165
+    Q169,178 164,188
+    Q162,196 158,200
+    L156,212 Q154,218 156,224
+    L160,230 Q162,234 158,236
+    L148,236 Q144,234 146,228
+    L148,218 Q144,210 142,200
+    Q138,188 140,170
+    Q138,150 134,135
+    Q130,118 128,108 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Right hand -->
+  <path d="M160,230 Q164,238 162,244 Q160,250 156,252
+    L156,258 Q156,262 154,262 Q152,262 152,258 L152,252
+    Q150,256 150,262 Q150,266 148,266 Q146,266 146,262 L146,252
+    Q144,256 144,262 Q144,265 142,265 Q140,265 140,262 L140,252
+    Q138,255 138,260 Q138,263 136,263 Q134,263 134,260
+    L136,244 Q138,238 142,234 L148,234 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.2"/>
+  <!-- Pelvis/hips -->
+  <path d="M72,226 Q70,235 68,250 L132,250 Q130,235 128,226 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Left leg -->
+  <path d="M68,250 Q62,260 60,280 Q58,310 60,340
+    Q60,365 62,385 Q63,400 65,415
+    L63,450 Q62,458 66,460 L80,460 Q84,458 83,450
+    L80,415 Q82,400 84,385 Q88,360 88,340
+    Q90,310 88,280 Q88,260 88,250 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Left foot -->
+  <path d="M63,455 Q58,462 56,468 Q55,474 60,476
+    L82,476 Q86,474 84,468 L83,455 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.2"/>
+  <!-- Right leg -->
+  <path d="M132,250 Q138,260 140,280 Q142,310 140,340
+    Q140,365 138,385 Q137,400 135,415
+    L137,450 Q138,458 134,460 L120,460 Q116,458 117,450
+    L120,415 Q118,400 116,385 Q112,360 112,340
+    Q110,310 112,280 Q112,260 112,250 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <!-- Right foot -->
+  <path d="M137,455 Q142,462 144,468 Q145,474 140,476
+    L118,476 Q114,474 116,468 L117,455 Z"
+    fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.2"/>
+  <!-- Chest line -->
+  <line x1="100" y1="105" x2="100" y2="195"
+    stroke="#93C5FD" stroke-width="0.8" stroke-dasharray="3,3"/>
+  <!-- Waist line -->
+  <line x1="62" y1="195" x2="138" y2="195"
+    stroke="#93C5FD" stroke-width="0.8" stroke-dasharray="3,3"/>
+</svg>
