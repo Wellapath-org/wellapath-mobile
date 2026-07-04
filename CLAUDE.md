@@ -3,7 +3,10 @@
 ## WHO YOU ARE
 You are a Senior Mobile Engineer working on the WellaPath Flutter mobile app.
 WellaPath is a Clinical Decision Support System (CDSS) — NOT a diagnosis engine.
-You are currently executing task E1.6 Mobile Foundation under Phase E1.
+
+**Current task:** E4.2 — Splash, Onboarding & Home screens (real Figma assets).
+**Completed:** E1.6 (Mobile Foundation), E3.1–E3.5 (CDSS Engine Core),
+E4.1 (User Flow Screens — 9-screen assessment flow). See PROGRESS.md for detail.
 
 ---
 
@@ -11,7 +14,7 @@ You are currently executing task E1.6 Mobile Foundation under Phase E1.
 
 **Stack:** Flutter 3.41.5 (Dart 3.11.3) + Fastify backend + PostgreSQL + AWS  
 **Repo:** wellapath-mobile  
-**Current branch:** feature/e1-mobile-foundation  
+**Current branch:** feature/e4-user-flow-screens  
 **Base branch:** develop  
 **Environment:** Staging  
 **OS:** Windows 11 — always use Git Bash for git commands, never PowerShell  
@@ -80,9 +83,16 @@ lib/
     network/
     storage/
     constants/
+    engine/            # E3 — CDSS engine (red flag, scoring, urgency, formatter, controller)
+      models/
   features/
-    boot/
-    status/
+    boot/              # E1.6 — boot sequence (now run inside splash; BootScreen orphaned)
+    status/            # E1.6 — system status screen (no longer in main flow)
+    splash/            # E4.2 — splash screen (app entry point)
+    onboarding/        # E4.2 — 4-page onboarding (PageView)
+    home/              # E4.2 — home screen
+    assessment/        # E4.1 — 9-screen symptom assessment flow
+      models/
   shared/
     widgets/
     models/
@@ -105,6 +115,42 @@ flutter_dotenv: ^5.1.0
 Already in pubspec.yaml (do not change):
 - `flutter_lints: ^6.0.0` (dev dependency)
 - `cupertino_icons: ^1.0.8`
+
+Added in later phases:
+- `flutter_svg: ^2.0.10` (E4.1 — body diagram; body_area_screen now uses PNGs, so
+  this is currently unused in source but kept in pubspec)
+- `shared_preferences: ^2.3.0` (E4.2 — persists the `onboarding_seen` flag)
+
+---
+
+## ASSETS
+
+Declared in `pubspec.yaml` under `flutter > assets`:
+```yaml
+assets:
+  - .env
+  - assets/svg/
+  - assets/images/
+```
+
+**`assets/images/` — Figma exports (E4.2).** Filenames were normalised to safe,
+space-free snake_case so they bundle cleanly on all platforms:
+
+| File | Used by |
+|------|---------|
+| brand_logo.png | splash (white wordmark on purple) |
+| logo_icon.png | home (purple WellaPath mark) |
+| icon_search.png | home (magnifier illustration) |
+| onboarding_welcome.png | onboarding page 1 (woman with phone) |
+| onboarding_check.png | onboarding page 2 (clipboard + magnifier) |
+| onboarding_understand.png | onboarding page 3 (lightbulb + laptop) |
+| onboarding_choose.png | onboarding page 4 (rocket + heartbeat) |
+| body_front_real.png | body_area_screen front view |
+| body_back_real.png | body_area_screen back view |
+| illustration_misc.png | unused (spare body silhouette) |
+| screenshot_ref.png | unused (Figma reference screenshot) |
+
+`assets/svg/body_front.svg` / `body_back.svg` are now superseded by the PNGs above.
 
 ---
 
