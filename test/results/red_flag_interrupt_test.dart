@@ -89,10 +89,15 @@ void main() {
 
   testWidgets('ResultsScreen renders with non-red-flag output', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: ResultsScreen(engineOutput: mockNormalOutput)),
+      MaterialApp(
+        home: ResultsScreen(
+          engineOutput: mockNormalOutput,
+          assessmentController: AssessmentController(),
+        ),
+      ),
     );
 
-    expect(find.textContaining('Results Screen'), findsOneWidget);
+    expect(find.text('URGENT'), findsOneWidget);
   });
 
   testWidgets(

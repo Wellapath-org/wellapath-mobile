@@ -149,7 +149,10 @@ class _LoadingScreenState extends State<LoadingScreen> {
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => ResultsScreen(engineOutput: resolvedOutput),
+          builder: (_) => ResultsScreen(
+            engineOutput: resolvedOutput,
+            assessmentController: widget.assessmentController,
+          ),
         ),
       );
     }
