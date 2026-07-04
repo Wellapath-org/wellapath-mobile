@@ -517,3 +517,106 @@ the app root, with no further code change needed here.
   other branch's real E4.2 once both merge into `develop`.
 - See "Deviation from the literal spec" note above re: HomeScreen vs.
   widget.onCancel for the cancel-confirmation navigation target.
+
+---
+
+# Phase E4 — Mobile Flow Integration (cont.)
+
+**Phase:** E4 — Mobile Flow Integration  
+**Task:** E4.3 — Red Flag Interrupt Screen  
+**Branch:** feature/e4-red-flag-interrupt  
+**Last Updated:** 2026-07-04
+
+---
+
+## CURRENT STATUS: Foundation files created — analyze/format clean, pending manual verification and commit
+
+---
+
+## E4.3 — Foundation & Dependencies
+
+- [x] Add `url_launcher: ^6.3.0` to pubspec.yaml, run `flutter pub get`
+- [x] Create lib/features/results/red_flag_interrupt_screen.dart —
+      RedFlagInterruptScreen StatefulWidget
+- [x] Create lib/features/results/results_screen.dart — ResultsScreen stub
+      (placeholder, real implementation in E4.4)
+- [x] Update lib/features/assessment/loading_screen.dart — route to
+      RedFlagInterruptScreen or ResultsScreen based on
+      output.redFlagTriggered
+- [x] flutter analyze returns zero errors
+
+---
+
+## EXIT CRITERIA FOR E4.3 (all must be met before PR)
+
+- [x] RedFlagInterruptScreen: PopScope intercepts back button with
+      confirmation dialog ("Stay" primary / "Leave" outlined)
+- [x] Red urgency banner, red flag explanation card (matchedRuleName,
+      never hardcoded, with null fallback text), Call Emergency CTA
+      (tel:112 via url_launcher), Find Nearby Care CTA (bottom sheet),
+      scrollable Possible Conditions section, always-visible disclaimer
+- [x] CTAs always visible above the fold (Column + Expanded/ScrollView
+      structure, not a single scrolling column)
+- [x] No AppBar back button; screen not swipe-dismissable
+- [x] ResultsScreen stub created (placeholder text only)
+- [x] loading_screen.dart routes on output.redFlagTriggered — red flag
+      path skips ResultsScreen entirely
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
+- [x] test/results/red_flag_interrupt_test.dart — 5 widget tests written,
+      all passing (mockRedFlagOutput / mockNormalOutput fixtures)
+- [ ] Manual verification on simulator
+- [ ] Work committed and pushed
+- [ ] PR opened against `develop`
+
+## E4.3 — Unit Tests
+
+- [x] TEST 1: RedFlagInterruptScreen renders with red flag output —
+      'EMERGENCY' and 'Seek medical care immediately' both present
+- [x] TEST 2: matched_rule_name renders on interrupt screen —
+      'Active Seizures' appears on screen
+- [x] TEST 3: top_causes render on interrupt screen — 'Malaria' and
+      'Seek emergency care' both present
+- [x] TEST 4: ResultsScreen renders with non-red-flag output —
+      'Results Screen' stub text present
+- [x] TEST 5: RedFlagInterruptScreen shows EMERGENCY not other urgency
+      levels — 'EMERGENCY' present, 'urgent'/'non_urgent'/'self_care'
+      all absent
+- [x] All 5 tests pass — flutter test test/results/red_flag_interrupt_test.dart
+
+---
+
+## NOTES / DECISIONS LOG (E4.3)
+
+- **HomeScreen still doesn't exist on this branch** — same situation as
+  E4.2.1: `feature/e4-user-flow-screens` (the real E4.2, splash/onboarding/
+  home) has not merged into `develop` yet. Per user decision, "Leave"
+  navigates via `Navigator.of(context).popUntil((r) => r.isFirst)` instead
+  of a literal `HomeScreen` reference — same pattern as FollowupScreen's
+  cancel dialog. Will correctly land on HomeScreen once E4.2 merges.
+- **Constructor gap:** the spec's `RedFlagInterruptScreen(engineOutput: ...)`
+  signature has no way to reach `AssessmentController` for the "Leave"
+  button's required `clearAll()` call. Per user decision, added a required
+  `assessmentController` constructor parameter (deviates from the literal
+  STEP 5 snippet) and updated loading_screen.dart's call site to pass it —
+  loading_screen already holds a reference to the controller.
+- **topCauses has no per-condition explanation field** — `output_formatter.dart`
+  only puts `condition_id`, `condition_name`, `score` into each topCauses
+  entry (no per-condition explanation text exists anywhere in the engine
+  output). Per user decision, `engineOutput.explanationPoints` is rendered
+  once as shared context above the Possible Conditions list, rather than
+  repeated under each condition (there's no real per-condition data to repeat).
+- **loading_screen.dart's engine `output` was scoped inside a conditional
+  block** (only computed if config + all 3 artifact URLs were present),
+  so the unconditional post-run navigation at the bottom of `_runAssessment`
+  couldn't reference it. Hoisted `output` to a nullable outer-scope variable;
+  preserved the original SystemStatusScreen fallback for the case where the
+  engine never actually ran (missing config/artifacts) — only branches to
+  RedFlagInterruptScreen/ResultsScreen when `output` is non-null.
+- **WillPopScope vs. zero-analyze-issues:** STEP 3 named `WillPopScope`
+  explicitly, but it's deprecated in this Flutter version
+  (`deprecated_member_use`), which directly conflicts with the zero-issues
+  requirement in STEP 6. Per user decision, used `PopScope` (`canPop: false`
+  + `onPopInvokedWithResult`) instead — same back-interception behavior,
+  and it also properly supports Android predictive back, which
+  `WillPopScope` does not.
