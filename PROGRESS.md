@@ -651,3 +651,105 @@ the app root, with no further code change needed here.
   + `onPopInvokedWithResult`) instead — same back-interception behavior,
   and it also properly supports Android predictive back, which
   `WillPopScope` does not.
+
+---
+
+# Phase E4 — Mobile Flow Integration (cont.)
+
+**Phase:** E4 — Mobile Flow Integration  
+**Task:** E4.4 — Results Screen  
+**Branch:** feature/e4-results-screen  
+**Last Updated:** 2026-07-04
+
+---
+
+## CURRENT STATUS: Foundation files created — analyze/format clean, pending manual verification and commit
+
+---
+
+## E4.4 — Foundation Files
+
+- [x] Create lib/features/results/condition_card.dart — ConditionCard
+      (StatefulWidget for Read More expand/collapse)
+- [x] Create lib/features/results/symptom_summary_widget.dart —
+      SymptomSummaryWidget (collapsible ExpansionTile + chips)
+- [x] Replace lib/features/results/results_screen.dart — full
+      implementation replacing the E4.3 stub
+- [x] Update lib/features/assessment/loading_screen.dart — pass
+      assessmentController to ResultsScreen
+- [x] flutter analyze returns zero errors
+
+---
+
+## EXIT CRITERIA FOR E4.4 (all must be met before PR)
+
+- [x] ConditionCard: rank/name/urgency chip row, match-strength bar
+      (LayoutBuilder-sized, color by urgency), explanation text,
+      expand/collapse "Read More", "Seek [urgency] care" label —
+      all text sourced from the condition map, never hardcoded
+- [x] SymptomSummaryWidget: collapsed-by-default ExpansionTile,
+      chip per symptom token via kSymptomDisplayMap reverse lookup,
+      raw token fallback if unmapped
+- [x] ResultsScreen: X close button + confirmation dialog ("No, continue"
+      primary / "Yes, close" outlined → clearAll() + pop to root)
+- [x] Urgency banner color/label/care-instruction correct for all 4
+      urgency levels (emergency/urgent/non_urgent/self_care)
+- [x] Primary + secondary CTAs correct per urgency level (both the
+      Part 3/4 set and the repeated Part 8 set at the bottom)
+- [x] Possible Conditions section renders ConditionCard per topCauses
+      entry with correct rank/barFraction; "No specific conditions
+      identified" shown when topCauses is empty
+- [x] Symptom Summary section wired to assessmentController.symptomTokens
+- [x] Bottom disclaimer always visible
+- [x] loading_screen.dart passes assessmentController to ResultsScreen
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
+- [x] test/results/results_screen_test.dart — 8 widget tests written,
+      all passing (mockUrgentOutput / mockNonUrgentOutput / mockEmergencyOutput
+      fixtures)
+- [x] Updated the existing E4.3 test/results/red_flag_interrupt_test.dart —
+      its ResultsScreen test asserted the removed stub text and was missing
+      the new required assessmentController param; fixed to assert the
+      'URGENT' banner instead — still passing
+- [ ] Manual verification on simulator
+- [ ] Work committed and pushed
+- [ ] PR opened against `develop`
+
+## E4.4 — Unit Tests
+
+- [x] TEST 1: non_urgent urgency → banner shows NON_URGENT and care
+      instruction 'Visit a clinic within 1-2 days.'
+- [x] TEST 2: urgent urgency → banner shows URGENT and primary CTA
+      'Find Nearby Care'
+- [x] TEST 3: emergency urgency (non-red-flag path) → banner shows
+      EMERGENCY and primary CTA 'Call Emergency'
+- [x] TEST 4: top_causes[0].condition_name ('Malaria') renders from
+      engine output
+- [x] TEST 5: top_causes[0].explanation renders from engine output;
+      no hardcoded placeholder text shown
+- [x] TEST 6: ConditionCard bar width scales with barFraction — full
+      (1.0) vs proportional (20/37 ≈ 0.54) bars measured and confirmed
+      to differ, full > proportional
+- [x] TEST 7: SymptomSummaryWidget shows correct display names for
+      ['fever', 'headache'] → 'Fever' / 'Headache' (had to tap to expand
+      the ExpansionTile first — children aren't in the tree while collapsed)
+- [x] TEST 8: X button shows close confirmation dialog
+      ('Close your assessment result?')
+- [x] All 8 tests pass — flutter test test/results/results_screen_test.dart
+
+---
+
+## NOTES / DECISIONS LOG (E4.4)
+
+- **ConditionCard per-condition urgency/explanation gap (same root cause as
+  E4.3's red flag card):** `topCauses` entries only ever contain
+  `condition_id`, `condition_name`, `score` (`output_formatter.dart:31-35`)
+  — there is no per-condition `explanation` or `urgency` field anywhere in
+  the engine output. Per user decision, `ResultsScreen` enriches a copy of
+  each `topCauses` map with the single `engineOutput.urgency` and
+  `engineOutput.explanationPoints` (joined) as `'urgency'` and
+  `'explanation'` keys before constructing each `ConditionCard` — this
+  keeps `ConditionCard`'s own constructor exactly as specified
+  (`condition`, `rank`, `barFraction`, reading `condition['urgency']` /
+  `condition['explanation']`), with the gap resolved entirely at the
+  `ResultsScreen` call site rather than by changing ConditionCard's API.
