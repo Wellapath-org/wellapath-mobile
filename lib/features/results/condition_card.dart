@@ -3,14 +3,8 @@ import 'package:flutter/material.dart';
 class ConditionCard extends StatefulWidget {
   final Map<String, dynamic> condition;
   final int rank;
-  final double barFraction;
 
-  const ConditionCard({
-    super.key,
-    required this.condition,
-    required this.rank,
-    required this.barFraction,
-  });
+  const ConditionCard({super.key, required this.condition, required this.rank});
 
   @override
   State<ConditionCard> createState() => _ConditionCardState();
@@ -27,6 +21,8 @@ class _ConditionCardState extends State<ConditionCard> {
   };
 
   static const Color _fallbackColor = Color(0xFF9CA3AF);
+  static const Color _inactiveDashColor = Color(0xFFE5E7EB);
+  static const int _dashCount = 4;
 
   Color _colorForUrgency(String urgency) =>
       _urgencyColors[urgency] ?? _fallbackColor;
@@ -36,14 +32,39 @@ class _ConditionCardState extends State<ConditionCard> {
       case 'emergency':
         return 'Seek emergency care';
       case 'urgent':
-        return 'Seek urgent care';
+        return 'Seek medical advice';
       case 'non_urgent':
-        return 'Seek non-urgent care';
       case 'self_care':
-        return 'Self-care recommended';
+        return 'This can be managed at home';
       default:
         return '';
     }
+  }
+
+  int get _coloredDashCount => switch (widget.rank) {
+    1 => 4,
+    2 => 3,
+    3 => 2,
+    _ => 1,
+  };
+
+  Widget _buildDashes(Color color) {
+    final coloredCount = _coloredDashCount;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(_dashCount, (index) {
+        final isColored = index < coloredCount;
+        return Container(
+          width: 14,
+          height: 4,
+          margin: const EdgeInsets.only(left: 4),
+          decoration: BoxDecoration(
+            color: isColored ? color : _inactiveDashColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        );
+      }),
+    );
   }
 
   @override
@@ -90,55 +111,22 @@ class _ConditionCardState extends State<ConditionCard> {
                   ),
                 ),
               ),
-              if (urgency.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    urgency.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                ),
+              _buildDashes(color),
             ],
           ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final maxBarWidth = constraints.maxWidth;
-              final barWidth = maxBarWidth * widget.barFraction.clamp(0.0, 1.0);
-              return Container(
-                height: 6,
-                width: maxBarWidth,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    height: 6,
-                    width: barWidth,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          if (careLabel.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              careLabel,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
           if (explanation.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               explanation,
               maxLines: _expanded ? null : 2,
@@ -151,29 +139,33 @@ class _ConditionCardState extends State<ConditionCard> {
                 height: 1.4,
               ),
             ),
-            InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  _expanded ? 'Show less' : 'Read More',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF6B4EFF),
+            Align(
+              alignment: Alignment.centerRight,
+              child: InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _expanded ? 'Show less' : 'Read More',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6B4EFF),
+                        ),
+                      ),
+                      Icon(
+                        _expanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        size: 18,
+                        color: const Color(0xFF6B4EFF),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-          ],
-          if (careLabel.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              careLabel,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: color,
               ),
             ),
           ],

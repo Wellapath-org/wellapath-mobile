@@ -82,35 +82,45 @@ final mockEmergencyOutput = EngineOutput(
   },
 );
 
-Future<double> _pumpBarWidth(WidgetTester tester, double barFraction) async {
+const Color _testUrgentColor = Color(0xFFF59E0B);
+const Color _testInactiveDashColor = Color(0xFFE5E7EB);
+
+Future<int> _countDashesOfColor(
+  WidgetTester tester,
+  int rank,
+  Color color,
+) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: SizedBox(
           width: 300,
           child: ConditionCard(
-            condition: const {'condition_name': 'Test Condition', 'score': 1},
-            rank: 1,
-            barFraction: barFraction,
+            condition: const {
+              'condition_name': 'Test Condition',
+              'urgency': 'urgent',
+            },
+            rank: rank,
           ),
         ),
       ),
     ),
   );
 
-  final barFinder = find.byWidgetPredicate((widget) {
+  final dashFinder = find.byWidgetPredicate((widget) {
     if (widget is! Container) return false;
     final decoration = widget.decoration;
     if (decoration is! BoxDecoration) return false;
-    return decoration.color == const Color(0xFF9CA3AF);
+    if (widget.constraints?.maxWidth != 14) return false;
+    return decoration.color == color;
   });
 
-  return tester.getSize(barFinder).width;
+  return tester.widgetList(dashFinder).length;
 }
 
 void main() {
   testWidgets(
-    'non_urgent urgency shows NON_URGENT banner and correct care instruction',
+    'non_urgent urgency shows NON-URGENT banner and correct care instruction',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -121,7 +131,7 @@ void main() {
         ),
       );
 
-      expect(find.text('NON_URGENT'), findsWidgets);
+      expect(find.text('NON-URGENT'), findsWidgets);
       expect(find.text('Visit a clinic within 1-2 days.'), findsOneWidget);
     },
   );
@@ -194,13 +204,39 @@ void main() {
   });
 
   testWidgets(
-    'ConditionCard bar width scales with barFraction (full vs proportional)',
+    'ConditionCard dash indicator reflects rank (1st=4, 2nd=3, 3rd=2 coloured)',
     (tester) async {
-      final fullWidth = await _pumpBarWidth(tester, 1.0);
-      final proportionalWidth = await _pumpBarWidth(tester, 20 / 37);
+      final rank1Colored = await _countDashesOfColor(
+        tester,
+        1,
+        _testUrgentColor,
+      );
+      final rank2Colored = await _countDashesOfColor(
+        tester,
+        2,
+        _testUrgentColor,
+      );
+      final rank2Grey = await _countDashesOfColor(
+        tester,
+        2,
+        _testInactiveDashColor,
+      );
+      final rank3Colored = await _countDashesOfColor(
+        tester,
+        3,
+        _testUrgentColor,
+      );
+      final rank3Grey = await _countDashesOfColor(
+        tester,
+        3,
+        _testInactiveDashColor,
+      );
 
-      expect(fullWidth, isNot(equals(proportionalWidth)));
-      expect(fullWidth, greaterThan(proportionalWidth));
+      expect(rank1Colored, 4);
+      expect(rank2Colored, 3);
+      expect(rank2Grey, 1);
+      expect(rank3Colored, 2);
+      expect(rank3Grey, 2);
     },
   );
 

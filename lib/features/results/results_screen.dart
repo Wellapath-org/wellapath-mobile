@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
 import '../assessment/assessment_controller.dart';
@@ -23,6 +24,27 @@ class ResultsScreen extends StatelessWidget {
     'urgent': Color(0xFFF59E0B),
     'non_urgent': Color(0xFF22C55E),
     'self_care': Color(0xFF22C55E),
+  };
+
+  static const Map<String, String> _urgencyLabels = {
+    'emergency': 'EMERGENCY',
+    'urgent': 'URGENT',
+    'non_urgent': 'NON-URGENT',
+    'self_care': 'NON-URGENT',
+  };
+
+  static const Map<String, String> _urgencyHeadlines = {
+    'emergency': 'Seek medical care Immediately!',
+    'urgent': 'You should consult a doctor',
+    'non_urgent': 'Home self-care may be enough',
+    'self_care': 'Home self-care may be enough',
+  };
+
+  static const Map<String, String> _urgencyIllustrations = {
+    'emergency': 'assets/svg/result_emergency.svg',
+    'urgent': 'assets/svg/result_urgent.svg',
+    'non_urgent': 'assets/svg/result_non_urgent.svg',
+    'self_care': 'assets/svg/result_non_urgent.svg',
   };
 
   Future<void> _callEmergency() async {
@@ -242,10 +264,25 @@ class ResultsScreen extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: _primary,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Your assessment result',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.close, size: 22),
             onPressed: () => _showCloseConfirmationDialog(context),
@@ -257,25 +294,69 @@ class ResultsScreen extends StatelessWidget {
 
   Widget _buildUrgencyBanner() {
     final color = _urgencyColors[engineOutput.urgency] ?? _primary;
-    return Container(
-      width: double.infinity,
-      color: color,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    final illustration = _urgencyIllustrations[engineOutput.urgency];
+    return SizedBox(
+      height: 200,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            color: color,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.only(bottom: 28),
+            child: illustration == null
+                ? null
+                : SvgPicture.asset(illustration, height: 120),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: ClipPath(
+              clipper: const _BannerWaveClipper(),
+              child: Container(
+                height: 36,
+                width: double.infinity,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUrgencySection() {
+    final color = _urgencyColors[engineOutput.urgency] ?? _primary;
+    final label =
+        _urgencyLabels[engineOutput.urgency] ??
+        engineOutput.urgency.toUpperCase();
+    final headline = _urgencyHeadlines[engineOutput.urgency] ?? '';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            engineOutput.urgency.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
+          Text(
+            headline,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 6),
           Text(
             engineOutput.careInstruction,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(fontSize: 14, color: Colors.black54),
           ),
         ],
       ),
@@ -294,7 +375,6 @@ class ResultsScreen extends StatelessWidget {
       );
     }
 
-    final maxScore = (topCauses.first['score'] as num?)?.toDouble() ?? 0.0;
     final explanationText = engineOutput.explanationPoints.join(' ');
 
     return Column(
@@ -318,18 +398,12 @@ class ResultsScreen extends StatelessWidget {
         ...topCauses.asMap().entries.map((entry) {
           final index = entry.key;
           final cause = entry.value;
-          final score = (cause['score'] as num?)?.toDouble() ?? 0.0;
-          final barFraction = maxScore > 0 ? score / maxScore : 0.0;
           final enriched = <String, dynamic>{
             ...cause,
             'urgency': engineOutput.urgency,
             'explanation': explanationText,
           };
-          return ConditionCard(
-            condition: enriched,
-            rank: index + 1,
-            barFraction: barFraction,
-          );
+          return ConditionCard(condition: enriched, rank: index + 1);
         }),
       ],
     );
@@ -361,6 +435,7 @@ class ResultsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildUrgencyBanner(),
+                    _buildUrgencySection(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                       child: _buildCTAPair(context),
@@ -391,4 +466,31 @@ class ResultsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BannerWaveClipper extends CustomClipper<Path> {
+  const _BannerWaveClipper();
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()..lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height,
+      size.width * 0.5,
+      size.height * 0.55,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.1,
+      size.width,
+      size.height * 0.55,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
