@@ -454,14 +454,27 @@ the app root, with no further code change needed here.
 
 ## E4.2.1 — Unit Tests
 
-- [x] Create test/assessment/question_engine_test.dart — 4 tests (not 6;
+- [x] Create test/assessment/question_engine_test.dart — 5 tests (not 6;
       confirmed with user that the "6 tests" instruction was a miscount —
-      only 4 were ever specified)
+      only 4 were originally specified; a 5th was added after an engineering
+      lead review found a coverage gap — see below)
   - [x] TEST 1: [fever] → duration + additionalSymptoms only, no severity
   - [x] TEST 2: [headache] → severity, duration, additionalSymptoms in order
   - [x] TEST 3: [fever, headache] → duration question appears exactly once
   - [x] TEST 4: large token list still caps at ≤5 questions
-- [x] All 4 tests pass — flutter test test/assessment/question_engine_test.dart
+  - [x] TEST 5: unmapped symptom token returns default duration question
+- [x] All 5 tests pass — flutter test test/assessment/question_engine_test.dart
+
+### Engineering lead review — test coverage gap found
+
+The engineering lead asked us to confirm two specific cases were covered:
+Test A (>5 questions generated → truncated to exactly 5) and Test B
+(unmapped token → default duration question). Test B was missing and has
+been added (TEST 5 above). Test A was **not** added — see note below.
+
+> **Note:** `QuestionEngine` structurally caps at 3 questions max before
+> the truncation line runs — truncation is dead code with the current
+> question structure. Flagged for E8 calibration.
 
 ## E4.2.1 — Manual Verification (iOS Simulator, iPhone 17 Pro)
 
@@ -499,7 +512,7 @@ the app root, with no further code change needed here.
 - [x] flutter analyze returns zero errors
 - [x] followup_screen.dart rewritten for dynamic question rendering
 - [x] Cancel confirmation dialog implemented (No/Yes wording and styles per spec)
-- [x] 4 unit tests written and passing
+- [x] 5 unit tests written and passing
 - [x] Manual verification on simulator (multi-symptom flows, back/next,
       cancel dialog, checkbox reverse-lookup rendering) — see above
 - [ ] Work committed and pushed
