@@ -18,6 +18,7 @@ const Map<String, String> kSymptomDisplayMap = {
   'Dark urine': 'dark_urine',
   'Feeling sick or queasy': 'nausea',
   'Muscle pain': 'body_pain',
+  'Seizures': 'seizures',
 };
 
 /// Maps each selectable body area to the display names of relevant symptoms.
