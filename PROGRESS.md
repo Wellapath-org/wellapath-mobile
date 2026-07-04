@@ -8,6 +8,17 @@
 
 ---
 
+## MAIN BRANCH STATUS
+
+**2026-07-04 — PR #13 merged `develop` into `main`.** Everything from
+E1.6 through E4.4 (Splash/Onboarding/Home, User Flow Screens, CDSS Engine
+Core, Dynamic Question Rendering, Red Flag Interrupt Screen, Results
+Screen) is now on `main`. `main` was previously only at PR #2 (bare
+Flutter project init) — this is the first time the full feature set has
+landed on the production branch.
+
+---
+
 ## CURRENT STATUS: COMPLETE ✅
 
 ---
@@ -753,3 +764,71 @@ the app root, with no further code change needed here.
   (`condition`, `rank`, `barFraction`, reading `condition['urgency']` /
   `condition['explanation']`), with the gap resolved entirely at the
   `ResultsScreen` call site rather than by changing ConditionCard's API.
+
+---
+
+## E4.4 — Figma UI fix (post-implementation, 2026-07-04)
+
+The initial E4.4 build (above) was functionally correct but did not match
+the actual Figma design. Reworked `results_screen.dart` and
+`condition_card.dart` to match:
+
+- [x] Header replaced with a custom Row (no AppBar): purple
+      "Your assessment result" pill on the left, X close button on the
+      right — same close-confirmation dialog wired to the X as before
+- [x] Urgency banner rebuilt: coloured (green/amber/red) background,
+      centered `SvgPicture.asset` illustration (120px height, one of
+      `result_non_urgent.svg` / `result_urgent.svg` / `result_emergency.svg`
+      by urgency — `self_care` shares `result_non_urgent.svg` and the green
+      colour, consistent with the existing urgency-colour map), and a
+      decorative wave shape (`_BannerWaveClipper`, a `CustomClipper<Path>`)
+      clipping a white panel at the bottom of the banner for the
+      wave-into-white-content transition. No real Figma wave asset existed
+      to source, so this is a small procedural shape, not a data placeholder.
+- [x] New white "urgency section" below the banner: coloured urgency label
+      (`NON-URGENT` / `URGENT` / `EMERGENCY` — note the hyphen in
+      `NON-URGENT`, a genuine text change from the old `NON_URGENT`),
+      bold headline per urgency ('Home self-care may be enough' /
+      'You should consult a doctor' / 'Seek medical care Immediately!'),
+      and `engineOutput.careInstruction` as the subtitle
+- [x] ConditionCard reworked: removed the old left-aligned proportional
+      match-strength bar and the urgency chip badge entirely, replaced with
+      a 4-dash indicator on the right of the name row, coloured by rank
+      (1st condition = 4 coloured dashes, 2nd = 3 coloured + 1 grey, 3rd =
+      2 coloured + 2 grey — rank-based per the design, not score-based).
+      `barFraction` removed from `ConditionCard`'s constructor entirely
+      (dead parameter once the proportional bar was gone) — call site in
+      `results_screen.dart` updated to match.
+      Care label text updated: `non_urgent`/`self_care` → 'This can be
+      managed at home' (green), `urgent` → 'Seek medical advice' (amber),
+      `emergency` → 'Seek emergency care' (red). "Read More"/"Show less"
+      now has a chevron icon next to it, right-aligned.
+- [x] Symptom summary and disclaimer sections unchanged, per spec
+
+### SVG asset fix found during this pass
+
+- `assets/svg/result_urgent.svg` (the doctor illustration downloaded in the
+  earlier asset task) defined all its fills via CSS classes in a top-level
+  `<style>` block (`class="st0"` etc.). `flutter_svg` does not support the
+  `<style>` element (logged `unhandled element <style/>` during widget
+  tests) — the classes would have silently failed to apply, rendering the
+  doctor illustration with no fill colours at all. Fixed by inlining each
+  class's CSS rule directly onto its element as a `style="fill:#..."`
+  attribute and removing the `<style>` block — same visual result, now
+  actually renders. `result_non_urgent.svg` and `result_emergency.svg`
+  already used inline `style=`/`fill=` attributes directly and needed no
+  change. The remaining `unhandled element <defs/>` / `<metadata/>`
+  warnings on the ambulance SVG are empty Inkscape boilerplate with no
+  visual content — confirmed harmless.
+
+### Test updates required by this UI change
+
+- `test/results/results_screen_test.dart`: updated the non_urgent test's
+  expected banner text from `'NON_URGENT'` to `'NON-URGENT'` (real text
+  change, not a typo fix). Replaced the now-obsolete "bar width scales with
+  barFraction" test (the mechanism it tested no longer exists) with a new
+  test verifying the dash-indicator's coloured-vs-grey count per rank
+  (1st/2nd/3rd → 4/3/2 coloured dashes).
+- [x] flutter analyze returns zero errors
+- [x] dart format --output=none --set-exit-if-changed . returns clean
+- [x] All 59 tests pass (flutter test, full suite)
