@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/constants/symptom_display_map.dart';
 import 'assessment_controller.dart';
 import 'loading_screen.dart';
+import 'models/followup_question.dart';
+import 'question_engine.dart';
 
 class FollowupScreen extends StatefulWidget {
   final AssessmentController assessmentController;
@@ -22,18 +24,9 @@ class FollowupScreen extends StatefulWidget {
 class _FollowupScreenState extends State<FollowupScreen> {
   static const Color _primary = Color(0xFF6B4EFF);
 
-  double _sliderValue = 0.0;
-  String? _durationSelection;
-  final Set<String> _additionalSelected = {};
-
-  static const List<String> _additionalSymptoms = [
-    'Fatigue',
-    'Feeling sick or queasy',
-    'Fever',
-    'Vomiting',
-    'Dizziness',
-    'Muscle pain',
-  ];
+  late final List<FollowupQuestion> _questions;
+  int _currentQuestion = 0;
+  final Map<int, dynamic> _answers = {};
 
   static const Map<String, String> _durationTokens = {
     'Less than 3 days': 'days_1_3',
@@ -42,69 +35,117 @@ class _FollowupScreenState extends State<FollowupScreen> {
     'More than 14 days': 'weeks_2_plus',
   };
 
-  void _onSliderChanged(double value) {
-    setState(() => _sliderValue = value);
-    if (value <= 0.25) {
-      widget.assessmentController.setSeverityToken('mild');
-    } else if (value <= 0.5) {
-      widget.assessmentController.setSeverityToken('moderate');
-    } else if (value <= 0.75) {
-      widget.assessmentController.setSeverityToken('severe');
-    } else {
-      widget.assessmentController.setSeverityToken('very_severe');
+  @override
+  void initState() {
+    super.initState();
+    _questions = QuestionEngine.generateQuestions(
+      widget.assessmentController.symptomTokens,
+    );
+  }
+
+  String _severityToken(double value) {
+    if (value <= 0.25) return 'mild';
+    if (value <= 0.5) return 'moderate';
+    if (value <= 0.75) return 'severe';
+    return 'very_severe';
+  }
+
+  String? _displayNameForToken(String token) {
+    for (final entry in kSymptomDisplayMap.entries) {
+      if (entry.value == token) return entry.key;
     }
+    return null;
   }
 
-  void _onDurationChanged(String token) {
-    setState(() => _durationSelection = token);
-    widget.assessmentController.setDurationToken(token);
-  }
-
-  void _onAdditionalToggled(String displayName, bool? checked) {
-    final token = kSymptomDisplayMap[displayName];
-    if (token == null) return;
-    if (checked == true) {
-      widget.assessmentController.addSymptomToken(token);
-      setState(() => _additionalSelected.add(displayName));
+  void _onBack(BuildContext context) {
+    if (_currentQuestion > 0) {
+      setState(() => _currentQuestion -= 1);
     } else {
-      widget.assessmentController.removeSymptomToken(token);
-      setState(() => _additionalSelected.remove(displayName));
+      Navigator.of(context).pop();
     }
   }
 
   void _onNext(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => LoadingScreen(
-          assessmentController: widget.assessmentController,
-          onCancel: widget.onCancel,
+    if (_currentQuestion < _questions.length - 1) {
+      setState(() => _currentQuestion += 1);
+    } else {
+      _commitAnswers();
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => LoadingScreen(
+            assessmentController: widget.assessmentController,
+            onCancel: widget.onCancel,
+          ),
         ),
+      );
+    }
+  }
+
+  void _commitAnswers() {
+    for (final entry in _answers.entries) {
+      final question = _questions[entry.key];
+      switch (question.type) {
+        case QuestionType.severity:
+          widget.assessmentController.setSeverityToken(
+            _severityToken(entry.value as double),
+          );
+        case QuestionType.duration:
+          widget.assessmentController.setDurationToken(entry.value as String);
+        case QuestionType.additionalSymptoms:
+          for (final token in entry.value as Set<String>) {
+            widget.assessmentController.addSymptomToken(token);
+          }
+      }
+    }
+  }
+
+  void _showCancelDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel Assessment'),
+        content: const Text(
+          'Are you sure you want to cancel your symptom assessment?',
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              widget.assessmentController.clearAll();
+              widget.onCancel();
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _primary,
+              side: const BorderSide(color: _primary),
+            ),
+            child: const Text('Yes, cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('No, continue'),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final question = _questions[_currentQuestion];
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSeveritySection(),
-                    const SizedBox(height: 36),
-                    _buildDurationSection(),
-                    const SizedBox(height: 36),
-                    _buildAdditionalSymptomsSection(),
-                    const SizedBox(height: 16),
-                  ],
-                ),
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                child: _buildQuestion(question),
               ),
             ),
             _buildBottomButtons(context),
@@ -114,7 +155,8 @@ class _FollowupScreenState extends State<FollowupScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
+    final progress = (_currentQuestion + 1) / _questions.length;
     return Column(
       children: [
         Padding(
@@ -130,9 +172,9 @@ class _FollowupScreenState extends State<FollowupScreen> {
                   color: _primary,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'Symptom assessment 12%',
-                  style: TextStyle(
+                child: Text(
+                  'Question ${_currentQuestion + 1} of ${_questions.length}',
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -142,13 +184,13 @@ class _FollowupScreenState extends State<FollowupScreen> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, size: 22),
-                onPressed: widget.onCancel,
+                onPressed: () => _showCancelDialog(context),
               ),
             ],
           ),
         ),
         LinearProgressIndicator(
-          value: 0.12,
+          value: progress,
           backgroundColor: const Color(0xFFEEEEEE),
           color: _primary,
           minHeight: 3,
@@ -157,12 +199,24 @@ class _FollowupScreenState extends State<FollowupScreen> {
     );
   }
 
-  Widget _buildSeveritySection() {
+  Widget _buildQuestion(FollowupQuestion question) {
+    switch (question.type) {
+      case QuestionType.severity:
+        return _buildSeveritySection(question);
+      case QuestionType.duration:
+        return _buildDurationSection(question);
+      case QuestionType.additionalSymptoms:
+        return _buildAdditionalSymptomsSection(question);
+    }
+  }
+
+  Widget _buildSeveritySection(FollowupQuestion question) {
+    final value = (_answers[_currentQuestion] as double?) ?? 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'How strong is the ${widget.primarySymptomLabel}?',
+          question.questionText,
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -171,8 +225,8 @@ class _FollowupScreenState extends State<FollowupScreen> {
         ),
         const SizedBox(height: 20),
         _SegmentedSeveritySlider(
-          value: _sliderValue,
-          onChanged: _onSliderChanged,
+          value: value,
+          onChanged: (v) => setState(() => _answers[_currentQuestion] = v),
         ),
         const SizedBox(height: 8),
         const Row(
@@ -197,13 +251,14 @@ class _FollowupScreenState extends State<FollowupScreen> {
     );
   }
 
-  Widget _buildDurationSection() {
+  Widget _buildDurationSection(FollowupQuestion question) {
+    final selection = _answers[_currentQuestion] as String?;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'How long have you had the symptoms',
-          style: TextStyle(
+        Text(
+          question.questionText,
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
@@ -211,7 +266,7 @@ class _FollowupScreenState extends State<FollowupScreen> {
         ),
         const SizedBox(height: 16),
         ..._durationTokens.entries.map((entry) {
-          final isSelected = _durationSelection == entry.value;
+          final isSelected = selection == entry.value;
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             clipBehavior: Clip.antiAlias,
@@ -223,7 +278,8 @@ class _FollowupScreenState extends State<FollowupScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: InkWell(
-              onTap: () => _onDurationChanged(entry.value),
+              onTap: () =>
+                  setState(() => _answers[_currentQuestion] = entry.value),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -275,30 +331,45 @@ class _FollowupScreenState extends State<FollowupScreen> {
     );
   }
 
-  Widget _buildAdditionalSymptomsSection() {
+  Widget _buildAdditionalSymptomsSection(FollowupQuestion question) {
+    final selected = (_answers[_currentQuestion] as Set<String>?) ?? <String>{};
+    final availableTokens = question.options
+        .where((token) => _displayNameForToken(token) != null)
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Do you have any of the following symptoms',
-          style: TextStyle(
+        Text(
+          question.questionText,
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
           ),
         ),
         const SizedBox(height: 12),
-        ..._additionalSymptoms.map(
-          (name) => CheckboxListTile(
-            title: Text(name, style: const TextStyle(fontSize: 15)),
-            value: _additionalSelected.contains(name),
-            onChanged: (v) => _onAdditionalToggled(name, v),
+        ...availableTokens.map((token) {
+          final displayName = _displayNameForToken(token)!;
+          return CheckboxListTile(
+            title: Text(displayName, style: const TextStyle(fontSize: 15)),
+            value: selected.contains(token),
+            onChanged: (checked) {
+              setState(() {
+                final updated = Set<String>.of(selected);
+                if (checked == true) {
+                  updated.add(token);
+                } else {
+                  updated.remove(token);
+                }
+                _answers[_currentQuestion] = updated;
+              });
+            },
             activeColor: _primary,
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: EdgeInsets.zero,
             visualDensity: const VisualDensity(vertical: -2),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
@@ -310,7 +381,7 @@ class _FollowupScreenState extends State<FollowupScreen> {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => _onBack(context),
               style: OutlinedButton.styleFrom(
                 foregroundColor: _primary,
                 side: const BorderSide(color: _primary),
