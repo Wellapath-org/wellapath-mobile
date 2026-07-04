@@ -2,8 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../core/engine/engine_controller.dart';
 import '../../core/engine/models/engine_input.dart';
+import '../../core/engine/models/engine_output.dart';
 import '../../core/storage/storage_service.dart';
 import '../boot/boot_controller.dart';
+import '../results/red_flag_interrupt_screen.dart';
+import '../results/results_screen.dart';
 import '../status/system_status_screen.dart';
 import 'assessment_controller.dart';
 
@@ -38,6 +41,8 @@ class _LoadingScreenState extends State<LoadingScreen> {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     setState(() => _step1Complete = true);
+
+    EngineOutput? output;
 
     try {
       final assessmentInput = widget.assessmentController.buildInput();
@@ -97,7 +102,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
               candidateConditionIds: const [],
             );
 
-            final output = engine.run(engineInput);
+            output = engine.run(engineInput);
             debugPrint('Assessment complete — urgency: ${output.urgency}');
           } else {
             debugPrint('Artifact URLs missing — engine skipped');
@@ -122,13 +127,32 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
     await Future<void>.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => const SystemStatusScreen(
-          result: BootResult(status: BootStatus.success),
+
+    final resolvedOutput = output;
+    if (resolvedOutput == null) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => const SystemStatusScreen(
+            result: BootResult(status: BootStatus.success),
+          ),
         ),
-      ),
-    );
+      );
+    } else if (resolvedOutput.redFlagTriggered) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => RedFlagInterruptScreen(
+            engineOutput: resolvedOutput,
+            assessmentController: widget.assessmentController,
+          ),
+        ),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => ResultsScreen(engineOutput: resolvedOutput),
+        ),
+      );
+    }
   }
 
   void _retry() {
