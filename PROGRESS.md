@@ -388,3 +388,132 @@
 - [x] flutter analyze returns zero errors
 - [x] SystemStatusScreen wired with Start Symptom Assessment button
 - [x] onCancel uses popUntil to return cleanly to SystemStatusScreen from any depth
+
+---
+
+# Phase E4 — Mobile Flow Integration (cont.)
+
+**Phase:** E4 — Mobile Flow Integration  
+**Task:** E4.2.1 — Dynamic Question Rendering  
+**Branch:** feature/e4-dynamic-questions  
+**Last Updated:** 2026-07-04
+
+---
+
+## CURRENT STATUS: Complete — manual verification passed, committing and pushing
+
+---
+
+## E4.2.1 — Foundation Files
+
+- [x] Create lib/features/assessment/models/followup_question.dart —
+      QuestionType enum + FollowupQuestion class
+- [x] Create lib/core/constants/followup_question_map.dart —
+      kFollowupQuestionMap const with entries for all 17 listed symptom tokens
+- [x] Create lib/features/assessment/question_engine.dart —
+      QuestionEngine class with static generateQuestions() method
+- [x] flutter analyze returns zero errors (fixed 2 use_null_aware_elements
+      lint infos by switching to `?x` null-aware list element syntax)
+
+## E4.2.1 — Dynamic Question Rendering (followup_screen.dart)
+
+- [x] Rewrote lib/features/assessment/followup_screen.dart to render one
+      question at a time from QuestionEngine.generateQuestions(), driven by
+      _questions / _currentQuestion / _answers (Map<int, dynamic>) state
+- [x] Severity section reuses the E4.1 _SegmentedSeveritySlider; title now
+      comes from question.questionText instead of a hardcoded string
+- [x] Duration section reuses the E4.1 radio-card list and token map unchanged
+- [x] additionalSymptoms section reverse-looks-up kSymptomDisplayMap
+      (token → display name) and filters out any option token with no
+      display-name entry before rendering checkboxes
+- [x] Progress pill/bar now shows "Question X of Y" driven by
+      _currentQuestion / _questions.length
+- [x] Back: decrements _currentQuestion (answers naturally persist in
+      _answers, nothing to restore manually) or pops the route at question 0
+- [x] Next: advances _currentQuestion, or on the last question commits all
+      answers to AssessmentController (setSeverityToken/setDurationToken/
+      addSymptomToken per answer type) then pushes LoadingScreen
+- [x] X button opens a "Cancel Assessment" confirmation dialog — "No,
+      continue" (primary, dismisses) / "Yes, cancel" (outlined, clears
+      AssessmentController and invokes widget.onCancel())
+- [x] flutter analyze returns zero errors; dart format clean
+
+### Deviation from the literal spec: HomeScreen navigation
+
+STEP 9 as written said "Yes, cancel" should navigate back to HomeScreen. This
+branch (`feature/e4-dynamic-questions`) was created off `develop`, and
+`develop` currently only has E4.1 merged — `HomeScreen` only exists on the
+separate, unmerged `feature/e4-user-flow-screens` branch (E4.2). Referencing
+it here would fail `flutter analyze` with an undefined-class error. Per user
+decision, "Yes, cancel" instead calls the existing `widget.onCancel`
+callback already threaded through this whole screen stack (the same
+mechanism `IntroScreen`/`SymptomSelectionScreen`/`LoadingScreen` use to
+return to the app's entry screen) — functionally equivalent, and will
+correctly land on `HomeScreen` automatically once E4.2 merges and becomes
+the app root, with no further code change needed here.
+
+## E4.2.1 — Unit Tests
+
+- [x] Create test/assessment/question_engine_test.dart — 4 tests (not 6;
+      confirmed with user that the "6 tests" instruction was a miscount —
+      only 4 were ever specified)
+  - [x] TEST 1: [fever] → duration + additionalSymptoms only, no severity
+  - [x] TEST 2: [headache] → severity, duration, additionalSymptoms in order
+  - [x] TEST 3: [fever, headache] → duration question appears exactly once
+  - [x] TEST 4: large token list still caps at ≤5 questions
+- [x] All 4 tests pass — flutter test test/assessment/question_engine_test.dart
+
+## E4.2.1 — Manual Verification (iOS Simulator, iPhone 17 Pro)
+
+- [x] Fever + Cough flow: Q1 "How severe is your cough?" (severity — Cough is
+      the only token with a severity question), Q2 "How long have you had
+      this cough?" (duration — Cough added before Fever, so its duration
+      question won the first-occurrence dedup), Q3 "Do you have any of these
+      symptoms too?" with merged/deduped options Fever, Fast breathing,
+      Weakness, Chills, Sweating, Body pain, Nausea — all exactly as expected
+- [x] Headache-only comparison: Q1 "How severe is your headache?", Q2 "How
+      long have you had this headache?", Q3 options Fever, Nausea, Vomiting,
+      Weakness, Dizziness — confirmed different question set from Fever+Cough
+- [x] Back navigation: duration selection and additionalSymptoms checkbox
+      selections both persisted correctly across Back → Next
+- [x] Cancel dialog: "Cancel Assessment" / body text / both buttons render
+      per spec; "No, continue" dismisses without side effects; "Yes, cancel"
+      clears AssessmentController and returns to SystemStatusScreen (this
+      branch's current app entry point, standing in for HomeScreen per the
+      documented E4.2/E4.2.1 branch-collision deviation above)
+- [x] No bugs found — all behavior matched spec exactly
+
+---
+
+## EXIT CRITERIA FOR E4.2.1 (all must be met before PR)
+
+- [x] FollowupQuestion model created with correct fields (type, questionText, options)
+- [x] QuestionType enum has exactly 3 values: severity, duration, additionalSymptoms
+- [x] kFollowupQuestionMap created with all 17 symptom token entries per spec
+- [x] Default (unmapped token) produces duration-only question
+- [x] QuestionEngine.generateQuestions() implements the full algorithm:
+      lookup per token, dedup by QuestionType (additionalSymptoms merges
+      options), ordering (severity, duration, additionalSymptoms), cap at 5,
+      default duration question for unmapped tokens
+- [x] dart format . returns no changes needed
+- [x] flutter analyze returns zero errors
+- [x] followup_screen.dart rewritten for dynamic question rendering
+- [x] Cancel confirmation dialog implemented (No/Yes wording and styles per spec)
+- [x] 4 unit tests written and passing
+- [x] Manual verification on simulator (multi-symptom flows, back/next,
+      cancel dialog, checkbox reverse-lookup rendering) — see above
+- [ ] Work committed and pushed
+- [ ] PR opened against `develop`
+
+---
+
+## NOTES / DECISIONS LOG (E4.2.1)
+
+- Originally numbered E4.3 to avoid colliding with the existing E4.2
+  (Splash, Onboarding & Home screens) work on `feature/e4-user-flow-screens`,
+  which has not yet merged into `develop`. Relabeled to **E4.2.1** at the
+  user's request for the commit history — same rationale applies: this is
+  intentionally *not* called plain "E4.2" so it doesn't collide with that
+  other branch's real E4.2 once both merge into `develop`.
+- See "Deviation from the literal spec" note above re: HomeScreen vs.
+  widget.onCancel for the cancel-confirmation navigation target.
