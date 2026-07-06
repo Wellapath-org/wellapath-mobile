@@ -271,7 +271,8 @@ void main() {
       final output = _buildController(currentSeason: 'rainy_season').run(
         const EngineInput(
           symptomTokens: ['fever', 'chills', 'headache', 'weakness'],
-          candidateConditionIds: ['children_under_5'],
+          candidateConditionIds: [],
+          demographicTokens: ['children_under_5'],
         ),
       );
       _printOutput(
@@ -295,7 +296,8 @@ void main() {
               'fever',
               'cough',
             ],
-            candidateConditionIds: ['children_under_5', 'pneumonia_children'],
+            candidateConditionIds: ['pneumonia_children'],
+            demographicTokens: ['children_under_5'],
           ),
         );
         _printOutput(
@@ -311,7 +313,8 @@ void main() {
       final output = _buildController().run(
         const EngineInput(
           symptomTokens: ['fast_breathing_child', 'fever', 'cough'],
-          candidateConditionIds: ['children_under_5'],
+          candidateConditionIds: [],
+          demographicTokens: ['children_under_5'],
         ),
       );
       _printOutput('Case 06 — Pneumonia children standard', output);
@@ -327,7 +330,8 @@ void main() {
             'fever',
             'inability_to_drink',
           ],
-          candidateConditionIds: ['children_under_5'],
+          candidateConditionIds: [],
+          demographicTokens: ['children_under_5'],
         ),
       );
       _printOutput('Case 07 — Inability to drink (global red flag)', output);
@@ -375,7 +379,8 @@ void main() {
       final output = _buildController().run(
         const EngineInput(
           symptomTokens: ['watery_stool', 'vomiting'],
-          candidateConditionIds: ['severe_malnutrition_sam_mam'],
+          candidateConditionIds: [],
+          demographicTokens: ['severe_malnutrition_sam_mam'],
         ),
       );
       _printOutput(

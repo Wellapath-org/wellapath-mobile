@@ -13,7 +13,7 @@ class ScoringEngine {
     }
 
     final symptomSet = input.symptomTokens.toSet();
-    final candidateSet = input.candidateConditionIds.toSet();
+    final demographicSet = Set<String>.from(input.demographicTokens);
     final scored = <ScoredCondition>[];
 
     for (final condition in knowledgeBase) {
@@ -55,7 +55,7 @@ class ScoringEngine {
             final effect = modifier['effect'] as String?;
             if (field != null &&
                 effect != null &&
-                candidateSet.contains(field)) {
+                demographicSet.contains(field)) {
               if (effect == 'increase_urgency') {
                 modifierPoints += 2;
                 urgencyOverride = urgencyDefault;

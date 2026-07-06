@@ -101,7 +101,8 @@ void main() {
         final result = engine.score(
           const EngineInput(
             symptomTokens: ['fever', 'chills'],
-            candidateConditionIds: ['children_under_5'],
+            candidateConditionIds: [],
+            demographicTokens: ['children_under_5'],
           ),
           _proceedResult,
         );
@@ -148,7 +149,8 @@ void main() {
         final result = engine.score(
           const EngineInput(
             symptomTokens: ['watery_stool'],
-            candidateConditionIds: ['severe_malnutrition_sam_mam'],
+            candidateConditionIds: [],
+            demographicTokens: ['severe_malnutrition_sam_mam'],
           ),
           _proceedResult,
         );
