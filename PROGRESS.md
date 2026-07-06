@@ -1152,6 +1152,24 @@ the actual Figma design. Reworked `results_screen.dart` and
 
 ---
 
+## E4.4 — `result_non_urgent.svg` black-icon fix (2026-07-04)
+
+- [x] Fixed the house illustration rendering solid black on the non_urgent
+      banner. Root cause was **not** the same CSS-class issue fixed earlier
+      for `result_urgent.svg` — this file has no `<style>` block, no CSS
+      classes, and no `currentColor`; it's a single `<path>` with a
+      hardcoded `fill="#000"` (a monochrome icon by design, from its
+      original source).
+- [x] Changed `fill="#000"` → `fill="#FFFFFF"`. Went with white rather than
+      the alternative green option, since the banner background is already
+      `#22C55E` — a green fill would render invisible against an
+      identically-coloured background.
+- [x] flutter analyze returns zero errors
+- [x] Committed (`fix(assets): fix non urgent house svg rendering in
+      flutter svg`) and pushed to `origin/feature/e4-results-screen`
+
+---
+
 ## NOTES / DECISIONS LOG (feature/e4-results-screen merge, 2026-07-04)
 
 - Merged `develop` (which already includes the E4.2 merge above) into
@@ -1163,3 +1181,96 @@ the actual Figma design. Reworked `results_screen.dart` and
   fix notes and develop's merge notes) — kept both rather than picking a
   side. No conflicts in `pubspec.yaml`/`pubspec.lock` this time since
   `feature/e4-results-screen` never touched those dependency lines.
+
+---
+
+## Full-app audit (2026-07-06) — 3 bugs fixed
+
+A full logic/UX/clinical-safety review of the app surfaced several
+findings (see chat log for the complete list — engine gaps, offline mode,
+accessibility, etc.). Three were fixed immediately; the rest are tracked
+as follow-up, not yet actioned.
+
+### Fix 1 — Demographic tokens never reached the scoring engine (critical)
+
+- **Root cause:** `scoring_engine.dart`'s demographic-modifier matching
+  checked `candidateSet.contains(field)`, where `candidateSet` was built
+  from `input.candidateConditionIds` — condition IDs, not demographic
+  tokens. Combined with `loading_screen.dart` always passing
+  `candidateConditionIds: const []`, this meant **age, pregnancy, and
+  comorbidity escalation could never fire in production** — a pregnant
+  patient or a child under 5 got the same urgency as anyone else with
+  identical symptoms, silently.
+- [x] Added `demographicTokens` field to `EngineInput`
+      (`lib/core/engine/models/engine_input.dart`) — defaulted
+      (`= const []`) rather than strictly `required`, since a `required`
+      parameter cannot carry a default in Dart; this keeps the ~24
+      demographics-irrelevant existing call sites compiling unchanged.
+- [x] `scoring_engine.dart` now matches modifiers against
+      `Set<String>.from(input.demographicTokens)` instead of the
+      condition-ID set
+- [x] `loading_screen.dart` passes
+      `demographicTokens: assessmentInput.demographicTokens` into the
+      production `EngineInput` — the demographics the assessment flow
+      already collects (sex, age, medical conditions, pregnancy) now
+      actually reach the engine
+- [x] Updated `test/engine/scoring_engine_test.dart` (2 tests) and
+      `test/engine/pilot_case_validation_test.dart` (Cases 04, 05, 06, 07,
+      10) — moved demographic tokens out of `candidateConditionIds` into
+      the new field. Confirms demographic escalation (e.g. Case 04
+      `children_under_5 + rainy_season → emergency`, Case 10
+      `severe_malnutrition_sam_mam → emergency`) now works through the
+      correct path.
+- **Side effect worth knowing:** activating this escalation path means a
+  live assessment can now legitimately reach `urgency: emergency` with
+  `redFlagTriggered: false` (e.g. pregnancy or SAM/MAM demographic
+  escalation) — this routes to `ResultsScreen`'s emergency variant rather
+  than `RedFlagInterruptScreen`. See Fix 3 below.
+
+### Fix 2 — Artifacts re-downloaded on every assessment (performance)
+
+- Added `_loadArtifact(dio, box, url, cacheKey, version)` to
+  `loading_screen.dart` — checks a dedicated Hive box `'artifact_cache'`
+  (kept separate from `'config_cache'`) before downloading, and caches
+  the result on a miss.
+- **Version-aware from the start:** cache key is `'${cacheKey}_v$version'`
+  (e.g. `artifact_kb_v1.2`), with the version read from
+  `config['artifacts'][...]['version']` (defensive null-safe extraction,
+  falls back to `'1.0'`). This satisfies locked principle #4 (artifacts
+  are versioned) — a KB/rules/token-dictionary version bump is never
+  served stale cached data under the old version; each version gets its
+  own cache entry.
+- Cache keys: `artifact_kb`, `artifact_rules`, `artifact_token_dict`
+  (each suffixed with `_v<version>`).
+
+### Fix 3 — Documented `emergency` variant reachability (results_screen.dart)
+
+- Added a code comment above the `case 'emergency':` branch in
+  `_buildCTAPair`. Note this is **not** the literal "unreachable" wording
+  originally suggested — that was true before Fix 1, but Fix 1 makes this
+  branch reachable via demographic escalation (`redFlagTriggered: false`).
+  The comment documents the actual current behavior: red-flag emergencies
+  route to `RedFlagInterruptScreen` instead; this branch is reached via
+  demographic-escalation emergencies and exercised by unit tests
+  (`mockEmergencyOutput`). Code kept, not removed, per instruction.
+
+### Verification
+
+- [x] flutter test — 59/59 passing
+- [x] flutter analyze — zero errors
+- [x] dart format --output=none --set-exit-if-changed . — clean
+
+### Follow-up not yet actioned (from the full audit)
+
+- Severity/duration tokens are still collected but never passed to
+  `EngineInput` (same shape of bug as demographics, not yet fixed)
+- Condition-specific red flags and `conditionSpecificOverrides` are still
+  dead code (`candidateConditionIds` is always `[]`)
+- `output == null` still silently routes to `SystemStatusScreen` instead
+  of a clear error state
+- "Find Nearby Care" is still a non-functional stub, including on the
+  red-flag interrupt screen
+- `tel:112` emergency number is hardcoded, not region-configurable, and
+  not shown as visible text as a fallback if `launchUrl` fails
+- No accessibility semantics on custom slider/radio/checkbox/dash widgets
+- No localization
