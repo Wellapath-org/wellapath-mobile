@@ -202,6 +202,13 @@ class ResultsScreen extends StatelessWidget {
 
   Widget _buildCTAPair(BuildContext context) {
     switch (engineOutput.urgency) {
+      // Note: the 'emergency' variant below is rarely reached via live engine
+      // data. Emergencies from a *red flag* set red_flag_triggered: true and
+      // route to RedFlagInterruptScreen instead of this screen. This branch is
+      // reached only when the engine escalates to emergency via a demographic
+      // modifier (red_flag_triggered: false — e.g. pregnancy or SAM/MAM), and
+      // it is exercised by unit tests (mockEmergencyOutput). Kept for
+      // completeness and coverage — do not remove.
       case 'emergency':
         return Column(
           children: [
