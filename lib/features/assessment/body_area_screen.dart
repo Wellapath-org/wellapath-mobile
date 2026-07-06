@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'assessment_controller.dart';
 import 'symptom_selection_screen.dart';
 
@@ -290,18 +289,18 @@ class _BodyDiagramTabState extends State<_BodyDiagramTab> {
             padding: const EdgeInsets.symmetric(horizontal: 60),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // SVG viewBox is 200×500 — aspect ratio 2:5
-                const svgAspect = 200.0 / 500.0;
+                // Real PNG aspect ratios — front 328×598, back 500×500
+                final imageAspect = _showFront ? 328.0 / 598.0 : 500.0 / 500.0;
                 final availW = constraints.maxWidth;
                 final availH = constraints.maxHeight;
                 final double w;
                 final double h;
-                if (availW / availH > svgAspect) {
+                if (availW / availH > imageAspect) {
                   h = availH;
-                  w = h * svgAspect;
+                  w = h * imageAspect;
                 } else {
                   w = availW;
-                  h = w / svgAspect;
+                  h = w / imageAspect;
                 }
                 return Center(
                   child: SizedBox(
@@ -309,10 +308,10 @@ class _BodyDiagramTabState extends State<_BodyDiagramTab> {
                     height: h,
                     child: Stack(
                       children: [
-                        SvgPicture.asset(
+                        Image.asset(
                           _showFront
-                              ? 'assets/svg/body_front.svg'
-                              : 'assets/svg/body_back.svg',
+                              ? 'assets/images/body_front_real.png'
+                              : 'assets/images/body_back_real.png',
                           width: w,
                           height: h,
                           fit: BoxFit.fill,

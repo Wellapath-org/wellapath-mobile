@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'features/boot/boot_screen.dart';
+import 'features/splash/splash_screen.dart';
 
 class WellaPathApp extends StatelessWidget {
   const WellaPathApp({super.key});
@@ -13,7 +13,7 @@ class WellaPathApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const BootScreen(),
+      home: const SplashScreen(),
     );
   }
 }
