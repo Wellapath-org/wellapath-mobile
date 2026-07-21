@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/engine/engine_controller.dart';
 import '../../core/engine/models/engine_input.dart';
 import '../../core/engine/models/engine_output.dart';
@@ -27,6 +28,18 @@ class LoadingScreen extends StatefulWidget {
 class _LoadingScreenState extends State<LoadingScreen> {
   static const Color _primary = Color(0xFF6B4EFF);
 
+  // Artifacts (knowledge base, rules, token dictionary, facilities) are cached in
+  // their own Hive box — separate from the config cache — so they are downloaded
+  // once and reused on subsequent assessments instead of re-fetched every time.
+  static const String _artifactBoxName = 'artifact_cache';
+  static const String _artifactKbKey = 'artifact_kb';
+  static const String _artifactRulesKey = 'artifact_rules';
+  static const String _artifactTokenDictKey = 'artifact_token_dict';
+  static const String _artifactFacilitiesKey = 'artifact_facilities';
+
+  static const String _facilityBoxName = 'facility_cache';
+  static const String _facilityDataKey = 'facilities_data';
+
   bool _step1Complete = false;
   bool _step2Complete = false;
   bool _hasError = false;
@@ -35,6 +48,29 @@ class _LoadingScreenState extends State<LoadingScreen> {
   void initState() {
     super.initState();
     _runAssessment();
+  }
+
+  /// Returns the artifact JSON for [url], reading from the Hive cache first and
+  /// only downloading (then caching) on a cache miss. The cache key is scoped
+  /// by [version] so a new artifact version is never served stale data cached
+  /// under an older version.
+  Future<Map<String, dynamic>> _loadArtifact(
+    Dio dio,
+    Box<dynamic> box,
+    String url,
+    String cacheKey,
+    String version,
+  ) async {
+    final versionedKey = '${cacheKey}_v$version';
+    final cached = box.get(versionedKey);
+    if (cached != null) {
+      return Map<String, dynamic>.from(cached as Map);
+    }
+
+    final response = await dio.get<dynamic>(url);
+    final data = Map<String, dynamic>.from(response.data as Map);
+    await box.put(versionedKey, data);
+    return data;
   }
 
   Future<void> _runAssessment() async {
@@ -56,8 +92,23 @@ class _LoadingScreenState extends State<LoadingScreen> {
           final rulesUrl = (artifacts['rules'] as Map?)?['url'] as String?;
           final tokenDictUrl =
               (artifacts['token_dictionary'] as Map?)?['url'] as String?;
+          final facilitiesUrl =
+              (artifacts['facilities'] as Map?)?['url'] as String?;
 
           if (kbUrl != null && rulesUrl != null && tokenDictUrl != null) {
+            final kbVersion =
+                (artifacts['knowledge_base'] as Map?)?['version'] as String? ??
+                '1.0';
+            final rulesVersion =
+                (artifacts['rules'] as Map?)?['version'] as String? ?? '1.0';
+            final tokenVersion =
+                (artifacts['token_dictionary'] as Map?)?['version']
+                    as String? ??
+                '1.0';
+            final facilitiesVersion =
+                (artifacts['facilities'] as Map?)?['version'] as String? ??
+                '1.0';
+
             final dio = Dio(
               BaseOptions(
                 connectTimeout: const Duration(seconds: 30),
@@ -65,19 +116,55 @@ class _LoadingScreenState extends State<LoadingScreen> {
               ),
             );
 
-            final responses = await Future.wait([
-              dio.get<dynamic>(kbUrl),
-              dio.get<dynamic>(rulesUrl),
-              dio.get<dynamic>(tokenDictUrl),
+            final artifactBox = Hive.isBoxOpen(_artifactBoxName)
+                ? Hive.box(_artifactBoxName)
+                : await Hive.openBox(_artifactBoxName);
+
+            final artifactData = await Future.wait([
+              _loadArtifact(dio, artifactBox, kbUrl, _artifactKbKey, kbVersion),
+              _loadArtifact(
+                dio,
+                artifactBox,
+                rulesUrl,
+                _artifactRulesKey,
+                rulesVersion,
+              ),
+              _loadArtifact(
+                dio,
+                artifactBox,
+                tokenDictUrl,
+                _artifactTokenDictKey,
+                tokenVersion,
+              ),
+              if (facilitiesUrl != null)
+                _loadArtifact(
+                  dio,
+                  artifactBox,
+                  facilitiesUrl,
+                  _artifactFacilitiesKey,
+                  facilitiesVersion,
+                ),
             ]);
 
-            final kbData = Map<String, dynamic>.from(responses[0].data as Map);
-            final rulesData = Map<String, dynamic>.from(
-              responses[1].data as Map,
-            );
-            final tokenDictData = Map<String, dynamic>.from(
-              responses[2].data as Map,
-            );
+            final kbData = artifactData[0];
+            final rulesData = artifactData[1];
+            final tokenDictData = artifactData[2];
+
+            if (facilitiesUrl != null) {
+              final facilitiesData = artifactData[3];
+              final facilitiesList =
+                  (facilitiesData['facilities'] as List?)
+                      ?.map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList() ??
+                  <Map<String, dynamic>>[];
+
+              final facilityBox = Hive.isBoxOpen(_facilityBoxName)
+                  ? Hive.box(_facilityBoxName)
+                  : await Hive.openBox(_facilityBoxName);
+              await facilityBox.put(_facilityDataKey, facilitiesList);
+            } else {
+              debugPrint('Facilities artifact URL missing — locator skipped');
+            }
 
             final conditions =
                 (kbData['conditions'] as List?)

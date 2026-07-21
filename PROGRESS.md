@@ -1074,3 +1074,168 @@ the app root, with no further code change needed here.
 - Follow-up still needed: the E4.2 EXIT CRITERIA emulator-verification
   checkbox was never checked off before this merge — worth a real
   simulator pass now that `SplashScreen` is live on `develop`.
+
+---
+
+## BRANCH DIVERGENCE NOTE (2026-07-07)
+
+**`develop` is behind `feature/e4-results-screen`.** Since this merge,
+`feature/e4-results-screen` has picked up additional work not yet on
+`develop`:
+
+- Figma-accurate ResultsScreen redesign (custom header, wave banner with
+  SVG illustrations, dash-indicator condition cards) and the
+  `result_non_urgent.svg` black-icon fix
+- A full app audit (engine logic, offline mode, UX, accessibility) with
+  3 fixes applied: demographic tokens now actually reach the scoring
+  engine (previously silently dropped — a real production bug), version-
+  aware artifact caching (Hive box `artifact_cache`, separate from
+  `config_cache`), and a doc-comment clarifying `ResultsScreen`'s
+  `emergency` variant reachability
+- See `feature/e4-results-screen`'s own `PROGRESS.md` for full detail on
+  each of these — not duplicated here since `develop` hasn't merged them
+  yet. A `feature/e4-results-screen` → `develop` merge (and eventually a
+  `develop` → `main` PR) is still outstanding.
+
+---
+
+# Phase E6 — Facility Locator Integration
+
+**Phase:** E6 — Facility Locator Integration
+**Task:** E6.1 — Locator Foundation & Service Layer, E6.2 — Locator UI
+**Branch:** feat/e6-facility-locator
+**Last Updated:** 2026-07-20
+
+---
+
+## CURRENT STATUS: E6.1 + E6.2 BUILT — analyze/format clean, pending manual verification and commit
+
+---
+
+## E6.1 — Locator Foundation & Service Layer
+
+- [x] Add `geolocator: ^13.0.0`, `flutter_map: ^6.0.0`, `latlong2: ^0.9.0` to
+      pubspec.yaml (`url_launcher` already present from E4.3)
+- [x] Run `flutter pub get` — resolved cleanly, no dependency conflicts
+      (`flutter_map 6.2.1`, `geolocator 13.0.4`, `latlong2 0.9.1`)
+- [x] Port the `_loadArtifact` versioned-cache helper (previously only on the
+      unmerged `feature/e4-results-screen` branch) into this branch's
+      `loading_screen.dart`, applied to all 4 artifacts (kb, rules,
+      token_dictionary, facilities)
+- [x] Add facilities as the 4th boot-sequence artifact — read URL/version from
+      `config['artifacts']['facilities']`, cache under `cacheKey:
+      'artifact_facilities'`
+- [x] Store parsed facilities list in a variable for `LocatorService`
+- [x] Persist facilities to a dedicated Hive box `facility_cache`
+      (key `facilities_data`) so `LocatorScreen` can read them independently
+- [x] Create `lib/features/locator/facility_locator_service.dart` —
+      `FacilityLocatorService` with `getNearbyFacilities()` (haversine
+      distance, urgency-based type filter, sparse-coverage fallback,
+      sort + cap) and `getFacilitiesByLocation()` (manual state/city fallback)
+
+## E6.2 — Locator UI
+
+- [x] Create `lib/features/locator/facility_card.dart` — `FacilityCard`
+      StatelessWidget (name, address, conditional distance/opening-status/
+      call button, always-shown directions button)
+- [x] Create `lib/features/locator/locator_screen.dart` — `LocatorScreen`
+      StatefulWidget (map/list toggle, location permission flow with
+      rationale copy, manual state/city fallback UI, facility bottom sheet)
+- [x] Replace the "Find Nearby Care" stub bottom sheet in
+      `lib/features/results/results_screen.dart` and
+      `lib/features/results/red_flag_interrupt_screen.dart` with
+      `Navigator.push` to `LocatorScreen(urgency: engineOutput.urgency)`
+
+---
+
+## EXIT CRITERIA FOR E6 (all must be met before PR)
+
+- [x] All E6.1 and E6.2 tasks above complete
+- [x] `flutter analyze` returns zero errors
+- [x] `dart format --output=none --set-exit-if-changed .` returns clean (exit 0)
+- [x] 8 unit tests written in `test/locator/facility_locator_service_test.dart`,
+      all passing — `flutter test test/locator/facility_locator_service_test.dart`
+- [ ] Manual verification on simulator/device (permission flow, map pins,
+      list/map toggle, manual state/city fallback, directions/call links)
+- [ ] Work committed and pushed
+- [ ] PR opened against `develop`
+
+---
+
+## NOTES / DECISIONS LOG (E6)
+
+- User decision (2026-07-20): since `_loadArtifact` only exists on the
+  unmerged `feature/e4-results-screen` branch, port that exact helper
+  pattern into this branch rather than doing a facilities-only ad hoc
+  cache — keeps this branch forward-compatible with that branch's eventual
+  merge into `develop`, at the cost of touching the other 3 artifacts'
+  fetch logic (not just facilities) in this branch's diff.
+- **Platform permission entries added** (not explicitly in the spec, but
+  required for `geolocator` to function): `NSLocationWhenInUseUsageDescription`
+  in `ios/Runner/Info.plist` (using the exact rationale copy from STEP 6) and
+  `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` in
+  `android/app/src/main/AndroidManifest.xml`. Without these the OS permission
+  request would silently fail/crash on both platforms.
+- **Sparse-coverage fallback interpretation:** the spec's per-type chain
+  (`pharmacy → health_centre → clinic → hospital`) is applied as a single
+  one-step expansion of the urgency's base type set when nearby (≤20km)
+  results are `< 3` — not a repeated/recursive walk up the chain. Only
+  applies to `urgent`/`non_urgent`/`self_care` (type-filtered); `emergency`
+  has no type filter to expand (all facilities are already included, just
+  ordered emergency-capable-first).
+- **"emergency" urgency filter:** read literally as no type restriction —
+  `getNearbyFacilities` includes every facility for `urgency == 'emergency'`,
+  sorted with `emergency_capable == true` facilities first (each group
+  independently sorted by distance), matching "emergency_capable == true
+  first, then all others" rather than treating it as an exclusionary filter.
+- **Pin vs. card tap:** map markers (small icons, no room for detail) open
+  the bottom-sheet `FacilityCard` on tap, per spec. List-view and manual-
+  fallback rows render `FacilityCard` directly inline (matching the manual
+  fallback spec's literal "show results as list of FacilityCards") rather
+  than wrapping each row in a second tap-to-open-the-same-card bottom sheet.
+
+## NOTES / DECISIONS LOG (E6 — unit tests, 2026-07-20)
+
+- **Field name bug fixed:** the E6.1 test brief's mock facility data uses
+  `latitude`/`longitude` keys, but the coordinate field names were never
+  specified when `facility_locator_service.dart`/`locator_screen.dart` were
+  first built, and `lat`/`lon` was guessed. Renamed to `latitude`/`longitude`
+  in both files to match the real schema — without this every distance
+  calculation would have silently returned `double.infinity` and excluded
+  every facility.
+- **TEST 4 / TEST 5 conflict with the sparse-coverage fallback:** using the
+  shared `mockFacilities` list, `self_care` only has 2 candidate facilities
+  total (Kano pharmacy ~840km from the Lagos Island user, Surulere health
+  centre ~7km away), so the `< 3 within 20km` fallback threshold always
+  triggers and pulls in the Victoria Island clinic — contradicting TEST 4's
+  literal "no clinic in results" assertion. Separately, TEST 5's wording
+  ("fallback expanded to health_centre") assumed self_care's base filter
+  starts narrower than it actually does (health_centre is already in the
+  base type set, so the fallback chain can only ever add `clinic`, never
+  `health_centre`). **User decision:** keep the `getNearbyFacilities`
+  algorithm exactly as built in the previous E6 session — no production
+  code change. TEST 4 was rewritten against a bespoke dataset with 3
+  pharmacy/health_centre facilities within 20km (so fallback doesn't fire
+  and the strict type assertion holds). TEST 5 was rewritten against a
+  bespoke 2-facility dataset (1 pharmacy, 1 clinic, no health_centre) that
+  demonstrates the real fallback behavior — clinic gets pulled in via the
+  `health_centre → clinic` chain link even though no health_centre facility
+  exists in that dataset.
+- **TEST 8 is vacuous on the shared mock data:** `getFacilitiesByLocation`
+  with `state: 'Kano', urgency: 'urgent'` returns an empty list, since the
+  only Kano facility (`f003`) is a pharmacy and the `urgent` type filter
+  only allows hospital/clinic. Both of TEST 8's assertions ("only Kano
+  facilities", "no Lagos facilities") pass vacuously on the empty result.
+  Written exactly as specified rather than silently changing the urgency
+  param — flagged here since it doesn't actually exercise the state filter
+  against non-empty data.
+- **Manual fallback city/area options** are derived from the loaded
+  facilities dataset (distinct `city_area` values for the selected state),
+  since the spec gives a fixed list for state (`['Lagos', 'FCT', 'Kano']`)
+  but not for city/area.
+- **Directions/Call actions:** `_openDirections` launches a Google Maps
+  web URL (`https://www.google.com/maps/dir/?api=1&destination=lat,lon`)
+  via `url_launcher`; `_callFacility` uses a `tel:` URI — same pattern as
+  the existing `_callEmergency` in `results_screen.dart`/
+  `red_flag_interrupt_screen.dart`. Not detailed in the spec beyond the
+  callback signatures.

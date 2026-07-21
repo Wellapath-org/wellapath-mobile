@@ -1,0 +1,482 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:latlong2/latlong.dart' as latlong;
+import 'package:url_launcher/url_launcher.dart';
+import 'facility_card.dart';
+import 'facility_locator_service.dart';
+
+class LocatorScreen extends StatefulWidget {
+  final String urgency;
+
+  const LocatorScreen({super.key, required this.urgency});
+
+  @override
+  State<LocatorScreen> createState() => _LocatorScreenState();
+}
+
+class _LocatorScreenState extends State<LocatorScreen> {
+  static const Color _primary = Color(0xFF6B4EFF);
+  static const String _facilityBoxName = 'facility_cache';
+  static const String _facilityDataKey = 'facilities_data';
+  static const List<String> _states = ['Lagos', 'FCT', 'Kano'];
+
+  static const latlong.LatLng _fallbackCenter = latlong.LatLng(9.0820, 8.6753);
+
+  FacilityLocatorService? _service;
+  List<Map<String, dynamic>> _allFacilities = [];
+  List<Map<String, dynamic>> _results = [];
+
+  bool _loading = true;
+  bool _locationDenied = false;
+  bool _isMapView = true;
+  latlong.LatLng? _userLatLng;
+
+  String? _selectedState;
+  String? _selectedCityArea;
+  List<Map<String, dynamic>> _manualResults = [];
+  bool _manualSearched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocator();
+  }
+
+  Future<void> _initLocator() async {
+    final box = Hive.isBoxOpen(_facilityBoxName)
+        ? Hive.box(_facilityBoxName)
+        : await Hive.openBox(_facilityBoxName);
+    final raw = box.get(_facilityDataKey) as List?;
+    final facilities =
+        raw?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ??
+        <Map<String, dynamic>>[];
+
+    _allFacilities = facilities;
+    _service = FacilityLocatorService(facilities);
+
+    await _requestLocation();
+  }
+
+  Future<void> _requestLocation() async {
+    setState(() => _loading = true);
+
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (!mounted) return;
+      setState(() {
+        _locationDenied = true;
+        _loading = false;
+      });
+      return;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      final shouldRequest = await _showLocationRationale();
+      if (!shouldRequest) {
+        if (!mounted) return;
+        setState(() {
+          _locationDenied = true;
+          _loading = false;
+        });
+        return;
+      }
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      setState(() {
+        _locationDenied = true;
+        _loading = false;
+      });
+      return;
+    }
+
+    try {
+      final position = await Geolocator.getCurrentPosition();
+      final results = _service!.getNearbyFacilities(
+        userLat: position.latitude,
+        userLon: position.longitude,
+        urgency: widget.urgency,
+      );
+      if (!mounted) return;
+      setState(() {
+        _userLatLng = latlong.LatLng(position.latitude, position.longitude);
+        _results = results;
+        _locationDenied = false;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _locationDenied = true;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<bool> _showLocationRationale() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Location access'),
+        content: const Text(
+          'WellaPath uses your location to show nearby health facilities. '
+          'Your location never leaves your device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Not now'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Allow'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  List<String> _cityAreasForState(String state) {
+    final areas =
+        _allFacilities
+            .where(
+              (facility) =>
+                  (facility['state'] as String?)?.toLowerCase() ==
+                  state.toLowerCase(),
+            )
+            .map((facility) => facility['city_area'] as String?)
+            .whereType<String>()
+            .toSet()
+            .toList()
+          ..sort();
+    return areas;
+  }
+
+  void _runManualSearch() {
+    if (_selectedState == null || _service == null) return;
+    final results = _service!.getFacilitiesByLocation(
+      state: _selectedState!,
+      cityArea: _selectedCityArea ?? '',
+      urgency: widget.urgency,
+    );
+    setState(() {
+      _manualResults = results;
+      _manualSearched = true;
+    });
+  }
+
+  Future<void> _openDirections(Map<String, dynamic> facility) async {
+    final lat = (facility['latitude'] as num?)?.toDouble();
+    final lon = (facility['longitude'] as num?)?.toDouble();
+    if (lat == null || lon == null) return;
+    final uri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$lat,$lon',
+    );
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _callFacility(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    await launchUrl(uri);
+  }
+
+  void _showFacilitySheet(Map<String, dynamic> facility) {
+    final phone = facility['phone'] as String?;
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FacilityCard(
+            facility: facility,
+            onDirectionsTap: () => _openDirections(facility),
+            onCallTap: phone != null ? () => _callFacility(phone) : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  int get _shownCount =>
+      _locationDenied ? _manualResults.length : _results.length;
+
+  String get _locationLabel {
+    if (_locationDenied) {
+      if (_manualSearched && _selectedState != null) {
+        return _selectedCityArea != null
+            ? '$_selectedCityArea, $_selectedState'
+            : _selectedState!;
+      }
+      return 'Select location';
+    }
+    return 'Your location';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            _buildCounter(),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          Expanded(
+            child: Text(
+              _locationLabel,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const Icon(Icons.location_on, color: _primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCounter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '$_shownCount of 30 shown',
+          style: const TextStyle(fontSize: 13, color: Colors.black54),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: _primary));
+    }
+    if (_locationDenied) {
+      return _buildManualFallback();
+    }
+    return _buildLocationResults();
+  }
+
+  Widget _buildLocationResults() {
+    return Column(
+      children: [
+        _buildViewToggle(),
+        Expanded(
+          child: _results.isEmpty
+              ? const Center(child: Text('No nearby facilities found.'))
+              : (_isMapView
+                    ? _buildMapView(_results)
+                    : _buildListView(_results)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(
+            value: true,
+            label: Text('Map'),
+            icon: Icon(Icons.map_outlined),
+          ),
+          ButtonSegment(
+            value: false,
+            label: Text('List'),
+            icon: Icon(Icons.list_alt),
+          ),
+        ],
+        selected: {_isMapView},
+        onSelectionChanged: (selection) =>
+            setState(() => _isMapView = selection.first),
+      ),
+    );
+  }
+
+  Widget _buildMapView(List<Map<String, dynamic>> facilities) {
+    final markers = <Marker>[
+      for (final facility in facilities)
+        if ((facility['latitude'] as num?) != null &&
+            (facility['longitude'] as num?) != null)
+          Marker(
+            point: latlong.LatLng(
+              (facility['latitude'] as num).toDouble(),
+              (facility['longitude'] as num).toDouble(),
+            ),
+            width: 36,
+            height: 36,
+            child: GestureDetector(
+              onTap: () => _showFacilitySheet(facility),
+              child: const Icon(
+                Icons.local_hospital,
+                color: _primary,
+                size: 32,
+              ),
+            ),
+          ),
+      if (_userLatLng != null)
+        Marker(
+          point: _userLatLng!,
+          width: 20,
+          height: 20,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                BorderSide(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+        ),
+    ];
+
+    return FlutterMap(
+      options: MapOptions(
+        initialCenter: _userLatLng ?? _fallbackCenter,
+        initialZoom: 13,
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        ),
+        MarkerLayer(markers: markers),
+      ],
+    );
+  }
+
+  Widget _buildListView(List<Map<String, dynamic>> facilities) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: facilities.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final facility = facilities[index];
+        final phone = facility['phone'] as String?;
+        return FacilityCard(
+          facility: facility,
+          onDirectionsTap: () => _openDirections(facility),
+          onCallTap: phone != null ? () => _callFacility(phone) : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildManualFallback() {
+    final cityAreas = _selectedState != null
+        ? _cityAreasForState(_selectedState!)
+        : <String>[];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'We could not access your location. Select your area to find '
+            'nearby facilities instead.',
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedState,
+            decoration: const InputDecoration(
+              labelText: 'State',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final state in _states)
+                DropdownMenuItem(value: state, child: Text(state)),
+            ],
+            onChanged: (value) => setState(() {
+              _selectedState = value;
+              _selectedCityArea = null;
+            }),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedCityArea,
+            decoration: const InputDecoration(
+              labelText: 'City / Area',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final area in cityAreas)
+                DropdownMenuItem(value: area, child: Text(area)),
+            ],
+            onChanged: _selectedState == null
+                ? null
+                : (value) => setState(() => _selectedCityArea = value),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _selectedState == null ? null : _runManualSearch,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Search'),
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (_manualSearched)
+            if (_manualResults.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No facilities found in this area.')),
+              )
+            else
+              Column(
+                children: [
+                  for (final facility in _manualResults) ...[
+                    FacilityCard(
+                      facility: facility,
+                      onDirectionsTap: () => _openDirections(facility),
+                      onCallTap: (facility['phone'] as String?) != null
+                          ? () => _callFacility(facility['phone'] as String)
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+              ),
+        ],
+      ),
+    );
+  }
+}
