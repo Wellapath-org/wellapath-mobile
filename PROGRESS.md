@@ -1194,6 +1194,41 @@ the app root, with no further code change needed here.
   fallback spec's literal "show results as list of FacilityCards") rather
   than wrapping each row in a second tap-to-open-the-same-card bottom sheet.
 
+## NOTES / DECISIONS LOG (E6 — manual verification, 2026-07-21)
+
+- **Bug fix: OSM tile 403 "Access blocked".** iOS Simulator manual test (GPS
+  spoofed to Lagos Island via `xcrun simctl location ... set 6.4541,3.3947`
+  to test against the real Nigeria-only facility dataset) showed markers,
+  user-location dot, and the "30 of 30 shown" counter all rendering
+  correctly, but the map *tiles* failed with `403 Access blocked` — OSM's
+  tile usage policy (osm.wiki/Blocked) rejects requests with no identifying
+  `User-Agent`. `flutter_map`'s `TileLayer.userAgentPackageName` defaults to
+  `'unknown'` if unset, producing exactly that generic header. Fixed by
+  setting `userAgentPackageName: 'org.wellapath.wellapathMobile'` (matching
+  the real iOS `PRODUCT_BUNDLE_IDENTIFIER`) on the `TileLayer` in
+  `locator_screen.dart`.
+- **Confirmed the facility Hive cache was the real earlier blocker, not
+  location:** first manual-test attempt showed nothing on the locator
+  screen at all. Log showed `Facilities artifact URL missing — locator
+  skipped` — the cached `config_cache` Hive entry predated the backend
+  adding a `facilities` artifact (or was cached from a failed fetch), and
+  the staging backend's `/config` kept timing out (Render free-tier cold
+  start). Curling `/config` directly woke the backend and confirmed it
+  does include a real `facilities` artifact URL (5,344 real Nigeria
+  facilities, fields match the schema this branch already assumes:
+  `latitude`/`longitude`, `type`, `state`, `city_area`, `phone`,
+  `opening_hours`, `emergency_capable`). A full app restart (not hot
+  reload) re-ran the boot sequence against the now-warm backend and
+  correctly cached the facilities artifact.
+- **Found, not yet fixed:** the real facilities artifact's own
+  `_metadata.urgency_filter_logic` documents `non_urgent` as "hospitals,
+  clinics, **and health_centres**", but `FacilityLocatorService` currently
+  groups `urgent`/`non_urgent` into the same `{hospital, clinic}` set (per
+  the original STEP 4 instructions, which specified them as a combined
+  rule). Flagged to the user; not changed without explicit confirmation
+  since it's a production behavior change, not a bug in the sense of
+  contradicting this branch's own spec.
+
 ## NOTES / DECISIONS LOG (E6 — unit tests, 2026-07-20)
 
 - **Field name bug fixed:** the E6.1 test brief's mock facility data uses
@@ -1239,3 +1274,106 @@ the app root, with no further code change needed here.
   the existing `_callEmergency` in `results_screen.dart`/
   `red_flag_interrupt_screen.dart`. Not detailed in the spec beyond the
   callback signatures.
+
+---
+
+# Phase E7 — Token Dictionary v1.1 Update
+
+**Phase:** E7 — Token Dictionary v1.1 Update
+**Task:** E7.1 — Verify version-aware caching, E7.2 — Update pilot case tests
+**Branch:** feat/e6-facility-locator
+**Last Updated:** 2026-07-21
+
+---
+
+## CURRENT STATUS: COMPLETE ✅
+
+---
+
+## E7.1 — Version-aware caching verification
+
+- [x] Confirmed `tokenVersion` is read from
+      `config['artifacts']['token_dictionary']['version']` in
+      `loading_screen.dart` (defaults to `'1.0'` only if the field is missing)
+- [x] Confirmed `_loadArtifact`'s cache key is `'${cacheKey}_v$version'` —
+      bumping the backend's token_dictionary version to `1.1` produces a new
+      key `artifact_token_dict_v1.1`, guaranteed cache miss, triggering a
+      fresh download and re-caching under the new key
+- [x] **No code change needed** — the mechanism built in E6.1 already
+      handles this automatically, contingent on the backend actually
+      changing the `version` field in `/config` (not just the artifact URL)
+
+## E7.2 — Pilot case updates for token split
+
+- [x] Updated `test/engine/pilot_case_validation_test.dart` mock KB:
+      replaced the single `severe_malnutrition_sam_mam` demographic modifier
+      entry with two — `severe_malnutrition_sam` (`escalate_emergency`) and
+      `moderate_malnutrition_mam` (`increase_urgency`)
+- [x] Updated Case 10 to use `severe_malnutrition_sam` (still → `emergency`)
+- [x] Added Case 10b (`moderate_malnutrition_mam` → `non_urgent`, not
+      `urgent`) — see decision log below
+- [x] `flutter test test/engine/pilot_case_validation_test.dart` — 13/13
+      passing (12 original + 10b)
+- [x] `flutter test` (full suite) — 68/68 passing
+- [x] `flutter analyze` — zero errors
+- [x] `dart format --output=none --set-exit-if-changed .` — clean (exit 0)
+
+---
+
+## EXIT CRITERIA FOR E7
+
+- [x] E7.1 verification documented, no code change required
+- [x] E7.2 pilot case tests updated and passing
+- [x] Full test suite passing (68/68)
+- [x] `flutter analyze` zero errors, `dart format` clean
+- [x] Work committed and pushed
+
+---
+
+## NOTES / DECISIONS LOG (E7)
+
+- **Case 10b conflict, resolved by user decision (2026-07-21):** the task
+  brief specified Case 10b (`moderate_malnutrition_mam`, `increase_urgency`
+  effect) should resolve to `urgent`. Empirically running it against the
+  actual engine returned `non_urgent` instead. Traced the full path:
+  `acute_diarrhoea`'s `urgency_default` is `non_urgent`; `increase_urgency`
+  only adds +2 ranking points (`scoring_engine.dart`) and does not escalate
+  the urgency tier on its own — `urgency_determiner.dart`'s Priority 4b is
+  the only branch that reads `increase_urgency`, and it additionally
+  requires a non-null `seasonalModifierApplied`, which this scenario has
+  none of (no season passed). Falls through to Priority 5
+  (`urgency_default`). This is the same class of gap already documented in
+  the E3.5 notes for Case 04 (`children_under_5` + malaria) — Case 04 only
+  resolves to `emergency` because `rainy_season` happens to also be active,
+  satisfying Priority 4b's seasonal requirement; without a season,
+  `increase_urgency` alone has no escalation path anywhere in the engine.
+  **User decision:** write Case 10b asserting the real engine result
+  (`non_urgent`), documented inline, rather than changing
+  `urgency_determiner.dart`'s clinical escalation logic. Flagged for E8
+  calibration review — any change to escalation priority tiers requires
+  engineering lead + founder sign-off per CLAUDE.md locked principles #5/#8.
+- Case 10's demographic modifier token was split from
+  `severe_malnutrition_sam_mam` into `severe_malnutrition_sam` (kept,
+  `escalate_emergency`) and the new `moderate_malnutrition_mam`
+  (`increase_urgency`) per the engineering team's token dictionary v1.1
+  update — this test file's mock KB was updated to match, but note this
+  mock KB is independent or the real `token_dictionary` artifact; the real
+  v1.1 JSON's actual token split should be verified against this mock by
+  whoever does the manual device verification below.
+
+---
+
+## MANUAL VERIFICATION INSTRUCTIONS (for engineer, on device)
+
+1. **Boot the app** and confirm in debug logs that it downloads
+   `token_dictionary.ng.v1.1.json` fresh rather than reusing a cached copy —
+   look for the artifact fetch happening (a real `dio.get` network call) vs.
+   a silent cache-hit. (The current `_loadArtifact` helper doesn't log
+   cache-hit vs. download explicitly — if that distinction isn't visible in
+   existing logs, note it as a follow-up; don't assume without checking.)
+2. Run an assessment with `watery_stool` + the `moderate_malnutrition_mam`
+   demographic → confirm the app shows **non_urgent** care guidance (per the
+   E7.2 decision above — NOT urgent, this is the verified real engine
+   behavior, not a bug).
+3. Run an assessment with `watery_stool` + the `severe_malnutrition_sam`
+   demographic → confirm the app shows **emergency** care guidance.

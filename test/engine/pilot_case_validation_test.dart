@@ -43,10 +43,8 @@ final List<Map<String, dynamic>> _mockKnowledgeBase = [
       {'token': 'vomiting', 'weight': 5},
     ],
     'demographic_modifiers': [
-      {
-        'modifier': 'severe_malnutrition_sam_mam',
-        'effect': 'escalate_emergency',
-      },
+      {'modifier': 'severe_malnutrition_sam', 'effect': 'escalate_emergency'},
+      {'modifier': 'moderate_malnutrition_mam', 'effect': 'increase_urgency'},
     ],
     'seasonal_modifiers': [],
   },
@@ -370,19 +368,39 @@ void main() {
       },
     );
 
-    // CASE 10 — Acute diarrhoea + severe_malnutrition_sam_mam demographic escalation
-    test('case_10 — diarrhoea + severe_malnutrition_sam_mam → emergency', () {
+    // CASE 10 — Acute diarrhoea + severe_malnutrition_sam demographic escalation
+    test('case_10 — diarrhoea + severe_malnutrition_sam → emergency', () {
       final output = _buildController().run(
         const EngineInput(
           symptomTokens: ['watery_stool', 'vomiting'],
-          candidateConditionIds: ['severe_malnutrition_sam_mam'],
+          candidateConditionIds: ['severe_malnutrition_sam'],
         ),
       );
       _printOutput(
-        'Case 10 — Diarrhoea + SAM/MAM (demographic escalation)',
+        'Case 10 — Diarrhoea + SAM (demographic escalation)',
         output,
       );
       expect(output.urgency, equals('emergency'));
+    });
+
+    // Case 10b: moderate_malnutrition_mam triggers increase_urgency effect.
+    // Current engine: increase_urgency without a seasonal modifier falls through
+    // to Priority 5 (urgency_default = non_urgent for acute_diarrhoea).
+    // This is a known engine gap — increase_urgency only escalates when combined
+    // with a seasonal modifier (Priority 4b). Flagged for E8 calibration review.
+    // Do not change urgency_determiner.dart without engineering lead + founder sign-off.
+    test('case_10b — diarrhoea + moderate_malnutrition_mam → non_urgent', () {
+      final output = _buildController().run(
+        const EngineInput(
+          symptomTokens: ['watery_stool', 'vomiting'],
+          candidateConditionIds: ['moderate_malnutrition_mam'],
+        ),
+      );
+      _printOutput(
+        'Case 10b — Diarrhoea + MAM (demographic increase_urgency)',
+        output,
+      );
+      expect(output.urgency, equals('non_urgent'));
     });
 
     // CASE 11 — Headache + dizziness + fatigue
