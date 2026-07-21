@@ -52,10 +52,17 @@ class UrgencyDeterminer {
       );
     }
 
-    // Priority 4 — escalate_urgent demographic modifier on top condition
-    if (top != null && top.demographicEffect == 'escalate_urgent') {
+    // Priority 4c — increase_urgency + seasonal modifier → emergency.
+    // Checked BEFORE Priority 4a: both branches match on
+    // demographicEffect == 'increase_urgency', so the more specific
+    // seasonal-combo case must be tested first — otherwise Priority 4a
+    // would return early on the one-level escalation and this stronger
+    // seasonal escalation would never be reached.
+    if (top != null &&
+        top.demographicEffect == 'increase_urgency' &&
+        top.seasonalModifierApplied != null) {
       return UrgencyResult(
-        finalUrgency: 'urgent',
+        finalUrgency: 'emergency',
         urgencySource: 'demographic_escalation',
         redFlagTriggered: false,
         topCondition: top.conditionId,
@@ -63,12 +70,22 @@ class UrgencyDeterminer {
       );
     }
 
-    // Priority 4b — increase_urgency demographic + seasonal modifier → emergency
-    if (top != null &&
-        top.demographicEffect == 'increase_urgency' &&
-        top.seasonalModifierApplied != null) {
+    // Priority 4a — increase_urgency demographic modifier alone (no seasonal
+    // companion): escalate the top condition's urgency_default one level up.
+    if (top != null && top.demographicEffect == 'increase_urgency') {
       return UrgencyResult(
-        finalUrgency: 'emergency',
+        finalUrgency: _escalateOne(top.urgencyDefault),
+        urgencySource: 'demographic_escalation',
+        redFlagTriggered: false,
+        topCondition: top.conditionId,
+        urgencyDefaultWas: top.urgencyDefault,
+      );
+    }
+
+    // Priority 4b — escalate_urgent demographic modifier on top condition
+    if (top != null && top.demographicEffect == 'escalate_urgent') {
+      return UrgencyResult(
+        finalUrgency: 'urgent',
         urgencySource: 'demographic_escalation',
         redFlagTriggered: false,
         topCondition: top.conditionId,
@@ -85,5 +102,17 @@ class UrgencyDeterminer {
       topCondition: top?.conditionId,
       urgencyDefaultWas: defaultUrgency,
     );
+  }
+
+  // One-level urgency escalation used by Priority 4a.
+  String _escalateOne(String urgency) {
+    switch (urgency) {
+      case 'self_care':
+        return 'non_urgent';
+      case 'non_urgent':
+        return 'urgent';
+      default:
+        return urgency; // urgent and emergency stay as-is
+    }
   }
 }

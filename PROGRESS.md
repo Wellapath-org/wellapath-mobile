@@ -1239,3 +1239,81 @@ the app root, with no further code change needed here.
   the existing `_callEmergency` in `results_screen.dart`/
   `red_flag_interrupt_screen.dart`. Not detailed in the spec beyond the
   callback signatures.
+
+---
+
+# Phase E8 — Urgency Determiner Clinical Safety Fix
+
+**Phase:** E8 — Urgency Determiner Clinical Safety Fix
+**Task:** E8.1 — Add Priority 4a (increase_urgency single-level escalation)
+**Branch:** feature/e8-urgency-determiner-fix
+**Last Updated:** 2026-07-21
+
+---
+
+## CURRENT STATUS: COMPLETE ✅
+
+---
+
+## E8.1 — Clinical safety fix
+
+**Bug:** a moderately malnourished child with diarrhoea (`increase_urgency`
+demographic effect, no seasonal modifier active) was getting `non_urgent`
+instead of `urgent` — `increase_urgency` alone had no escalation path in
+`urgency_determiner.dart`, only combined with a seasonal modifier
+(Priority 4b, added in E3.5). Engineering lead approved an immediate fix.
+
+- [x] Added Priority 4a to `lib/core/engine/urgency_determiner.dart` —
+      `increase_urgency` alone escalates the top condition's
+      `urgency_default` one level up via `_escalateOne()`
+      (`self_care → non_urgent`, `non_urgent → urgent`, `urgent`/`emergency`
+      unchanged)
+- [x] Priority 4c (`increase_urgency` + seasonal modifier → `emergency`,
+      previously labelled 4b) is checked **before** Priority 4a in code
+      order — both match on `demographicEffect == 'increase_urgency'`, so
+      the more specific seasonal-combo case must be tested first or
+      Priority 4a would return early and shadow it
+- [x] Priority 4b (`escalate_urgent` → `urgent`) unchanged, unaffected since
+      it matches a different effect string
+- [x] Reconstructed the E7 token-split test changes in
+      `test/engine/pilot_case_validation_test.dart` (this branch was cut
+      from `develop` before E7 merged, so the split didn't exist here yet):
+      mock KB demographic modifier split into `severe_malnutrition_sam`
+      (`escalate_emergency`) and `moderate_malnutrition_mam`
+      (`increase_urgency`), Case 10 renamed accordingly
+- [x] Case 10b assertion changed from `non_urgent` to `urgent`, comment
+      updated to document the fix
+- [x] Created `test/engine/urgency_determiner_fix_test.dart` — 5 unit tests
+      exercising Priority 4a directly against `UrgencyDeterminer`
+- [x] `flutter test test/engine/urgency_determiner_fix_test.dart` — 5/5 passing
+- [x] `flutter test test/engine/pilot_case_validation_test.dart` — 13/13
+      passing (Case 10b now correctly resolves `urgent`)
+- [x] Full `flutter test` — 73/73 passing
+- [x] `flutter analyze` — zero errors
+- [x] `dart format --output=none --set-exit-if-changed .` — clean (exit 0)
+
+---
+
+## EXIT CRITERIA FOR E8
+
+- [x] Priority 4a added, 4c checked before 4a to avoid shadowing
+- [x] Case 10b updated to assert `urgent`
+- [x] 5 new unit tests written and passing
+- [x] All existing tests still passing (73/73 total)
+- [x] `flutter analyze` zero errors, `dart format` clean
+- [x] Work committed and pushed
+
+---
+
+## NOTES / DECISIONS LOG (E8)
+
+- Engineering lead + founder sign-off obtained for this clinical urgency
+  logic change (per CLAUDE.md locked principles #5/#8 — red flag/urgency
+  overrides and architecture changes require review). Flagged as a
+  time-sensitive clinical safety fix, not routine engine calibration.
+- This branch (`feature/e8-urgency-determiner-fix`) was cut from `develop`
+  before `feat/e6-facility-locator`'s later E7 commits (token-split pilot
+  case test update, OSM tile fix) were merged back — only the E6 locator
+  feature itself was present via PR #15. The E7 pilot-case test changes had
+  to be reconstructed here from scratch to apply this fix's Case 10b
+  update; the OSM tile fix is unrelated and not part of this branch.
