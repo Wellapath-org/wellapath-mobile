@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
 import '../assessment/assessment_controller.dart';
+import '../locator/locator_screen.dart';
 
 class RedFlagInterruptScreen extends StatefulWidget {
   final EngineOutput engineOutput;
@@ -64,36 +65,10 @@ class _RedFlagInterruptScreenState extends State<RedFlagInterruptScreen> {
   }
 
   void _showFindCareSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Facility locator coming soon. In an emergency, go to your '
-                'nearest hospital immediately.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(sheetContext).pop(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _primary,
-                    side: const BorderSide(color: _primary),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text('Close'),
-                ),
-              ),
-            ],
-          ),
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => LocatorScreen(urgency: widget.engineOutput.urgency),
       ),
     );
   }

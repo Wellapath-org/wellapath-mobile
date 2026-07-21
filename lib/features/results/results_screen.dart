@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
 import '../assessment/assessment_controller.dart';
+import '../locator/locator_screen.dart';
 import 'condition_card.dart';
 import 'symptom_summary_widget.dart';
 
@@ -31,36 +32,10 @@ class ResultsScreen extends StatelessWidget {
   }
 
   void _showFindCareSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Facility locator coming soon. In an emergency, go to your '
-                'nearest hospital immediately.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(sheetContext).pop(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _primary,
-                    side: const BorderSide(color: _primary),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text('Close'),
-                ),
-              ),
-            ],
-          ),
-        ),
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => LocatorScreen(urgency: engineOutput.urgency),
       ),
     );
   }
