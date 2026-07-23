@@ -1317,3 +1317,34 @@ instead of `urgent` — `increase_urgency` alone had no escalation path in
   feature itself was present via PR #15. The E7 pilot-case test changes had
   to be reconstructed here from scratch to apply this fix's Case 10b
   update; the OSM tile fix is unrelated and not part of this branch.
+
+---
+
+## Case 04 policy change — founder decision, Option B (2026-07-23)
+
+**Branch:** `feat/case04-policy-option-b`
+
+Founder made the final clinical policy call on Case 04 (`children_under_5` +
+`rainy_season` compound demographic/seasonal escalation): **Option B —
+`urgent`, not `emergency`.**
+
+- [x] Updated `urgency_determiner.dart` Priority 4c: `increase_urgency` +
+      seasonal modifier now resolves to `urgent` (was `emergency`).
+      Priority 4c is still checked before Priority 4a, for the same reason
+      as before (both match on `demographicEffect == 'increase_urgency'`,
+      so the more specific seasonal-combo case must be tested first).
+- [x] Updated `test/engine/urgency_determiner_fix_test.dart` TEST 5 — now
+      asserts `urgent`, not `emergency`
+- [x] Updated `test/engine/pilot_case_validation_test.dart` Case 04 — now
+      asserts `urgent`; removed the stale "gap" comment left over from
+      before Priority 4c existed
+- [x] Full `flutter test` — 75/75 passing
+- [x] `flutter analyze` — zero errors, `dart format` — clean
+
+**Not done (outside mobile engineering scope):** the companion KB
+explanation-template update (`malaria.ng.v2.0.json` → regenerate
+`kb.ng.v2.2.json` → `kb.ng.v2.3.json`, new SHA256) requested in the same
+directive. That work lives in the `wellapath-knowledge-base` backend/data
+repo, not this mobile repo — no such files, regeneration pipeline, or R2
+upload access exist here. Flagged back to the engineering lead rather than
+fabricated.

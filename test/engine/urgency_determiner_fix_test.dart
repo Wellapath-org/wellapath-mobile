@@ -120,11 +120,12 @@ void main() {
       },
     );
 
-    // TEST 5 — fever + children_under_5 + rainy_season → emergency
-    // Priority 4c (increase_urgency + seasonal modifier) still fires and
-    // takes precedence over Priority 4a's one-level escalation.
+    // TEST 5 — fever + children_under_5 + rainy_season → urgent
+    // Founder policy decision (Case 04, Option B): Priority 4c (increase_urgency
+    // + seasonal modifier) still fires and takes precedence over Priority 4a's
+    // one-level escalation, but now resolves to urgent, not emergency.
     test(
-      'malaria (urgent) + increase_urgency + seasonal modifier → emergency (Priority 4c)',
+      'malaria (urgent) + increase_urgency + seasonal modifier → urgent (Priority 4c)',
       () {
         final scoring = _result(
           _condition(
@@ -137,7 +138,7 @@ void main() {
 
         final result = _determiner.determine(_noRedFlag, scoring);
 
-        expect(result.finalUrgency, equals('emergency'));
+        expect(result.finalUrgency, equals('urgent'));
         expect(result.urgencySource, equals('demographic_escalation'));
       },
     );

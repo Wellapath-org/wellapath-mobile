@@ -52,7 +52,7 @@ class UrgencyDeterminer {
       );
     }
 
-    // Priority 4c — increase_urgency + seasonal modifier → emergency.
+    // Priority 4c — increase_urgency + seasonal modifier → urgent.
     // Checked BEFORE Priority 4a: both branches match on
     // demographicEffect == 'increase_urgency', so the more specific
     // seasonal-combo case must be tested first — otherwise Priority 4a
@@ -62,7 +62,7 @@ class UrgencyDeterminer {
         top.demographicEffect == 'increase_urgency' &&
         top.seasonalModifierApplied != null) {
       return UrgencyResult(
-        finalUrgency: 'emergency',
+        finalUrgency: 'urgent',
         urgencySource: 'demographic_escalation',
         redFlagTriggered: false,
         topCondition: top.conditionId,
