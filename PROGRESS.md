@@ -1557,3 +1557,196 @@ updated to match the new raw-string cache storage format.
 
 **Full suite:** 76/76 passing. `flutter analyze` zero errors, `dart format`
 clean.
+
+---
+
+# Phase E8.4 — Device Performance Testing
+
+Branch: `feat/e8-device-performance`. Target device profile validated:
+2GB RAM (AVD configured at 1.5GB RAM to bias toward the conservative end
+of the target range), budget quad-core,
+API 26 (Android 8.0), 720x1280 screen, throttled to `umts` network
+profile (384kbps / 35-200ms latency) for the 3G scenarios. No physical
+low-end QA device was available, so an Android SDK + emulator toolchain
+was set up from scratch on this machine (previously iOS-only) to run
+these tests against a real Android build rather than iOS Simulator.
+
+## E8.4.1 — Engine Performance
+
+Measured via temporary `Stopwatch` instrumentation around
+`EngineController.run()`, 10 iterations per scenario, triggered through
+a real on-device assessment run (not a synthetic unit benchmark). All
+instrumentation was removed from `loading_screen.dart` after data
+collection — no permanent code change from this subtask.
+
+| Scenario | avg | min | max |
+|---|---|---|---|
+| Minimal (2 tokens) | 0.042ms | 0.036ms | 0.079ms |
+| Moderate (5 tokens + demographic) | 0.041ms | 0.037ms | 0.045ms |
+| Heavy (8 tokens + demographic + seasonal) | 0.041ms | 0.039ms | 0.043ms |
+| Red flag (seizures) | 0.011ms | 0.008ms | 0.031ms |
+
+All scenarios finish in **well under 1ms**, roughly 12,000x under the
+500ms target and nowhere near the 2000ms critical threshold. The engine
+pipeline itself (RedFlagEvaluator → ScoringEngine → UrgencyDeterminer →
+OutputFormatter) is not a performance concern on this device class —
+any user-perceived latency in the assessment flow comes entirely from
+artifact loading, not scoring.
+
+## E8.4.2 — Artifact Loading Performance
+
+| Scenario | Result | Target | Status |
+|---|---|---|---|
+| Cold boot, full network speed | ~1.3s | <30s | Pass |
+| Warm boot (cache hit) | ~25ms | <3s | Pass |
+| Cold boot, throttled 3G (`umts`, 384kbps) | ~7 min, then **failed outright** | <30s | **Critical fail** |
+| Version-update boot | not directly measurable (see note) | <15s on 3G | Estimated pass, unverified |
+
+**Critical finding — throttled 3G cold boot fails, does not just run
+slow.** Under a realistic `umts` profile matching this task's own
+100–500kbps target range, the first-run artifact download (KB, rules,
+token dictionary, facilities — 4 artifacts fetched in parallel via
+`Future.wait`) took roughly 7 minutes and then surfaced the generic
+"Something went wrong... Please try again" error — 14x over the 30s
+target, ending in total failure rather than a slow success.
+
+Root cause is not logged directly (by design — no artifact content or
+exception detail is logged, per the PHI-safe logging rule), but the
+evidence points to `receiveTimeout` (30s) measuring the gap *between*
+received chunks rather than total transfer duration: a connection
+trickling data slowly under heavy throttling never triggers that
+timeout, so the request drags on for minutes until something else (most
+likely the backend host terminating an unusually long-lived slow
+connection) errors out. Four parallel downloads competing for the same
+constrained, latency-inflated connection likely compounds this further.
+
+**Not fixed on this branch.** A real fix (e.g. sequential artifact
+downloads, a wall-clock cap independent of per-chunk timeout, or
+better slow-network UX) would be an architecture-level change to the
+boot/loading sequence, which per this project's locked principle #8
+("no architecture changes without founder + engineering lead review")
+is out of scope for a performance-*testing* branch. Flagging this for
+engineering lead review before the first real low-bandwidth field
+rollout — this is the one finding in this phase that should block
+sign-off, not just get noted.
+
+**Version-update boot — reasoned estimate, not directly measured.**
+Forcing a single-artifact cache invalidation requires writing into the
+app's Hive cache from outside the app (`run-as`), which isn't available
+on a `--release` build with no debuggable flag. Bounded estimate: a
+version bump invalidates one artifact's versioned cache key while the
+other three still hit cache, so the request shape moves from "4
+parallel downloads" to "1 download" — at full network speed the
+~1.3s cold-boot figure suggests a low-hundreds-of-ms result for a
+single artifact. Under the same throttled 3G conditions that broke the
+full cold boot, a single-artifact download is not guaranteed to be a
+proportional 1/4 of the failure — it may in fact finish, since it no
+longer shares the constrained link with 3 other
+connections. **This needs a real device/emulator test with an
+artificially bumped artifact version before treating it as verified**,
+flagged as follow-up rather than asserted here.
+
+## E8.4.3 — Memory Usage
+
+Measured via `adb shell dumpsys meminfo org.wellapath.wellapath_mobile`
+at steady-state app screens (not peak-during-transition, which
+`dumpsys` doesn't sample well):
+
+| State | PSS |
+|---|---|
+| Results screen (post-assessment) | ~76.7MB |
+| Facility locator map view | ~76.1MB |
+
+Both comfortably under the 150MB target and far from the 200MB critical
+threshold — no concern on this device class.
+
+## E8.4.4 — Offline Assessment Performance
+
+Forced genuine offline state via
+`adb shell settings put global airplane_mode_on 1` + `adb reboot`
+(a live `settings put` alone, and `svc wifi/data disable`, do **not**
+actually cut the emulator's virtual network — confirmed
+`ping 8.8.8.8` still succeeded under those; only airplane mode +
+reboot produces a real `Network is unreachable`).
+
+With the app relaunched under confirmed offline conditions:
+
+- **Boot:** app launched straight to the Home screen using the cached
+  config, no crash, no visible error.
+- **Full assessment flow** (Male, 18-40, skip medical conditions, Head →
+  Headache + Fever, Mild, <3 days, skip additional symptoms) completed
+  successfully entirely offline:
+  - `PERF: artifact load total = 38ms` — all 4 artifacts served from
+    the version-and-hash-verified Hive cache, zero network calls.
+  - Engine benchmarks unchanged from the online run (sub-millisecond
+    across all 4 scenarios).
+  - `Assessment complete` logged, no error path taken.
+  - Results screen rendered (**URGENT / Malaria**) — confirmed via
+    screenshot.
+- **No network error was shown to the user** at any point in this flow.
+
+**Gap noted, not fixed:** there is no explicit "you are offline, using
+cached data" indicator anywhere in the UI. The flow works correctly, but
+a user has no way to distinguish "assessed against fresh data" from
+"assessed against a cache that may be stale" — worth a product decision,
+not addressed on this branch since it's a UI/UX addition outside this
+phase's scope.
+
+## E8.4.5 — Facility Locator Performance
+
+- **Location permission flow:** rationale dialog → system permission
+  dialog → "turn on device location" dialog, all handled correctly.
+- **Tap-to-pins:** ~1.8s from opening the locator to pins rendered
+  with real data (under the 3s target).
+- **Facility data:** real dataset loaded correctly ("30 of 30 shown"),
+  list view showing correct real facility names and distances (e.g.
+  "Runsewe Hospital... 0.7 km away").
+- **Memory during map view:** ~76.1MB (see E8.4.3).
+- **Filter-by-urgency:** not independently re-timed on-device this
+  phase — the underlying `FacilityLocatorService` filter logic was
+  already verified fast against real data in earlier session testing;
+  no evidence found suggesting it would regress on this device class.
+- **60fps scroll target:** `dumpsys gfxinfo` reported "Total frames
+  rendered: 0" during list scroll — this is a **tooling limitation, not
+  an app bug**: Flutter renders through its own engine (Skia/Impeller),
+  largely bypassing the native Android View-based frame pipeline that
+  `gfxinfo` instruments. Compensating signal: `logcat` showed no
+  Choreographer "Skipped N frames" jank warnings during the scroll
+  test — a positive but less precise signal than a direct frame-time
+  measurement.
+
+## Critical findings discovered during this phase (not part of the
+original test plan, but real bugs found by exercising the app on
+Android for the first time in this project)
+
+1. **`android.permission.INTERNET` was missing entirely** from
+   `AndroidManifest.xml` — this blocked **all** network access on
+   Android outright (`DioException: Failed host lookup`). Never caught
+   previously because only the iOS Simulator had been tested. **Fixed**
+   — permission added.
+2. **OSM map tiles returned 403** ("Access blocked... not following the
+   tile usage policy") — the `userAgentPackageName` fix for
+   `flutter_map`'s `TileLayer` (originally made on
+   `feat/e6-facility-locator`) was pushed to that branch *after* PR #15
+   had already merged into `develop`, so it silently never landed.
+   **Re-fixed** on this branch. Process note: a commit pushed to a
+   branch after its PR merges is effectively lost unless a follow-up PR
+   is opened — worth watching for on future branches.
+
+## Exit criteria
+
+- [x] Engine performance measured across all 4 required scenarios
+- [x] Boot sequence timed cold / warm / throttled-3G
+- [x] Memory measured at steady-state screens
+- [x] Offline assessment verified end-to-end, timed
+- [x] Facility locator performance measured
+- [x] Two real Android-only bugs found during testing, fixed
+      (INTERNET permission, OSM tile 403)
+- [x] Any scenario exceeding critical thresholds investigated —
+      throttled-3G cold boot is investigated and **documented as a
+      flagged, unresolved finding for engineering lead review**, per
+      this project's no-unilateral-architecture-change principle,
+      rather than fixed unilaterally
+- [x] `flutter analyze` zero errors, `dart format` clean
+- [x] No permanent test/debug instrumentation left in
+      `loading_screen.dart`
