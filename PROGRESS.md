@@ -1466,3 +1466,48 @@ syslog).
 `debugPrint('Assessment complete')` — matching the existing PHI-safe
 pattern already used elsewhere in the same file (e.g.
 `'Engine run failed — assessment incomplete'`).
+
+---
+
+## E8.3.4 — Certificate Pinning (deferred to production — documented)
+
+Inspected the actual live TLS certificate currently served by
+`wellapath-backend-staging.onrender.com`:
+
+```
+issuer=C=US, O=Google Trust Services, CN=WE1
+subject=CN=onrender.com
+notBefore=May 26 21:02:15 2026 GMT
+notAfter=Aug 24 22:01:50 2026 GMT
+```
+
+**Certificate pinning is not implemented for staging, and this is a
+deliberate decision, not an oversight.** Evidence:
+
+1. The certificate's `subject` is `CN=onrender.com` — a **shared,
+   platform-wide certificate covering all of Render's hosted apps**, not
+   one specific to `wellapath-backend-staging`. It is entirely managed by
+   Render/Google Trust Services, outside WellaPath's control.
+2. The validity window is ~90 days (`May 26 → Aug 24 2026`), consistent
+   with automated Let's-Encrypt-style rotation. Render rotates this
+   certificate on its own schedule with no advance notice to us.
+3. Pinning against this specific leaf certificate (via
+   `dio_certificate_pinning` or a custom `HttpClientAdapter`) would work
+   until Render's next automatic rotation — at which point every installed
+   copy of the app would start failing every network call, with no way to
+   recover short of shipping an app update. For a health-adjacent app still
+   in active development/testing against this exact staging host, that risk
+   outweighs the benefit pinning would provide against a threat model
+   (MITM on a staging backend with no PHI) that is already low.
+
+**Recommendation for production:** once WellaPath has its own
+dedicated production domain/certificate, implement pinning at the
+**public-key (SPKI) or intermediate-CA level** rather than the leaf
+certificate — this survives routine leaf-cert renewal and only needs
+updating on a genuine CA/key change. Flagged as a required pre-production
+task, not part of this branch's exit criteria.
+
+**No code changes made for this section** — decision documented per the
+task's own stated exit path ("If certificate pinning is not feasible for
+staging... document the reason and flag for production implementation
+instead").
