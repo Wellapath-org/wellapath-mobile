@@ -1408,3 +1408,32 @@ Audited every user input point in the assessment flow:
 
 **Finding: none.** All five input paths were already fully hardened; no
 code changes required for this section.
+
+---
+
+## E8.3.2 — Local Storage Audit (audit only — no gaps found)
+
+Full inventory of every Hive box and `SharedPreferences` usage in `lib/`
+(via `grep -rn "Hive\.\(openBox\|box\)\|shared_preferences\|SharedPreferences"`
+and every `.put(` call site):
+
+| Storage | Key(s) | Contents |
+|---|---|---|
+| Hive `config_cache` | `last_known_config` | The raw `/config` response only (artifact URLs/versions/hashes) — no symptom/demographic data |
+| Hive `artifact_cache` | `artifact_kb_v<version>`, `artifact_rules_v<version>`, `artifact_token_dict_v<version>`, `artifact_facilities_v<version>` | Versioned artifact JSON blobs (KB conditions, rules, token dictionary, public facility directory) — static reference data, not per-user |
+| Hive `facility_cache` | `facilities_data` | The parsed facilities list (public health-facility directory: name/type/location) — no patient data |
+| `SharedPreferences` | `onboarding_seen` | Boolean flag only |
+
+Confirmed via every `.put(` call site in `lib/` (exactly 3: `storage_service.dart`,
+and two in `loading_screen.dart`) that **no other box or key exists**.
+`AssessmentController` — which holds all in-session symptom tokens,
+demographic tokens, severity/duration tokens, sex, age, and body area — has
+**zero** persistence imports (`Hive`, `SharedPreferences`, or otherwise);
+its entire state lives in memory for the app session and is discarded on
+`clearAll()` or app close. `EngineOutput` (the triage result) is passed
+directly via widget constructor params from `LoadingScreen` to
+`ResultsScreen`/`RedFlagInterruptScreen` — never written to any box.
+
+**Finding: none.** No symptom inputs, assessment results, or user
+identity/demographics are ever persisted anywhere on-device. No code
+changes required for this section.
