@@ -1348,3 +1348,212 @@ directive. That work lives in the `wellapath-knowledge-base` backend/data
 repo, not this mobile repo — no such files, regeneration pipeline, or R2
 upload access exist here. Flagged back to the engineering lead rather than
 fabricated.
+
+---
+
+# Phase E8.3 — Security Hardening
+
+**Phase:** E8 — Validation, Calibration & Safety Hardening
+**Task:** E8.3 — Security Hardening
+**Branch:** feat/e8-security-hardening
+**Last Updated:** 2026-07-23
+
+---
+
+## E8.3.1 — Input Validation Hardening (audit only — no gaps found)
+
+Audited every user input point in the assessment flow:
+
+1. **Symptom tokens** — every path that adds a symptom token
+   (`symptom_selection_screen.dart`, `body_area_screen.dart`,
+   `followup_screen.dart`'s additionalSymptoms checkboxes) only ever calls
+   `AssessmentController.addSymptomToken()` with a token pulled from a fixed
+   const map (`kSymptomDisplayMap`, `kFollowupQuestionMap` option lists, or
+   the hardcoded `'seizures'` entry). Both screens that contain a
+   `TextField` (`symptom_selection_screen.dart`, `body_area_screen.dart`)
+   use it purely as a **search/filter box** over the fixed list — the typed
+   text never itself becomes a token. Independently, `RedFlagEvaluator.evaluate()`
+   validates every symptom token against `token_dictionary`'s
+   `symptom_tokens`/`red_flag_tokens` before red-flag evaluation or scoring
+   ever runs, and throws `ArgumentError` on any unknown token — this fires
+   before `EngineController` touches `ScoringEngine`, i.e. before "the
+   engine" in the sense of triage logic. Confirmed intact and unchanged
+   since E4.
+2. **Age range** — `age_screen.dart` only calls
+   `assessmentController.setAgeRange(label)` from five hardcoded button
+   labels feeding a fixed `_ageTokenMap`. No `TextField` exists on this
+   screen.
+3. **Sex selection** — `sex_screen.dart` has exactly two hardcoded options
+   (`Male`→`'male'`, `Female`→`'female'`). `shouldShowPregnancyScreen` is
+   `_sex == 'female'`; there is exactly **one** call site that pushes
+   `PregnancyScreen` (`medical_conditions_screen.dart`), gated by that same
+   check, and `PregnancyScreen` itself has a defense-in-depth `initState`
+   guard that immediately pops if `shouldShowPregnancyScreen` is false.
+   `setSex()` also removes any stale `'pregnancy'` demographic token if sex
+   is changed away from female. Confirmed this still holds after the E4.2/
+   E4.3 additions — no new navigation path to `PregnancyScreen` was
+   introduced by either.
+4. **Medical condition inputs** — `medical_conditions_screen.dart` has
+   exactly three hardcoded options (`Yes`/`No`/`Don't Know`); only `'yes'`
+   ever sets the demographic token (`value == 'yes'`), so `'no'` and
+   `'dont_know'` are equivalent no-ops. No `TextField` exists on this
+   screen.
+5. **Severity slider** — `_SegmentedSeveritySlider` is a 7-segment
+   tap-driven control (not a continuous `Slider`), each producing exactly
+   one of 7 fixed fractional values `(i+1)/7`. `_severityToken()`'s cascading
+   threshold checks map all 7 possible values (and any input, in principle,
+   since the final branch is an unconditional `return`) onto exactly one of
+   the 4 locked tokens (`mild`, `moderate`, `severe`, `very_severe`) — no
+   out-of-range value is possible.
+
+**Finding: none.** All five input paths were already fully hardened; no
+code changes required for this section.
+
+---
+
+## E8.3.2 — Local Storage Audit (audit only — no gaps found)
+
+Full inventory of every Hive box and `SharedPreferences` usage in `lib/`
+(via `grep -rn "Hive\.\(openBox\|box\)\|shared_preferences\|SharedPreferences"`
+and every `.put(` call site):
+
+| Storage | Key(s) | Contents |
+|---|---|---|
+| Hive `config_cache` | `last_known_config` | The raw `/config` response only (artifact URLs/versions/hashes) — no symptom/demographic data |
+| Hive `artifact_cache` | `artifact_kb_v<version>`, `artifact_rules_v<version>`, `artifact_token_dict_v<version>`, `artifact_facilities_v<version>` | Versioned artifact JSON blobs (KB conditions, rules, token dictionary, public facility directory) — static reference data, not per-user |
+| Hive `facility_cache` | `facilities_data` | The parsed facilities list (public health-facility directory: name/type/location) — no patient data |
+| `SharedPreferences` | `onboarding_seen` | Boolean flag only |
+
+Confirmed via every `.put(` call site in `lib/` (exactly 3: `storage_service.dart`,
+and two in `loading_screen.dart`) that **no other box or key exists**.
+`AssessmentController` — which holds all in-session symptom tokens,
+demographic tokens, severity/duration tokens, sex, age, and body area — has
+**zero** persistence imports (`Hive`, `SharedPreferences`, or otherwise);
+its entire state lives in memory for the app session and is discarded on
+`clearAll()` or app close. `EngineOutput` (the triage result) is passed
+directly via widget constructor params from `LoadingScreen` to
+`ResultsScreen`/`RedFlagInterruptScreen` — never written to any box.
+
+**Finding: none.** No symptom inputs, assessment results, or user
+identity/demographics are ever persisted anywhere on-device. No code
+changes required for this section.
+
+---
+
+## E8.3.3 — No PHI in Logs Audit (1 finding, fixed)
+
+Reviewed every `debugPrint`/`log.` call site in `lib/` (8 total; confirmed
+zero raw `print()` calls exist anywhere in `lib/`):
+
+| Location | Content | Verdict |
+|---|---|---|
+| `config_service.dart:16` | `DioExceptionType` enum only | Safe |
+| `api_client.dart:25` | `LogInterceptor` with `requestBody: false, responseBody: false` | Safe — matches E1.6 requirement exactly |
+| `red_flag_evaluator.dart:28` | Unknown-token **count** only, never token values | Safe |
+| `loading_screen.dart` (×4 static strings) | No data, generic status messages | Safe |
+| `loading_screen.dart:193` | **`output.urgency` (the triage result level)** | **Finding — fixed** |
+| `locator/*.dart`, `results/*.dart` | No logging at all in these files | Safe (no location coordinates or result data ever logged) |
+
+**Finding:** `loading_screen.dart` logged the assessment's final urgency
+level (`'Assessment complete — urgency: ${output.urgency}'`). While only a
+coarse 4-value enum (not symptom tokens or demographics), this is still
+part of the assessment *result* being logged, which the E8.3.3 criteria
+explicitly rule out — and `debugPrint` output is not stripped from release
+builds, so this was a real production log-exposure surface (device
+syslog).
+
+**Fix applied:** changed to a bare completion marker with no result data —
+`debugPrint('Assessment complete')` — matching the existing PHI-safe
+pattern already used elsewhere in the same file (e.g.
+`'Engine run failed — assessment incomplete'`).
+
+---
+
+## E8.3.4 — Certificate Pinning (deferred to production — documented)
+
+Inspected the actual live TLS certificate currently served by
+`wellapath-backend-staging.onrender.com`:
+
+```
+issuer=C=US, O=Google Trust Services, CN=WE1
+subject=CN=onrender.com
+notBefore=May 26 21:02:15 2026 GMT
+notAfter=Aug 24 22:01:50 2026 GMT
+```
+
+**Certificate pinning is not implemented for staging, and this is a
+deliberate decision, not an oversight.** Evidence:
+
+1. The certificate's `subject` is `CN=onrender.com` — a **shared,
+   platform-wide certificate covering all of Render's hosted apps**, not
+   one specific to `wellapath-backend-staging`. It is entirely managed by
+   Render/Google Trust Services, outside WellaPath's control.
+2. The validity window is ~90 days (`May 26 → Aug 24 2026`), consistent
+   with automated Let's-Encrypt-style rotation. Render rotates this
+   certificate on its own schedule with no advance notice to us.
+3. Pinning against this specific leaf certificate (via
+   `dio_certificate_pinning` or a custom `HttpClientAdapter`) would work
+   until Render's next automatic rotation — at which point every installed
+   copy of the app would start failing every network call, with no way to
+   recover short of shipping an app update. For a health-adjacent app still
+   in active development/testing against this exact staging host, that risk
+   outweighs the benefit pinning would provide against a threat model
+   (MITM on a staging backend with no PHI) that is already low.
+
+**Recommendation for production:** once WellaPath has its own
+dedicated production domain/certificate, implement pinning at the
+**public-key (SPKI) or intermediate-CA level** rather than the leaf
+certificate — this survives routine leaf-cert renewal and only needs
+updating on a genuine CA/key change. Flagged as a required pre-production
+task, not part of this branch's exit criteria.
+
+**No code changes made for this section** — decision documented per the
+task's own stated exit path ("If certificate pinning is not feasible for
+staging... document the reason and flag for production implementation
+instead").
+
+---
+
+## E8.3.5 — Artifact Integrity Verification (missing — implemented + tested)
+
+**Finding:** `_loadArtifact` in `loading_screen.dart` did **not** verify
+downloaded artifacts against the `hash` field `/config` provides for each
+artifact (`"hash": "sha256:<hex>"`) — a tampered or corrupted artifact
+would have been silently cached and used to drive triage decisions. This
+was a real gap, not a false alarm.
+
+**Fix implemented:**
+- Added `crypto: ^3.0.7` as a direct dependency (previously only resolved
+  transitively) since it's now imported in production code.
+- `_loadArtifact` now takes an `expectedHash` parameter and verifies the
+  **raw response bytes** (not a re-serialized JSON round-trip, which could
+  differ from what the hash was computed against) via SHA256 on **every
+  read** — both a fresh download and a cache hit:
+  - Cache hit + hash mismatch → the corrupted entry is discarded
+    (`box.delete`) and a fresh download is attempted — never silently
+    served.
+  - Fresh download + hash mismatch → retried once; if the retry also fails
+    the hash check, a `StateError` is thrown (caught by `_runAssessment`'s
+    existing error handling, surfacing the existing "something went wrong"
+    retry UI — no PHI, no engine run on unverified data).
+  - No hash provided by `/config` for a given artifact → treated as
+    "nothing to verify against" (`true`), not a failure — matches how
+    `version` already defaults gracefully when absent.
+- Cache storage changed from decoded `Map` to the **raw JSON string**, so
+  the exact original bytes are available to re-hash on every subsequent
+  cache hit, not just at download time.
+
+**Test:** `test/assessment/loading_screen_version_cache_test.dart` — new
+test `'corrupted cached artifact byte fails the hash check on a
+version-aware cache hit and is re-downloaded'`: downloads the real live KB
+artifact once to get genuine bytes + hash, flips one character in the
+middle of a copy, seeds that corrupted copy into the cache under the
+current version key, then calls `_loadArtifact` with the genuine hash and
+confirms: (1) the corrupted bytes are never returned to the caller, (2) a
+fresh, genuine copy is downloaded and re-cached, (3) the box's entry after
+the call re-hashes to the genuine hash, not the corrupted one. The other
+two tests in this file (version-detection, cache-hit-no-download) were
+updated to match the new raw-string cache storage format.
+
+**Full suite:** 76/76 passing. `flutter analyze` zero errors, `dart format`
+clean.
