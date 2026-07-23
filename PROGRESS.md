@@ -1511,3 +1511,49 @@ task, not part of this branch's exit criteria.
 task's own stated exit path ("If certificate pinning is not feasible for
 staging... document the reason and flag for production implementation
 instead").
+
+---
+
+## E8.3.5 — Artifact Integrity Verification (missing — implemented + tested)
+
+**Finding:** `_loadArtifact` in `loading_screen.dart` did **not** verify
+downloaded artifacts against the `hash` field `/config` provides for each
+artifact (`"hash": "sha256:<hex>"`) — a tampered or corrupted artifact
+would have been silently cached and used to drive triage decisions. This
+was a real gap, not a false alarm.
+
+**Fix implemented:**
+- Added `crypto: ^3.0.7` as a direct dependency (previously only resolved
+  transitively) since it's now imported in production code.
+- `_loadArtifact` now takes an `expectedHash` parameter and verifies the
+  **raw response bytes** (not a re-serialized JSON round-trip, which could
+  differ from what the hash was computed against) via SHA256 on **every
+  read** — both a fresh download and a cache hit:
+  - Cache hit + hash mismatch → the corrupted entry is discarded
+    (`box.delete`) and a fresh download is attempted — never silently
+    served.
+  - Fresh download + hash mismatch → retried once; if the retry also fails
+    the hash check, a `StateError` is thrown (caught by `_runAssessment`'s
+    existing error handling, surfacing the existing "something went wrong"
+    retry UI — no PHI, no engine run on unverified data).
+  - No hash provided by `/config` for a given artifact → treated as
+    "nothing to verify against" (`true`), not a failure — matches how
+    `version` already defaults gracefully when absent.
+- Cache storage changed from decoded `Map` to the **raw JSON string**, so
+  the exact original bytes are available to re-hash on every subsequent
+  cache hit, not just at download time.
+
+**Test:** `test/assessment/loading_screen_version_cache_test.dart` — new
+test `'corrupted cached artifact byte fails the hash check on a
+version-aware cache hit and is re-downloaded'`: downloads the real live KB
+artifact once to get genuine bytes + hash, flips one character in the
+middle of a copy, seeds that corrupted copy into the cache under the
+current version key, then calls `_loadArtifact` with the genuine hash and
+confirms: (1) the corrupted bytes are never returned to the caller, (2) a
+fresh, genuine copy is downloaded and re-cached, (3) the box's entry after
+the call re-hashes to the genuine hash, not the corrupted one. The other
+two tests in this file (version-detection, cache-hit-no-download) were
+updated to match the new raw-string cache storage format.
+
+**Full suite:** 76/76 passing. `flutter analyze` zero errors, `dart format`
+clean.

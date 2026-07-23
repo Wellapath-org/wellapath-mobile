@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -54,23 +57,64 @@ class _LoadingScreenState extends State<LoadingScreen> {
   /// only downloading (then caching) on a cache miss. The cache key is scoped
   /// by [version] so a new artifact version is never served stale data cached
   /// under an older version.
+  ///
+  /// If [expectedHash] (the `sha256:<hex>` value from /config) is provided,
+  /// the raw artifact bytes are verified against it on every read — both on
+  /// a fresh download and on a cache hit. A corrupted or tampered cached
+  /// entry is discarded and re-downloaded rather than silently served; a
+  /// corrupted fresh download is retried once before being rejected outright.
   Future<Map<String, dynamic>> _loadArtifact(
     Dio dio,
     Box<dynamic> box,
     String url,
     String cacheKey,
     String version,
+    String? expectedHash,
   ) async {
     final versionedKey = '${cacheKey}_v$version';
-    final cached = box.get(versionedKey);
-    if (cached != null) {
-      return Map<String, dynamic>.from(cached as Map);
+    final cachedRaw = box.get(versionedKey) as String?;
+
+    if (cachedRaw != null) {
+      if (_matchesHash(cachedRaw, expectedHash)) {
+        return Map<String, dynamic>.from(jsonDecode(cachedRaw) as Map);
+      }
+      // Cached artifact failed integrity verification — never serve it.
+      debugPrint(
+        'Artifact integrity check failed for cached $cacheKey — discarding and re-downloading',
+      );
+      await box.delete(versionedKey);
     }
 
-    final response = await dio.get<dynamic>(url);
-    final data = Map<String, dynamic>.from(response.data as Map);
-    await box.put(versionedKey, data);
-    return data;
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      final response = await dio.get<dynamic>(
+        url,
+        options: Options(responseType: ResponseType.plain),
+      );
+      final rawBody = response.data as String;
+
+      if (_matchesHash(rawBody, expectedHash)) {
+        await box.put(versionedKey, rawBody);
+        return Map<String, dynamic>.from(jsonDecode(rawBody) as Map);
+      }
+
+      debugPrint(
+        'Artifact integrity check failed for downloaded $cacheKey (attempt $attempt) — rejecting',
+      );
+    }
+
+    throw StateError('Artifact integrity check failed for $cacheKey');
+  }
+
+  /// Compares the SHA256 of [rawBody] against [expectedHash] (format
+  /// `sha256:<hex>`). Returns true if no hash was provided — some artifacts
+  /// may not carry one, and absence of a hash is not itself corruption.
+  bool _matchesHash(String rawBody, String? expectedHash) {
+    if (expectedHash == null || expectedHash.isEmpty) return true;
+    final expectedHex = expectedHash.startsWith('sha256:')
+        ? expectedHash.substring('sha256:'.length)
+        : expectedHash;
+    final actualHex = sha256.convert(utf8.encode(rawBody)).toString();
+    return actualHex.toLowerCase() == expectedHex.toLowerCase();
   }
 
   Future<void> _runAssessment() async {
@@ -109,6 +153,14 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 (artifacts['facilities'] as Map?)?['version'] as String? ??
                 '1.0';
 
+            final kbHash =
+                (artifacts['knowledge_base'] as Map?)?['hash'] as String?;
+            final rulesHash = (artifacts['rules'] as Map?)?['hash'] as String?;
+            final tokenHash =
+                (artifacts['token_dictionary'] as Map?)?['hash'] as String?;
+            final facilitiesHash =
+                (artifacts['facilities'] as Map?)?['hash'] as String?;
+
             final dio = Dio(
               BaseOptions(
                 connectTimeout: const Duration(seconds: 30),
@@ -121,13 +173,21 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 : await Hive.openBox(_artifactBoxName);
 
             final artifactData = await Future.wait([
-              _loadArtifact(dio, artifactBox, kbUrl, _artifactKbKey, kbVersion),
+              _loadArtifact(
+                dio,
+                artifactBox,
+                kbUrl,
+                _artifactKbKey,
+                kbVersion,
+                kbHash,
+              ),
               _loadArtifact(
                 dio,
                 artifactBox,
                 rulesUrl,
                 _artifactRulesKey,
                 rulesVersion,
+                rulesHash,
               ),
               _loadArtifact(
                 dio,
@@ -135,6 +195,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 tokenDictUrl,
                 _artifactTokenDictKey,
                 tokenVersion,
+                tokenHash,
               ),
               if (facilitiesUrl != null)
                 _loadArtifact(
@@ -143,6 +204,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
                   facilitiesUrl,
                   _artifactFacilitiesKey,
                   facilitiesVersion,
+                  facilitiesHash,
                 ),
             ]);
 
