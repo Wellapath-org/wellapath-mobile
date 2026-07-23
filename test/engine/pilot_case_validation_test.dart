@@ -260,12 +260,10 @@ void main() {
     });
 
     // CASE 04 — Malaria + children_under_5 + rainy season
-    // NOTE: children_under_5 produces effect: increase_urgency (+2 score,
-    // urgencyOverride = urgencyDefault). UrgencyDeterminer Priority 3/4 only
-    // fires on escalate_emergency / escalate_urgent. increase_urgency falls
-    // through to urgency_default ('urgent'). This case exposes a gap: the engine
-    // does not further escalate increase_urgency to emergency even with rainy season.
-    test('case_04 — malaria + children_under_5 + rainy_season → emergency', () {
+    // Founder policy decision (Option B): Priority 4c (increase_urgency +
+    // seasonal modifier) fires for this compound demographic/seasonal
+    // combination, resolving to urgent — not emergency.
+    test('case_04 — malaria + children_under_5 + rainy_season → urgent', () {
       final output = _buildController(currentSeason: 'rainy_season').run(
         const EngineInput(
           symptomTokens: ['fever', 'chills', 'headache', 'weakness'],
@@ -276,7 +274,7 @@ void main() {
         'Case 04 — Malaria + children_under_5 + rainy_season',
         output,
       );
-      expect(output.urgency, equals('emergency'));
+      expect(output.urgency, equals('urgent'));
     });
 
     // CASE 05 — Severe chest indrawing (pneumonia condition-specific red flag)
