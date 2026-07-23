@@ -368,6 +368,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'org.wellapath.wellapathMobile',
         ),
         MarkerLayer(markers: markers),
       ],
