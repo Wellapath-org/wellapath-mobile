@@ -190,7 +190,9 @@ class _LoadingScreenState extends State<LoadingScreen> {
             );
 
             output = engine.run(engineInput);
-            debugPrint('Assessment complete — urgency: ${output.urgency}');
+            // PHI rule: never log the urgency level or any other part of the
+            // assessment result — this is a completion marker only.
+            debugPrint('Assessment complete');
           } else {
             debugPrint('Artifact URLs missing — engine skipped');
           }

@@ -1437,3 +1437,32 @@ directly via widget constructor params from `LoadingScreen` to
 **Finding: none.** No symptom inputs, assessment results, or user
 identity/demographics are ever persisted anywhere on-device. No code
 changes required for this section.
+
+---
+
+## E8.3.3 — No PHI in Logs Audit (1 finding, fixed)
+
+Reviewed every `debugPrint`/`log.` call site in `lib/` (8 total; confirmed
+zero raw `print()` calls exist anywhere in `lib/`):
+
+| Location | Content | Verdict |
+|---|---|---|
+| `config_service.dart:16` | `DioExceptionType` enum only | Safe |
+| `api_client.dart:25` | `LogInterceptor` with `requestBody: false, responseBody: false` | Safe — matches E1.6 requirement exactly |
+| `red_flag_evaluator.dart:28` | Unknown-token **count** only, never token values | Safe |
+| `loading_screen.dart` (×4 static strings) | No data, generic status messages | Safe |
+| `loading_screen.dart:193` | **`output.urgency` (the triage result level)** | **Finding — fixed** |
+| `locator/*.dart`, `results/*.dart` | No logging at all in these files | Safe (no location coordinates or result data ever logged) |
+
+**Finding:** `loading_screen.dart` logged the assessment's final urgency
+level (`'Assessment complete — urgency: ${output.urgency}'`). While only a
+coarse 4-value enum (not symptom tokens or demographics), this is still
+part of the assessment *result* being logged, which the E8.3.3 criteria
+explicitly rule out — and `debugPrint` output is not stripped from release
+builds, so this was a real production log-exposure surface (device
+syslog).
+
+**Fix applied:** changed to a bare completion marker with no result data —
+`debugPrint('Assessment complete')` — matching the existing PHI-safe
+pattern already used elsewhere in the same file (e.g.
+`'Engine run failed — assessment incomplete'`).
