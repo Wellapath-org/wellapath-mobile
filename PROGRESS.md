@@ -1348,3 +1348,63 @@ directive. That work lives in the `wellapath-knowledge-base` backend/data
 repo, not this mobile repo — no such files, regeneration pipeline, or R2
 upload access exist here. Flagged back to the engineering lead rather than
 fabricated.
+
+---
+
+# Phase E8.3 — Security Hardening
+
+**Phase:** E8 — Validation, Calibration & Safety Hardening
+**Task:** E8.3 — Security Hardening
+**Branch:** feat/e8-security-hardening
+**Last Updated:** 2026-07-23
+
+---
+
+## E8.3.1 — Input Validation Hardening (audit only — no gaps found)
+
+Audited every user input point in the assessment flow:
+
+1. **Symptom tokens** — every path that adds a symptom token
+   (`symptom_selection_screen.dart`, `body_area_screen.dart`,
+   `followup_screen.dart`'s additionalSymptoms checkboxes) only ever calls
+   `AssessmentController.addSymptomToken()` with a token pulled from a fixed
+   const map (`kSymptomDisplayMap`, `kFollowupQuestionMap` option lists, or
+   the hardcoded `'seizures'` entry). Both screens that contain a
+   `TextField` (`symptom_selection_screen.dart`, `body_area_screen.dart`)
+   use it purely as a **search/filter box** over the fixed list — the typed
+   text never itself becomes a token. Independently, `RedFlagEvaluator.evaluate()`
+   validates every symptom token against `token_dictionary`'s
+   `symptom_tokens`/`red_flag_tokens` before red-flag evaluation or scoring
+   ever runs, and throws `ArgumentError` on any unknown token — this fires
+   before `EngineController` touches `ScoringEngine`, i.e. before "the
+   engine" in the sense of triage logic. Confirmed intact and unchanged
+   since E4.
+2. **Age range** — `age_screen.dart` only calls
+   `assessmentController.setAgeRange(label)` from five hardcoded button
+   labels feeding a fixed `_ageTokenMap`. No `TextField` exists on this
+   screen.
+3. **Sex selection** — `sex_screen.dart` has exactly two hardcoded options
+   (`Male`→`'male'`, `Female`→`'female'`). `shouldShowPregnancyScreen` is
+   `_sex == 'female'`; there is exactly **one** call site that pushes
+   `PregnancyScreen` (`medical_conditions_screen.dart`), gated by that same
+   check, and `PregnancyScreen` itself has a defense-in-depth `initState`
+   guard that immediately pops if `shouldShowPregnancyScreen` is false.
+   `setSex()` also removes any stale `'pregnancy'` demographic token if sex
+   is changed away from female. Confirmed this still holds after the E4.2/
+   E4.3 additions — no new navigation path to `PregnancyScreen` was
+   introduced by either.
+4. **Medical condition inputs** — `medical_conditions_screen.dart` has
+   exactly three hardcoded options (`Yes`/`No`/`Don't Know`); only `'yes'`
+   ever sets the demographic token (`value == 'yes'`), so `'no'` and
+   `'dont_know'` are equivalent no-ops. No `TextField` exists on this
+   screen.
+5. **Severity slider** — `_SegmentedSeveritySlider` is a 7-segment
+   tap-driven control (not a continuous `Slider`), each producing exactly
+   one of 7 fixed fractional values `(i+1)/7`. `_severityToken()`'s cascading
+   threshold checks map all 7 possible values (and any input, in principle,
+   since the final branch is an unconditional `return`) onto exactly one of
+   the 4 locked tokens (`mild`, `moderate`, `severe`, `very_severe`) — no
+   out-of-range value is possible.
+
+**Finding: none.** All five input paths were already fully hardened; no
+code changes required for this section.
