@@ -102,6 +102,46 @@ void main() {
     );
 
     test(
+      'a request that never resolves (trickling connection, no Dio timeout ever fires) '
+      'is still cut off by perAttemptTimeout and does not hang forever',
+      () async {
+        // Regression test for the E8.4 finding: Dio's receiveTimeout only
+        // measures the gap between received chunks, not total transfer
+        // time, so a connection that keeps trickling data (or, as here, a
+        // download that simply never completes) never throws on its own.
+        // Without a hard per-attempt wall-clock cap, this hangs forever —
+        // no success, no failure, no retry ever engages.
+        final loader = StagedArtifactLoader(
+          maxRetries: 1,
+          backoffDurations: const [Duration(milliseconds: 1)],
+          perAttemptTimeout: const Duration(milliseconds: 50),
+          downloadOverride: (url) =>
+              Completer<String>().future, // never completes
+        );
+
+        await expectLater(
+          () => loader.loadCoreArtifacts(
+            tokenDict: specFor(
+              'https://example.invalid/token.json',
+              'artifact_token_dict',
+            ),
+            rules: specFor(
+              'https://example.invalid/rules.json',
+              'artifact_rules',
+            ),
+            kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+          ),
+          throwsA(isA<FirstLaunchOfflineException>()),
+        ).timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => fail(
+            'loadCoreArtifacts hung instead of being cut off by perAttemptTimeout',
+          ),
+        );
+      },
+    );
+
+    test(
       'a hash-integrity failure surfaces as StateError, distinct from a network failure',
       () async {
         const wrongHash =
