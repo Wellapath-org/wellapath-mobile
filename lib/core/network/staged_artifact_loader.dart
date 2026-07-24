@@ -117,6 +117,7 @@ class StagedArtifactLoader {
     Dio? dio,
     this.maxRetries = 3,
     List<Duration>? backoffDurations,
+    this.perAttemptTimeout = const Duration(seconds: 15),
     Future<String> Function(String url)? downloadOverride,
   }) : _dio =
            dio ??
@@ -144,6 +145,28 @@ class StagedArtifactLoader {
   final Dio _dio;
   final int maxRetries;
   final List<Duration> backoffDurations;
+
+  /// A hard wall-clock cap on a single download attempt, independent of
+  /// Dio's own `receiveTimeout`. `receiveTimeout` only measures the gap
+  /// *between* received chunks, not total transfer duration — a connection
+  /// trickling data very slowly under heavy throttling can keep resetting
+  /// that gap forever and never actually time out. Without this, a single
+  /// stalled-but-technically-still-receiving request can hang indefinitely,
+  /// which is exactly what E8.4 found under a throttled 3G profile: a ~7
+  /// minute hang with no eventual success or failure. Wrapping every
+  /// attempt in this timeout guarantees the retry loop (and eventually
+  /// [FirstLaunchOfflineException]) actually engages instead of hanging
+  /// forever.
+  ///
+  /// Default of 15s gives the largest of the 3 core artifacts (the
+  /// knowledge base, ~100KB) a realistic window under a contended
+  /// `umts`-class 384kbps link shared across 3 parallel downloads — pure
+  /// bandwidth math puts that around 6-8s, plus TLS/latency overhead. An
+  /// 8s cap measured on-device was too tight even for the ~29KB rules
+  /// file. See PROGRESS.md (Phase E9) for the on-device measurements this
+  /// value is based on, including a finding that the harshest observed
+  /// `umts` conditions still exceeded 15s for artifacts above ~10KB.
+  final Duration perAttemptTimeout;
   final Future<String> Function(String url)? _downloadOverride;
 
   final ValueNotifier<BootProgress> progress = ValueNotifier(
@@ -152,16 +175,20 @@ class StagedArtifactLoader {
   final ValueNotifier<bool> facilitiesReady = ValueNotifier(false);
   final ValueNotifier<bool> facilitiesFailed = ValueNotifier(false);
 
+  Future<String> _attemptDownload(String url) async {
+    if (_downloadOverride != null) return await _downloadOverride(url);
+    final response = await _dio.get<dynamic>(
+      url,
+      options: Options(responseType: ResponseType.plain),
+    );
+    return response.data as String;
+  }
+
   Future<String> _downloadWithBackoff(String url) async {
     Object? lastError;
     for (var attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        if (_downloadOverride != null) return await _downloadOverride(url);
-        final response = await _dio.get<dynamic>(
-          url,
-          options: Options(responseType: ResponseType.plain),
-        );
-        return response.data as String;
+        return await _attemptDownload(url).timeout(perAttemptTimeout);
       } catch (e) {
         lastError = e;
         if (attempt == maxRetries) break;
