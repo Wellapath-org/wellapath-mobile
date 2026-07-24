@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/network/staged_artifact_loader.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
 
@@ -18,8 +21,6 @@ class LocatorScreen extends StatefulWidget {
 
 class _LocatorScreenState extends State<LocatorScreen> {
   static const Color _primary = Color(0xFF6B4EFF);
-  static const String _facilityBoxName = 'facility_cache';
-  static const String _facilityDataKey = 'facilities_data';
   static const List<String> _states = ['Lagos', 'FCT', 'Kano'];
 
   static const latlong.LatLng _fallbackCenter = latlong.LatLng(9.0820, 8.6753);
@@ -33,6 +34,14 @@ class _LocatorScreenState extends State<LocatorScreen> {
   bool _isMapView = true;
   latlong.LatLng? _userLatLng;
 
+  // True while facilities are still being fetched in the background (kicked
+  // off from loading_screen.dart as part of the staged artifact pipeline —
+  // facilities are the largest artifact and are intentionally not waited on
+  // before the assessment result screen is shown). The user can reach this
+  // screen ("Find Nearby Care") before that background download finishes.
+  bool _waitingForFacilities = false;
+  bool _facilitiesLoadFailed = false;
+
   String? _selectedState;
   String? _selectedCityArea;
   List<Map<String, dynamic>> _manualResults = [];
@@ -44,19 +53,80 @@ class _LocatorScreenState extends State<LocatorScreen> {
     _initLocator();
   }
 
-  Future<void> _initLocator() async {
-    final box = Hive.isBoxOpen(_facilityBoxName)
-        ? Hive.box(_facilityBoxName)
-        : await Hive.openBox(_facilityBoxName);
-    final raw = box.get(_facilityDataKey) as List?;
-    final facilities =
-        raw?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ??
-        <Map<String, dynamic>>[];
-
+  void _adoptFacilities(List<Map<String, dynamic>> facilities) {
     _allFacilities = facilities;
     _service = FacilityLocatorService(facilities);
+  }
 
+  Future<List<Map<String, dynamic>>> _readFacilitiesFromCache() async {
+    final box = Hive.isBoxOpen(ArtifactCacheKeys.facilityBox)
+        ? Hive.box(ArtifactCacheKeys.facilityBox)
+        : await Hive.openBox(ArtifactCacheKeys.facilityBox);
+    final raw = box.get(ArtifactCacheKeys.facilityData) as List?;
+    return raw?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ??
+        <Map<String, dynamic>>[];
+  }
+
+  Future<void> _initLocator() async {
+    final cached = await _readFacilitiesFromCache();
+    if (cached.isNotEmpty) {
+      _adoptFacilities(cached);
+      await _requestLocation();
+      return;
+    }
+
+    final loader = StagedArtifactLoader.instance;
+    if (loader.facilitiesFailed.value) {
+      if (!mounted) return;
+      setState(() {
+        _facilitiesLoadFailed = true;
+        _loading = false;
+      });
+      return;
+    }
+
+    if (!loader.facilitiesReady.value) {
+      // Not in cache, not yet flagged ready or failed — the background
+      // download kicked off from the assessment loading screen is still in
+      // flight. Show a loading state instead of an empty map and wait for
+      // it to finish.
+      if (!mounted) return;
+      setState(() => _waitingForFacilities = true);
+      await _awaitBackgroundFacilities(loader);
+      if (!mounted) return;
+      if (loader.facilitiesFailed.value) {
+        setState(() {
+          _facilitiesLoadFailed = true;
+          _waitingForFacilities = false;
+          _loading = false;
+        });
+        return;
+      }
+    }
+
+    final facilities = await _readFacilitiesFromCache();
+    _adoptFacilities(facilities);
+    if (mounted) setState(() => _waitingForFacilities = false);
     await _requestLocation();
+  }
+
+  /// Resolves once the background facilities download (kicked off from
+  /// loading_screen.dart) reports either success or failure.
+  Future<void> _awaitBackgroundFacilities(StagedArtifactLoader loader) async {
+    if (loader.facilitiesReady.value || loader.facilitiesFailed.value) return;
+
+    final completer = Completer<void>();
+    void listener() {
+      if (loader.facilitiesReady.value || loader.facilitiesFailed.value) {
+        if (!completer.isCompleted) completer.complete();
+      }
+    }
+
+    loader.facilitiesReady.addListener(listener);
+    loader.facilitiesFailed.addListener(listener);
+    await completer.future;
+    loader.facilitiesReady.removeListener(listener);
+    loader.facilitiesFailed.removeListener(listener);
   }
 
   Future<void> _requestLocation() async {
@@ -275,8 +345,36 @@ class _LocatorScreenState extends State<LocatorScreen> {
   }
 
   Widget _buildBody() {
+    if (_waitingForFacilities) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: _primary),
+            SizedBox(height: 16),
+            Text(
+              'Finding nearby facilities... please wait',
+              style: TextStyle(fontSize: 14, color: Colors.black54),
+            ),
+          ],
+        ),
+      );
+    }
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: _primary));
+    }
+    if (_facilitiesLoadFailed) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'We could not load nearby facilities. Please check your '
+            'connection and try again later.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+        ),
+      );
     }
     if (_locationDenied) {
       return _buildManualFallback();

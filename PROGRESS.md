@@ -1750,3 +1750,172 @@ Android for the first time in this project)
 - [x] `flutter analyze` zero errors, `dart format` clean
 - [x] No permanent test/debug instrumentation left in
       `loading_screen.dart`
+
+---
+
+# Phase E9 — Progressive Boot (fixes the E8.4 throttled-3G finding)
+
+Branch: `feat/e9-progressive-boot`. Direct follow-up to the E8.4 finding
+that a throttled-3G cold boot took ~7 minutes and then failed outright —
+blocking for E9 internal beta. Also folds in the minor E8.4 UX gap
+(no offline indicator), logged separately as
+[GitHub issue #21](../../issues/21), E9 scope, not part of this branch.
+
+## What changed
+
+New `lib/core/network/staged_artifact_loader.dart` replaces the
+`Future.wait`-of-4 download in `loading_screen.dart`:
+
+1. **Staged, not flat-parallel.** The 3 core artifacts (token dictionary,
+   rules, knowledge base — everything the engine needs for one
+   assessment) download in parallel. Facilities (the largest artifact,
+   only needed if the user opens the locator) downloads separately, in
+   the background, via `loadFacilitiesInBackground` — it never blocks
+   `loadCoreArtifacts` from returning.
+2. **Exponential backoff retry.** Every artifact download retries up to
+   3 times (2s/4s/8s backoff) on a network failure, distinct from the
+   existing single-retry hash-integrity check from E8.3.5.
+3. **A hard per-attempt wall-clock timeout — the critical fix.** See
+   below; this is the actual root-cause fix for the E8.4 finding, not
+   the staging/backoff changes.
+4. **Boot progress indicator.** `loading_screen.dart` shows
+   `"Setting up WellaPath... (N of 4)"` while the download is in flight.
+5. **Dedicated first-launch-offline screen.** If a core artifact
+   exhausts all retries, `FirstLaunchOfflineException` is thrown and
+   `loading_screen.dart` shows *"WellaPath needs a brief internet
+   connection the first time. Please connect and try again."* — distinct
+   from the generic "something went wrong" error, which remains for
+   hash-integrity failures.
+6. **Facility locator loading state.** `locator_screen.dart` now
+   observes `StagedArtifactLoader.instance.facilitiesReady` /
+   `facilitiesFailed`. If the user taps "Find Nearby Care" before the
+   background facilities download finishes, it shows "Finding nearby
+   facilities... please wait" + spinner instead of an empty map, and
+   transitions to the normal map/list once the download completes (or a
+   distinct message if it fails outright). No crash, no empty map.
+
+## The actual root cause of the E8.4 7-minute hang
+
+Restructuring the download into stages (core vs. facilities) and adding
+backoff retry, on their own, **did not fix the hang** — confirmed by
+reproducing it on-device with the new pipeline before the real fix was
+in place. The root cause is exactly what E8.4 hypothesized: Dio's
+`receiveTimeout` measures the gap *between* received chunks, not total
+transfer time. A connection that keeps trickling data — however
+slowly — never triggers it, so the retry loop never engages and the
+call just hangs. Restructuring which artifacts download in parallel
+doesn't change this if the underlying request never fails on its own.
+
+**Fix:** every download attempt is now wrapped in an explicit
+`Future.timeout(perAttemptTimeout)` — a hard wall-clock cap independent
+of Dio's chunk-gap timeout. This is what actually makes the retry loop
+(and eventually `FirstLaunchOfflineException`) engage instead of
+hanging forever. See `StagedArtifactLoader.perAttemptTimeout` in
+`staged_artifact_loader.dart` for the full reasoning.
+
+## On-device verification (Android emulator, `umts` throttle profile, same as E8.4)
+
+Rebuilt the AVD's `umts` profile (384kbps / 35-200ms delay) and ran the
+full assessment flow on a fresh install multiple times, capturing
+continuous `adb logcat` output for unambiguous before/after timestamps
+(a first pass using one-shot `adb logcat -d` dumps produced misleading
+results — grep was silently treating the log as binary and matching
+nothing, and manual on-screen-clock timing was contaminated by tens of
+seconds of inter-tool-call latency on this side, not app behavior; both
+are noted here so a future run doesn't repeat the same false starts).
+
+**Confirmed: the indefinite hang is gone.** Before the wall-clock-timeout
+fix, reproducing the exact E8.4 scenario on this new pipeline still hung
+for 7+ minutes with no resolution (success, failure, or retry) — proving
+the staging/backoff restructuring alone was insufficient. After the fix,
+every run reaches a definitive outcome (success, or
+`FirstLaunchOfflineException` shown via the dedicated screen) within a
+bounded time, consistent with the configured
+`maxRetries=3` × `perAttemptTimeout` + backoff math.
+
+**`/config` fetch itself is also flaky under this throttle, separately
+from anything in this branch's scope.** `ConfigService`'s `/config`
+request has its own fixed 10s timeout with no retry at all. Under this
+`umts` profile it succeeded quickly (~2.3s) roughly half the time and
+timed out the other half. On a fresh install with no cached config, a
+timeout here means `loading_screen.dart` finds `config == null` and
+silently routes to `SystemStatusScreen` (mislabeled "Online") having
+discarded the user's just-completed assessment, with no error shown
+explaining why. **This is a real gap in the first-launch experience,
+but it sits entirely inside `ConfigService`/`BootController` — outside
+this branch's assigned scope (the artifact download stage) and inside
+the project's locked boot-sequence order** (CLAUDE.md: "BOOT SEQUENCE
+ORDER — NEVER CHANGE THIS"). Flagging this for engineering lead
+prioritization rather than fixing it unilaterally here.
+
+**`perAttemptTimeout` tuning, with real numbers.** Checked actual artifact
+sizes: token_dictionary ~8.8KB, rules ~29KB, knowledge_base ~102KB,
+facilities ~1.7MB (confirms why facilities had to be excluded from the
+blocking path — at 384kbps it alone needs ~35s+). An initial 8s
+per-attempt timeout was measured cutting off the ~29KB rules file before
+it could finish. Raised to 15s. token_dictionary (8.8KB) reliably
+succeeds on the first attempt every time observed. **Under the harshest
+observed throttle conditions this session, rules (~29KB) and
+knowledge_base (~102KB) still failed to complete within 15s on every
+attempt across 3 full retries** — diagnostic logging (temporary, removed
+before commit) showed a clean `TimeoutException after 0:00:15.000000` on
+every attempt for both files, every run. Bandwidth math alone (29KB at a
+contended ~16KB/s ≈ 1.8s) does not explain this — the gap suggests real
+TCP/TLS behavior under this specific emulator's combination of bandwidth
+cap + injected latency (slow start, handshake round-trips, chunked
+transfer overhead) degrades effective throughput far below the nominal
+384kbps figure.
+
+**Recommendation, not a claim of success:** the indefinite-hang bug is
+fixed and confirmed — this was the actual blocking issue. Whether a
+*real* 3G connection (as opposed to this specific emulator throttle
+preset) can complete the core artifact download within the 30s target
+was not conclusively confirmed on-device this session, because this
+throttle profile appears to model a more severe condition than raw
+384kbps math would suggest. Recommend validating with a real device on
+an actual Nigerian carrier SIM before treating the 30s number as
+confirmed for production sign-off; the emulator's `umts` preset may not
+be a reliable stand-in for real carrier 3G TCP behavior.
+
+## Facility locator loading state
+
+Verified in code and via the existing on-device facility-locator flow
+from E8.4 (data loads correctly, real facilities render). The new
+waiting/failed states were not separately re-driven on a real device
+this session — they follow directly from the same `ValueNotifier`
+listener pattern already covered by `staged_artifact_loader_test.dart`,
+and the widget-level branch (`_waitingForFacilities` /
+`_facilitiesLoadFailed`) is a small, low-risk addition to
+`locator_screen.dart`'s existing, already-verified initialization path.
+
+## Test coverage
+
+New `test/core/network/staged_artifact_loader_test.dart` — 10 tests:
+exponential backoff retries the right number of times before succeeding;
+exhausting retries throws `FirstLaunchOfflineException` (not the raw
+network error); **a request that never resolves is still cut off by
+`perAttemptTimeout`** (direct regression test for the actual root-cause
+fix); a hash-integrity failure still surfaces as `StateError`, distinct
+from a network failure; core artifacts resolve independently of
+facilities; `facilitiesReady`/`facilitiesFailed` flip correctly for the
+background download in both the success and failure case; boot progress
+reaches step 3 once core artifacts are cached; and the pre-existing
+cache-hit/hash-verification behaviour from E8.3.5 still holds after the
+refactor. Full suite: 86/86 passing. `flutter analyze` zero errors,
+`dart format` clean.
+
+## Exit criteria
+
+- [x] Progressive download pipeline implemented (staged, not flat-parallel)
+- [x] Exponential backoff retry (3 retries, 2s/4s/8s) on network failure
+- [x] Boot progress indicator shown to user
+- [x] First-launch offline screen shown when retries exhausted
+- [x] Facility locator shows a loading state when facilities not yet
+      cached — no crash, no empty map
+- [x] The E8.4 indefinite-hang bug is fixed and confirmed on-device
+- [ ] Throttled 3G cold boot completes in <30 seconds — **not
+      conclusively confirmed**; see the on-device verification section
+      above for why, and the recommendation to validate on a real
+      device/carrier before production sign-off
+- [x] `flutter analyze` zero errors, `dart format` clean, full test
+      suite passing (86/86)
