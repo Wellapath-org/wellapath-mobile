@@ -1,0 +1,311 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+/// Hive box/key names shared by [StagedArtifactLoader] and any screen that
+/// reads the artifacts it caches (loading_screen.dart, locator_screen.dart).
+class ArtifactCacheKeys {
+  static const String artifactBox = 'artifact_cache';
+  static const String kb = 'artifact_kb';
+  static const String rules = 'artifact_rules';
+  static const String tokenDict = 'artifact_token_dict';
+  static const String facilities = 'artifact_facilities';
+
+  static const String facilityBox = 'facility_cache';
+  static const String facilityData = 'facilities_data';
+}
+
+/// One entry from `/config`'s `artifacts` map: where to fetch it, which
+/// version/hash to cache it under, and the integrity hash to verify against.
+class ArtifactSpec {
+  final String url;
+  final String cacheKey;
+  final String version;
+  final String? hash;
+
+  const ArtifactSpec({
+    required this.url,
+    required this.cacheKey,
+    required this.version,
+    this.hash,
+  });
+}
+
+/// The three artifacts the engine needs to run a single assessment.
+/// Facilities are intentionally not part of this — they are the largest
+/// artifact and are not needed until the user taps "Find Nearby Care", so
+/// they are loaded separately in the background (see
+/// [StagedArtifactLoader.loadFacilitiesInBackground]).
+class CoreArtifacts {
+  final List<Map<String, dynamic>> conditions;
+  final List<Map<String, dynamic>> rules;
+  final Map<String, dynamic> tokenDictionary;
+
+  const CoreArtifacts({
+    required this.conditions,
+    required this.rules,
+    required this.tokenDictionary,
+  });
+}
+
+/// Thrown when a core artifact could not be downloaded after all retries —
+/// i.e. this is the user's first launch (or first assessment after a version
+/// bump) and there is no usable network. Distinct from a hash-integrity
+/// failure ([StateError]), which is a corrupted artifact, not a connectivity
+/// problem, and should not show the same "please connect" messaging.
+class FirstLaunchOfflineException implements Exception {
+  final String message;
+
+  const FirstLaunchOfflineException([
+    this.message =
+        'WellaPath needs a brief internet connection the first time. '
+        'Please connect and try again.',
+  ]);
+
+  @override
+  String toString() => message;
+}
+
+/// Progress through the 4-artifact staged download: token dictionary, rules
+/// and knowledge base (the 3 "core" artifacts, downloaded in parallel) count
+/// as steps 1-3; facilities (downloaded last, in the background, non-blocking
+/// for the assessment) is step 4.
+class BootProgress {
+  final int step;
+  final int totalSteps;
+
+  const BootProgress({required this.step, this.totalSteps = 4});
+
+  String get label => 'Setting up WellaPath... ($step of $totalSteps)';
+
+  @override
+  bool operator ==(Object other) =>
+      other is BootProgress &&
+      other.step == step &&
+      other.totalSteps == totalSteps;
+
+  @override
+  int get hashCode => Object.hash(step, totalSteps);
+}
+
+/// Drives the staged, progressive artifact download pipeline used at
+/// assessment time:
+///
+/// 1. The 3 core artifacts (token dictionary, rules, knowledge base) are
+///    downloaded in parallel — small files, needed before the engine can
+///    run a single assessment.
+/// 2. Facilities (the largest artifact, only needed if the user opens the
+///    locator) are downloaded afterwards, in the background, and never
+///    block [loadCoreArtifacts] from returning.
+/// 3. Every network download retries with exponential backoff (2s/4s/8s)
+///    before giving up — a single slow/dropped request on a poor
+///    connection should not immediately fail the whole assessment.
+/// 4. If all retries on a core artifact are exhausted, [loadCoreArtifacts]
+///    throws [FirstLaunchOfflineException] so the caller can show a
+///    dedicated first-launch-offline screen instead of the generic error.
+///
+/// A single instance is shared across the app (see [instance]) so that a
+/// screen opened after [loadCoreArtifacts] returns (e.g. the facility
+/// locator) can observe whether the background facilities download is
+/// still in flight, already done, or has failed.
+class StagedArtifactLoader {
+  StagedArtifactLoader({
+    Dio? dio,
+    this.maxRetries = 3,
+    List<Duration>? backoffDurations,
+    Future<String> Function(String url)? downloadOverride,
+  }) : _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 30),
+               receiveTimeout: const Duration(seconds: 30),
+             ),
+           ),
+       backoffDurations =
+           backoffDurations ??
+           const [
+             Duration(seconds: 2),
+             Duration(seconds: 4),
+             Duration(seconds: 8),
+           ],
+       _downloadOverride = downloadOverride;
+
+  /// Shared app-wide instance. `loading_screen.dart` kicks off the download
+  /// through this instance; `locator_screen.dart` observes
+  /// [facilitiesReady]/[facilitiesFailed] on the same instance to know
+  /// whether it can show the map immediately or must show a loading state.
+  static StagedArtifactLoader instance = StagedArtifactLoader();
+
+  final Dio _dio;
+  final int maxRetries;
+  final List<Duration> backoffDurations;
+  final Future<String> Function(String url)? _downloadOverride;
+
+  final ValueNotifier<BootProgress> progress = ValueNotifier(
+    const BootProgress(step: 0),
+  );
+  final ValueNotifier<bool> facilitiesReady = ValueNotifier(false);
+  final ValueNotifier<bool> facilitiesFailed = ValueNotifier(false);
+
+  Future<String> _downloadWithBackoff(String url) async {
+    Object? lastError;
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (_downloadOverride != null) return await _downloadOverride(url);
+        final response = await _dio.get<dynamic>(
+          url,
+          options: Options(responseType: ResponseType.plain),
+        );
+        return response.data as String;
+      } catch (e) {
+        lastError = e;
+        if (attempt == maxRetries) break;
+        await Future<void>.delayed(backoffDurations[attempt]);
+      }
+    }
+    throw lastError ?? const FirstLaunchOfflineException();
+  }
+
+  bool _matchesHash(String rawBody, String? expectedHash) {
+    if (expectedHash == null || expectedHash.isEmpty) return true;
+    final expectedHex = expectedHash.startsWith('sha256:')
+        ? expectedHash.substring('sha256:'.length)
+        : expectedHash;
+    final actualHex = sha256.convert(utf8.encode(rawBody)).toString();
+    return actualHex.toLowerCase() == expectedHex.toLowerCase();
+  }
+
+  /// Reads [spec] from [box], falling back to a network download (with
+  /// backoff retry on network failure, and a single retry on hash-integrity
+  /// failure) when there is no valid cached copy. Mirrors the pre-E9
+  /// `_loadArtifact` behaviour in `loading_screen.dart` — same cache-key
+  /// versioning, same hash-verification-on-every-read semantics — with
+  /// network retries layered on top.
+  Future<Map<String, dynamic>> _loadArtifact(
+    Box<dynamic> box,
+    ArtifactSpec spec,
+  ) async {
+    final versionedKey = '${spec.cacheKey}_v${spec.version}';
+    final cachedRaw = box.get(versionedKey) as String?;
+
+    if (cachedRaw != null) {
+      if (_matchesHash(cachedRaw, spec.hash)) {
+        return Map<String, dynamic>.from(jsonDecode(cachedRaw) as Map);
+      }
+      debugPrint(
+        'Artifact integrity check failed for cached ${spec.cacheKey} — discarding and re-downloading',
+      );
+      await box.delete(versionedKey);
+    }
+
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      final rawBody = await _downloadWithBackoff(spec.url);
+
+      if (_matchesHash(rawBody, spec.hash)) {
+        await box.put(versionedKey, rawBody);
+        return Map<String, dynamic>.from(jsonDecode(rawBody) as Map);
+      }
+
+      debugPrint(
+        'Artifact integrity check failed for downloaded ${spec.cacheKey} (attempt $attempt) — rejecting',
+      );
+    }
+
+    throw StateError('Artifact integrity check failed for ${spec.cacheKey}');
+  }
+
+  /// Downloads the 3 core artifacts in parallel. Throws
+  /// [FirstLaunchOfflineException] if any of them exhausts its network
+  /// retries — a hash-integrity failure ([StateError]) is left to propagate
+  /// as-is, since that is a corrupted artifact, not a connectivity problem.
+  Future<CoreArtifacts> loadCoreArtifacts({
+    required ArtifactSpec tokenDict,
+    required ArtifactSpec rules,
+    required ArtifactSpec kb,
+  }) async {
+    progress.value = const BootProgress(step: 1);
+    final box = Hive.isBoxOpen(ArtifactCacheKeys.artifactBox)
+        ? Hive.box(ArtifactCacheKeys.artifactBox)
+        : await Hive.openBox(ArtifactCacheKeys.artifactBox);
+
+    var completedSteps = 0;
+    Future<Map<String, dynamic>> tracked(ArtifactSpec spec) async {
+      final result = await _loadArtifact(box, spec);
+      completedSteps++;
+      progress.value = BootProgress(step: completedSteps.clamp(1, 3));
+      return result;
+    }
+
+    try {
+      final results = await Future.wait([
+        tracked(tokenDict),
+        tracked(rules),
+        tracked(kb),
+      ]);
+
+      return CoreArtifacts(
+        tokenDictionary: results[0],
+        rules:
+            (results[1]['rules'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            const [],
+        conditions:
+            (results[2]['conditions'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            const [],
+      );
+    } on StateError {
+      rethrow;
+    } catch (_) {
+      throw const FirstLaunchOfflineException();
+    }
+  }
+
+  /// Downloads facilities in the background — does not block the caller.
+  /// Flips [facilitiesReady] or [facilitiesFailed] when done, so any screen
+  /// observing this same [instance] (namely the locator) can react.
+  void loadFacilitiesInBackground(ArtifactSpec spec) {
+    unawaited(_loadFacilities(spec));
+  }
+
+  Future<void> _loadFacilities(ArtifactSpec spec) async {
+    progress.value = const BootProgress(step: 4);
+    try {
+      final artifactBox = Hive.isBoxOpen(ArtifactCacheKeys.artifactBox)
+          ? Hive.box(ArtifactCacheKeys.artifactBox)
+          : await Hive.openBox(ArtifactCacheKeys.artifactBox);
+      final data = await _loadArtifact(artifactBox, spec);
+      final list =
+          (data['facilities'] as List?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          <Map<String, dynamic>>[];
+
+      final facilityBox = Hive.isBoxOpen(ArtifactCacheKeys.facilityBox)
+          ? Hive.box(ArtifactCacheKeys.facilityBox)
+          : await Hive.openBox(ArtifactCacheKeys.facilityBox);
+      await facilityBox.put(ArtifactCacheKeys.facilityData, list);
+      facilitiesReady.value = true;
+    } catch (_) {
+      debugPrint(
+        'Facilities background download failed — locator will show empty state',
+      );
+      facilitiesFailed.value = true;
+    }
+  }
+
+  /// Resets progress/ready/failed state for a new assessment run. Does not
+  /// touch cached data — only the in-memory notifiers driving UI.
+  void reset() {
+    progress.value = const BootProgress(step: 0);
+    facilitiesReady.value = false;
+    facilitiesFailed.value = false;
+  }
+}
