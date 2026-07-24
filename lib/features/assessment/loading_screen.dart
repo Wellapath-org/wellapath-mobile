@@ -229,8 +229,13 @@ class _LoadingScreenState extends State<LoadingScreen> {
               ValueListenableBuilder<BootProgress>(
                 valueListenable: StagedArtifactLoader.instance.progress,
                 builder: (context, bootProgress, _) {
+                  // The download is in flight for the whole window between
+                  // the initial tap and step 2 (engine done) — step 1 flips
+                  // true almost immediately as a cosmetic "we've started"
+                  // marker, well before the download itself begins, so it
+                  // must not gate this label.
                   final showBootLabel =
-                      !_step1Complete && bootProgress.step > 0;
+                      !_step2Complete && bootProgress.step > 0;
                   return Text(
                     showBootLabel ? bootProgress.label : 'Just a moment...',
                     style: const TextStyle(fontSize: 15, color: Colors.black54),
