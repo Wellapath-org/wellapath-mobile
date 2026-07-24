@@ -1,12 +1,8 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/engine/engine_controller.dart';
 import '../../core/engine/models/engine_input.dart';
 import '../../core/engine/models/engine_output.dart';
+import '../../core/network/staged_artifact_loader.dart';
 import '../../core/storage/storage_service.dart';
 import '../boot/boot_controller.dart';
 import '../results/red_flag_interrupt_screen.dart';
@@ -31,21 +27,10 @@ class LoadingScreen extends StatefulWidget {
 class _LoadingScreenState extends State<LoadingScreen> {
   static const Color _primary = Color(0xFF6B4EFF);
 
-  // Artifacts (knowledge base, rules, token dictionary, facilities) are cached in
-  // their own Hive box — separate from the config cache — so they are downloaded
-  // once and reused on subsequent assessments instead of re-fetched every time.
-  static const String _artifactBoxName = 'artifact_cache';
-  static const String _artifactKbKey = 'artifact_kb';
-  static const String _artifactRulesKey = 'artifact_rules';
-  static const String _artifactTokenDictKey = 'artifact_token_dict';
-  static const String _artifactFacilitiesKey = 'artifact_facilities';
-
-  static const String _facilityBoxName = 'facility_cache';
-  static const String _facilityDataKey = 'facilities_data';
-
   bool _step1Complete = false;
   bool _step2Complete = false;
   bool _hasError = false;
+  bool _isFirstLaunchOffline = false;
 
   @override
   void initState() {
@@ -53,71 +38,25 @@ class _LoadingScreenState extends State<LoadingScreen> {
     _runAssessment();
   }
 
-  /// Returns the artifact JSON for [url], reading from the Hive cache first and
-  /// only downloading (then caching) on a cache miss. The cache key is scoped
-  /// by [version] so a new artifact version is never served stale data cached
-  /// under an older version.
-  ///
-  /// If [expectedHash] (the `sha256:<hex>` value from /config) is provided,
-  /// the raw artifact bytes are verified against it on every read — both on
-  /// a fresh download and on a cache hit. A corrupted or tampered cached
-  /// entry is discarded and re-downloaded rather than silently served; a
-  /// corrupted fresh download is retried once before being rejected outright.
-  Future<Map<String, dynamic>> _loadArtifact(
-    Dio dio,
-    Box<dynamic> box,
-    String url,
+  ArtifactSpec? _specFor(
+    Map<String, dynamic> artifacts,
+    String key,
     String cacheKey,
-    String version,
-    String? expectedHash,
-  ) async {
-    final versionedKey = '${cacheKey}_v$version';
-    final cachedRaw = box.get(versionedKey) as String?;
-
-    if (cachedRaw != null) {
-      if (_matchesHash(cachedRaw, expectedHash)) {
-        return Map<String, dynamic>.from(jsonDecode(cachedRaw) as Map);
-      }
-      // Cached artifact failed integrity verification — never serve it.
-      debugPrint(
-        'Artifact integrity check failed for cached $cacheKey — discarding and re-downloading',
-      );
-      await box.delete(versionedKey);
-    }
-
-    for (var attempt = 1; attempt <= 2; attempt++) {
-      final response = await dio.get<dynamic>(
-        url,
-        options: Options(responseType: ResponseType.plain),
-      );
-      final rawBody = response.data as String;
-
-      if (_matchesHash(rawBody, expectedHash)) {
-        await box.put(versionedKey, rawBody);
-        return Map<String, dynamic>.from(jsonDecode(rawBody) as Map);
-      }
-
-      debugPrint(
-        'Artifact integrity check failed for downloaded $cacheKey (attempt $attempt) — rejecting',
-      );
-    }
-
-    throw StateError('Artifact integrity check failed for $cacheKey');
-  }
-
-  /// Compares the SHA256 of [rawBody] against [expectedHash] (format
-  /// `sha256:<hex>`). Returns true if no hash was provided — some artifacts
-  /// may not carry one, and absence of a hash is not itself corruption.
-  bool _matchesHash(String rawBody, String? expectedHash) {
-    if (expectedHash == null || expectedHash.isEmpty) return true;
-    final expectedHex = expectedHash.startsWith('sha256:')
-        ? expectedHash.substring('sha256:'.length)
-        : expectedHash;
-    final actualHex = sha256.convert(utf8.encode(rawBody)).toString();
-    return actualHex.toLowerCase() == expectedHex.toLowerCase();
+  ) {
+    final entry = artifacts[key] as Map?;
+    final url = entry?['url'] as String?;
+    if (url == null) return null;
+    return ArtifactSpec(
+      url: url,
+      cacheKey: cacheKey,
+      version: entry?['version'] as String? ?? '1.0',
+      hash: entry?['hash'] as String?,
+    );
   }
 
   Future<void> _runAssessment() async {
+    StagedArtifactLoader.instance.reset();
+
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
     setState(() => _step1Complete = true);
@@ -131,118 +70,54 @@ class _LoadingScreenState extends State<LoadingScreen> {
       if (config != null) {
         final artifacts = config['artifacts'];
         if (artifacts is Map) {
-          final kbUrl =
-              (artifacts['knowledge_base'] as Map?)?['url'] as String?;
-          final rulesUrl = (artifacts['rules'] as Map?)?['url'] as String?;
-          final tokenDictUrl =
-              (artifacts['token_dictionary'] as Map?)?['url'] as String?;
-          final facilitiesUrl =
-              (artifacts['facilities'] as Map?)?['url'] as String?;
+          final artifactsMap = Map<String, dynamic>.from(artifacts);
+          final tokenDictSpec = _specFor(
+            artifactsMap,
+            'token_dictionary',
+            ArtifactCacheKeys.tokenDict,
+          );
+          final rulesSpec = _specFor(
+            artifactsMap,
+            'rules',
+            ArtifactCacheKeys.rules,
+          );
+          final kbSpec = _specFor(
+            artifactsMap,
+            'knowledge_base',
+            ArtifactCacheKeys.kb,
+          );
+          final facilitiesSpec = _specFor(
+            artifactsMap,
+            'facilities',
+            ArtifactCacheKeys.facilities,
+          );
 
-          if (kbUrl != null && rulesUrl != null && tokenDictUrl != null) {
-            final kbVersion =
-                (artifacts['knowledge_base'] as Map?)?['version'] as String? ??
-                '1.0';
-            final rulesVersion =
-                (artifacts['rules'] as Map?)?['version'] as String? ?? '1.0';
-            final tokenVersion =
-                (artifacts['token_dictionary'] as Map?)?['version']
-                    as String? ??
-                '1.0';
-            final facilitiesVersion =
-                (artifacts['facilities'] as Map?)?['version'] as String? ??
-                '1.0';
+          if (tokenDictSpec != null && rulesSpec != null && kbSpec != null) {
+            // Core artifacts (token dictionary, rules, knowledge base) are
+            // downloaded in parallel — small files, needed before the engine
+            // can run. Facilities (the largest artifact) are not needed for
+            // this assessment itself, only if the user later opens the
+            // locator, so they are kicked off in the background and never
+            // block the assessment from proceeding.
+            final coreArtifacts = await StagedArtifactLoader.instance
+                .loadCoreArtifacts(
+                  tokenDict: tokenDictSpec,
+                  rules: rulesSpec,
+                  kb: kbSpec,
+                );
 
-            final kbHash =
-                (artifacts['knowledge_base'] as Map?)?['hash'] as String?;
-            final rulesHash = (artifacts['rules'] as Map?)?['hash'] as String?;
-            final tokenHash =
-                (artifacts['token_dictionary'] as Map?)?['hash'] as String?;
-            final facilitiesHash =
-                (artifacts['facilities'] as Map?)?['hash'] as String?;
-
-            final dio = Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 30),
-                receiveTimeout: const Duration(seconds: 30),
-              ),
-            );
-
-            final artifactBox = Hive.isBoxOpen(_artifactBoxName)
-                ? Hive.box(_artifactBoxName)
-                : await Hive.openBox(_artifactBoxName);
-
-            final artifactData = await Future.wait([
-              _loadArtifact(
-                dio,
-                artifactBox,
-                kbUrl,
-                _artifactKbKey,
-                kbVersion,
-                kbHash,
-              ),
-              _loadArtifact(
-                dio,
-                artifactBox,
-                rulesUrl,
-                _artifactRulesKey,
-                rulesVersion,
-                rulesHash,
-              ),
-              _loadArtifact(
-                dio,
-                artifactBox,
-                tokenDictUrl,
-                _artifactTokenDictKey,
-                tokenVersion,
-                tokenHash,
-              ),
-              if (facilitiesUrl != null)
-                _loadArtifact(
-                  dio,
-                  artifactBox,
-                  facilitiesUrl,
-                  _artifactFacilitiesKey,
-                  facilitiesVersion,
-                  facilitiesHash,
-                ),
-            ]);
-
-            final kbData = artifactData[0];
-            final rulesData = artifactData[1];
-            final tokenDictData = artifactData[2];
-
-            if (facilitiesUrl != null) {
-              final facilitiesData = artifactData[3];
-              final facilitiesList =
-                  (facilitiesData['facilities'] as List?)
-                      ?.map((e) => Map<String, dynamic>.from(e as Map))
-                      .toList() ??
-                  <Map<String, dynamic>>[];
-
-              final facilityBox = Hive.isBoxOpen(_facilityBoxName)
-                  ? Hive.box(_facilityBoxName)
-                  : await Hive.openBox(_facilityBoxName);
-              await facilityBox.put(_facilityDataKey, facilitiesList);
+            if (facilitiesSpec != null) {
+              StagedArtifactLoader.instance.loadFacilitiesInBackground(
+                facilitiesSpec,
+              );
             } else {
               debugPrint('Facilities artifact URL missing — locator skipped');
             }
 
-            final conditions =
-                (kbData['conditions'] as List?)
-                    ?.map((e) => Map<String, dynamic>.from(e as Map))
-                    .toList() ??
-                [];
-            final rules =
-                (rulesData['rules'] as List?)
-                    ?.map((e) => Map<String, dynamic>.from(e as Map))
-                    .toList() ??
-                [];
-
             final engine = EngineController(
-              rules: rules,
-              tokenDictionary: tokenDictData,
-              knowledgeBase: conditions,
+              rules: coreArtifacts.rules,
+              tokenDictionary: coreArtifacts.tokenDictionary,
+              knowledgeBase: coreArtifacts.conditions,
               configMetadata: Map<String, dynamic>.from(config),
             );
 
@@ -264,6 +139,11 @@ class _LoadingScreenState extends State<LoadingScreen> {
       } else {
         debugPrint('No config cached — engine skipped');
       }
+    } on FirstLaunchOfflineException {
+      debugPrint('First-launch offline — no cached artifacts and no network');
+      if (!mounted) return;
+      setState(() => _isFirstLaunchOffline = true);
+      return;
     } catch (_) {
       // Generic log only — never log artifact content or symptom tokens
       debugPrint('Engine run failed — assessment incomplete');
@@ -314,12 +194,14 @@ class _LoadingScreenState extends State<LoadingScreen> {
       _step1Complete = false;
       _step2Complete = false;
       _hasError = false;
+      _isFirstLaunchOffline = false;
     });
     _runAssessment();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isFirstLaunchOffline) return _buildFirstLaunchOfflineView();
     if (_hasError) return _buildErrorView(context);
     return _buildLoadingView();
   }
@@ -344,9 +226,16 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 child: const Icon(Icons.radar, color: _primary, size: 40),
               ),
               const SizedBox(height: 28),
-              const Text(
-                'Just a moment...',
-                style: TextStyle(fontSize: 15, color: Colors.black54),
+              ValueListenableBuilder<BootProgress>(
+                valueListenable: StagedArtifactLoader.instance.progress,
+                builder: (context, bootProgress, _) {
+                  final showBootLabel =
+                      !_step1Complete && bootProgress.step > 0;
+                  return Text(
+                    showBootLabel ? bootProgress.label : 'Just a moment...',
+                    style: const TextStyle(fontSize: 15, color: Colors.black54),
+                  );
+                },
               ),
               const SizedBox(height: 8),
               const Text(
@@ -421,6 +310,51 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 const SizedBox(height: 20),
                 const Text(
                   'Something went wrong running your assessment.\nPlease try again.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, height: 1.5),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: _retry,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Try again',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFirstLaunchOfflineView() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off, size: 64, color: _primary),
+                const SizedBox(height: 20),
+                const Text(
+                  'WellaPath needs a brief internet connection the first '
+                  'time. Please connect and try again.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, height: 1.5),
                 ),
