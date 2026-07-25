@@ -25,9 +25,12 @@ class _LocatorScreenState extends State<LocatorScreen> {
 
   static const latlong.LatLng _fallbackCenter = latlong.LatLng(9.0820, 8.6753);
 
+  final MapController _mapController = MapController();
+
   FacilityLocatorService? _service;
   List<Map<String, dynamic>> _allFacilities = [];
   List<Map<String, dynamic>> _results = [];
+  Map<String, dynamic>? _selectedFacility;
 
   bool _loading = true;
   bool _locationDenied = false;
@@ -180,6 +183,11 @@ class _LocatorScreenState extends State<LocatorScreen> {
         _locationDenied = false;
         _loading = false;
       });
+      // FlutterMap's initialCenter/initialZoom only apply on first mount —
+      // the map is already showing (with the fallback center) while
+      // location is being resolved, so once the real position lands the
+      // camera must be moved explicitly or it silently stays put.
+      _mapController.move(_userLatLng!, 15);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -193,7 +201,11 @@ class _LocatorScreenState extends State<LocatorScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Location access'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Allow location access',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         content: const Text(
           'WellaPath uses your location to show nearby health facilities. '
           'Your location never leaves your device.',
@@ -201,11 +213,18 @@ class _LocatorScreenState extends State<LocatorScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Not now'),
+            child: const Text('Maybe later'),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Allow'),
+            child: const Text('Allow location access'),
           ),
         ],
       ),
@@ -257,21 +276,17 @@ class _LocatorScreenState extends State<LocatorScreen> {
     await launchUrl(uri);
   }
 
-  void _showFacilitySheet(Map<String, dynamic> facility) {
-    final phone = facility['phone'] as String?;
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FacilityCard(
-            facility: facility,
-            onDirectionsTap: () => _openDirections(facility),
-            onCallTap: phone != null ? () => _callFacility(phone) : null,
-          ),
-        ),
-      ),
-    );
+  void _selectFacility(Map<String, dynamic> facility) {
+    setState(() => _selectedFacility = facility);
+  }
+
+  void _dismissSelectedFacility() {
+    setState(() => _selectedFacility = null);
+  }
+
+  void _recenter() {
+    if (_userLatLng == null) return;
+    _mapController.move(_userLatLng!, 15);
   }
 
   int get _shownCount =>
@@ -286,6 +301,10 @@ class _LocatorScreenState extends State<LocatorScreen> {
       }
       return 'Select location';
     }
+    if (_results.isNotEmpty) {
+      final state = _results.first['state'] as String?;
+      if (state != null && state.isNotEmpty) return '$state, Nigeria';
+    }
     return 'Your location';
   }
 
@@ -296,8 +315,8 @@ class _LocatorScreenState extends State<LocatorScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
-            _buildCounter(),
+            _buildSearchHeader(),
+            if (!_locationDenied) _buildViewToggle(),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -305,9 +324,9 @@ class _LocatorScreenState extends State<LocatorScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildSearchHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 16, 8),
       child: Row(
         children: [
           IconButton(
@@ -315,31 +334,82 @@ class _LocatorScreenState extends State<LocatorScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
           Expanded(
-            child: Text(
-              _locationLabel,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  const Icon(Icons.search, size: 18, color: Colors.black38),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _locationLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(
+                      Icons.my_location,
+                      size: 18,
+                      color: _primary,
+                    ),
+                    onPressed: _requestLocation,
+                  ),
+                ],
+              ),
             ),
           ),
-          const Icon(Icons.location_on, color: _primary),
         ],
       ),
     );
   }
 
-  Widget _buildCounter() {
+  Widget _buildViewToggle() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          '$_shownCount of 30 shown',
-          style: const TextStyle(fontSize: 13, color: Colors.black54),
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Row(
+        children: [
+          // In map view the count is already shown as a floating pill on
+          // the map itself (matching the Figma design) — showing it here
+          // too would just duplicate it. List view has no map overlay, so
+          // it still needs this text.
+          if (!_isMapView)
+            Text(
+              '$_shownCount of 30 shown',
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+          const Spacer(),
+          SegmentedButton<bool>(
+            style: SegmentedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+            segments: const [
+              ButtonSegment(
+                value: true,
+                label: Text('Map'),
+                icon: Icon(Icons.map_outlined, size: 16),
+              ),
+              ButtonSegment(
+                value: false,
+                label: Text('List'),
+                icon: Icon(Icons.list_alt, size: 16),
+              ),
+            ],
+            selected: {_isMapView},
+            onSelectionChanged: (selection) =>
+                setState(() => _isMapView = selection.first),
+          ),
+        ],
       ),
     );
   }
@@ -359,9 +429,6 @@ class _LocatorScreenState extends State<LocatorScreen> {
           ],
         ),
       );
-    }
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _primary));
     }
     if (_facilitiesLoadFailed) {
       return const Center(
@@ -383,41 +450,10 @@ class _LocatorScreenState extends State<LocatorScreen> {
   }
 
   Widget _buildLocationResults() {
-    return Column(
-      children: [
-        _buildViewToggle(),
-        Expanded(
-          child: _results.isEmpty
-              ? const Center(child: Text('No nearby facilities found.'))
-              : (_isMapView
-                    ? _buildMapView(_results)
-                    : _buildListView(_results)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildViewToggle() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: SegmentedButton<bool>(
-        segments: const [
-          ButtonSegment(
-            value: true,
-            label: Text('Map'),
-            icon: Icon(Icons.map_outlined),
-          ),
-          ButtonSegment(
-            value: false,
-            label: Text('List'),
-            icon: Icon(Icons.list_alt),
-          ),
-        ],
-        selected: {_isMapView},
-        onSelectionChanged: (selection) =>
-            setState(() => _isMapView = selection.first),
-      ),
-    );
+    if (!_loading && _results.isEmpty) {
+      return const Center(child: Text('No nearby facilities found.'));
+    }
+    return _isMapView ? _buildMapView(_results) : _buildListView(_results);
   }
 
   Widget _buildMapView(List<Map<String, dynamic>> facilities) {
@@ -425,22 +461,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
       for (final facility in facilities)
         if ((facility['latitude'] as num?) != null &&
             (facility['longitude'] as num?) != null)
-          Marker(
-            point: latlong.LatLng(
-              (facility['latitude'] as num).toDouble(),
-              (facility['longitude'] as num).toDouble(),
-            ),
-            width: 36,
-            height: 36,
-            child: GestureDetector(
-              onTap: () => _showFacilitySheet(facility),
-              child: const Icon(
-                Icons.local_hospital,
-                color: _primary,
-                size: 32,
-              ),
-            ),
-          ),
+          _facilityMarker(facility),
       if (_userLatLng != null)
         Marker(
           point: _userLatLng!,
@@ -458,24 +479,171 @@ class _LocatorScreenState extends State<LocatorScreen> {
         ),
     ];
 
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: _userLatLng ?? _fallbackCenter,
-        initialZoom: 13,
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'org.wellapath.wellapathMobile',
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _userLatLng ?? _fallbackCenter,
+            initialZoom: 13,
+            onTap: (_, _) => _dismissSelectedFacility(),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate:
+                  'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              userAgentPackageName: 'org.wellapath.wellapathMobile',
+            ),
+            if (_userLatLng != null)
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: _userLatLng!,
+                    radius: 60,
+                    useRadiusInMeter: true,
+                    color: Colors.blue.withValues(alpha: 0.15),
+                    borderColor: Colors.blue.withValues(alpha: 0.3),
+                    borderStrokeWidth: 1,
+                  ),
+                ],
+              ),
+            MarkerLayer(markers: markers),
+          ],
         ),
-        MarkerLayer(markers: markers),
+        if (!_loading)
+          Positioned(
+            left: 20,
+            top: 12,
+            child: _pillBadge('$_shownCount of 30 shown'),
+          ),
+        if (_loading)
+          Center(
+            child: _pillBadge(
+              'Checking nearby care centers',
+              icon: const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _primary,
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          right: 16,
+          bottom: _selectedFacility != null ? 220 : 20,
+          child: _buildRecenterButton(),
+        ),
+        if (_selectedFacility != null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: FacilityCard(
+              facility: _selectedFacility!,
+              onDirectionsTap: () => _openDirections(_selectedFacility!),
+              onCallTap: (_selectedFacility!['phone'] as String?) != null
+                  ? () => _callFacility(_selectedFacility!['phone'] as String)
+                  : null,
+            ),
+          ),
       ],
+    );
+  }
+
+  Marker _facilityMarker(Map<String, dynamic> facility) {
+    final isSelected =
+        _selectedFacility != null &&
+        _selectedFacility!['facility_id'] == facility['facility_id'];
+    final size = isSelected ? 40.0 : 32.0;
+    return Marker(
+      point: latlong.LatLng(
+        (facility['latitude'] as num).toDouble(),
+        (facility['longitude'] as num).toDouble(),
+      ),
+      width: size,
+      height: size,
+      child: GestureDetector(
+        onTap: () => _selectFacility(facility),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF4A2FCC) : _primary,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              'H',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: isSelected ? 16 : 13,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pillBadge(String text, {Widget? icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[icon, const SizedBox(width: 8)],
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecenterButton() {
+    return Material(
+      shape: const CircleBorder(),
+      color: Colors.white,
+      elevation: 3,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _recenter,
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(Icons.my_location, color: _primary, size: 20),
+        ),
+      ),
     );
   }
 
   Widget _buildListView(List<Map<String, dynamic>> facilities) {
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       itemCount: facilities.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
