@@ -87,11 +87,12 @@ class FacilityCard extends StatelessWidget {
             children: [
               if (phone != null) ...[
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton.icon(
                     onPressed: onCallTap,
-                    style: OutlinedButton.styleFrom(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primary.withValues(alpha: 0.1),
                       foregroundColor: _primary,
-                      side: const BorderSide(color: _primary),
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -103,11 +104,12 @@ class FacilityCard extends StatelessWidget {
                 const SizedBox(width: 10),
               ],
               Expanded(
-                child: OutlinedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: onDirectionsTap,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _primary,
-                    side: const BorderSide(color: _primary),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1A1A2E),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
