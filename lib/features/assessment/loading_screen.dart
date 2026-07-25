@@ -8,6 +8,7 @@ import '../boot/boot_controller.dart';
 import '../results/red_flag_interrupt_screen.dart';
 import '../results/results_screen.dart';
 import '../status/system_status_screen.dart';
+import '../../shared/widgets/first_launch_offline_screen.dart';
 import 'assessment_controller.dart';
 
 class LoadingScreen extends StatefulWidget {
@@ -201,7 +202,14 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isFirstLaunchOffline) return _buildFirstLaunchOfflineView();
+    if (_isFirstLaunchOffline) {
+      return FirstLaunchOfflineScreen(
+        message:
+            'WellaPath needs a brief internet connection the first time. '
+            'Please connect and try again.',
+        onRetry: _retry,
+      );
+    }
     if (_hasError) return _buildErrorView(context);
     return _buildLoadingView();
   }
@@ -315,51 +323,6 @@ class _LoadingScreenState extends State<LoadingScreen> {
                 const SizedBox(height: 20),
                 const Text(
                   'Something went wrong running your assessment.\nPlease try again.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, height: 1.5),
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  onPressed: _retry,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Try again',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFirstLaunchOfflineView() {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.wifi_off, size: 64, color: _primary),
-                const SizedBox(height: 20),
-                const Text(
-                  'WellaPath needs a brief internet connection the first '
-                  'time. Please connect and try again.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, height: 1.5),
                 ),
