@@ -247,6 +247,6 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
 
-    expect(find.text('Close your assessment result?'), findsOneWidget);
+    expect(find.text('Close Assessment Result'), findsOneWidget);
   });
 }

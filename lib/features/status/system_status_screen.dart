@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
 import '../boot/boot_controller.dart';
@@ -17,11 +18,26 @@ class SystemStatusScreen extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (_) => IntroScreen(
           assessmentController: controller,
-          onCancel: () =>
-              Navigator.of(context).popUntil((r) => r == myRoute || r.isFirst),
+          onCancel: () => _confirmCancelAssessment(context, myRoute),
         ),
       ),
     );
+  }
+
+  Future<void> _confirmCancelAssessment(
+    BuildContext context,
+    ModalRoute<void>? myRoute,
+  ) async {
+    final confirmed = await showConfirmationDialog(
+      context: context,
+      title: 'Cancel Assessment',
+      message: 'Are you sure you want to cancel your symptom assessment?',
+      cancelLabel: 'No, continue',
+      confirmLabel: 'Yes, cancel',
+    );
+    if (confirmed && context.mounted) {
+      Navigator.of(context).popUntil((r) => r == myRoute || r.isFirst);
+    }
   }
 
   @override

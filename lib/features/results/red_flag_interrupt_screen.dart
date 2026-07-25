@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
+import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../locator/locator_screen.dart';
 
@@ -28,35 +29,19 @@ class _RedFlagInterruptScreenState extends State<RedFlagInterruptScreen> {
   }
 
   Future<void> _showLeaveConfirmationDialog() async {
-    await showDialog<void>(
+    final confirmed = await showConfirmationDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Are you sure you want to leave this screen?'),
-        content: const Text('You have been advised to seek emergency care.'),
-        actions: [
-          OutlinedButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              widget.assessmentController.clearAll();
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _primary,
-              side: const BorderSide(color: _primary),
-            ),
-            child: const Text('Leave'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Stay'),
-          ),
-        ],
-      ),
+      title: 'Leave Emergency Result',
+      message:
+          'You have been advised to seek emergency care. Are you sure you '
+          'want to leave this screen?',
+      cancelLabel: 'Stay',
+      confirmLabel: 'Yes, leave',
     );
+    if (confirmed && mounted) {
+      widget.assessmentController.clearAll();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   Future<void> _callEmergency() async {
