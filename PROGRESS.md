@@ -1919,3 +1919,152 @@ refactor. Full suite: 86/86 passing. `flutter analyze` zero errors,
       device/carrier before production sign-off
 - [x] `flutter analyze` zero errors, `dart format` clean, full test
       suite passing (86/86)
+
+---
+
+# Phase E9 — Symptom Picker Vocabulary Expansion (issue #25)
+
+Branch: `feat/e9-symptom-picker-expansion`. Fixes the finding from issue
+#25: the picker exposed only 18 unique tokens (~11% of the 164-token
+vocabulary), leaving 19 of the KB's 50 conditions completely unreachable
+and 5 more (cardio_symptoms, sari, hypertension, tuberculosis_suspected,
+diabetes) reachable only via weak, generic shared tokens rather than
+their real distinguishing symptoms.
+
+## Data source
+
+Data engineer's mapping, `wellapath-knowledge-base` repo,
+`mobile_handoff/` directory, branch `feat/e9-symptom-token-mapping`
+(PR #9 — **still open, not yet merged into `develop`** as of this
+writing; read directly off the branch since the content was already
+final. Flagging this for the engineering lead to follow up on merging
+that PR, since another engineer relying on "it's in develop" would not
+find it there yet):
+- `symptom_display_body_area_map.csv`/`.json` — all 164 tokens: display
+  name, body area, ambiguous flag, note.
+- `condition_top5_symptom_tokens.json` — top 5 symptoms by weight for
+  all 50 conditions.
+
+## What changed
+
+**Diffed first**, per instruction — the data engineer's mapping covers
+all 164 tokens, not just the gap. Computed the actual new-token need by
+taking the union of top-5 tokens across the 24 priority conditions (19
+completely unreachable + 5 effectively-unreachable) and subtracting the
+18 tokens already in the picker: **91 new tokens**, not 164 — the scope
+stayed to what's needed to reach the 24 target conditions, not a full
+164-token import, consistent with this project's no-scope-creep
+principle.
+
+`kSymptomDisplayMap` (`lib/core/constants/symptom_display_map.dart`)
+grew from 18 unique tokens (20 display labels) to **109 unique tokens
+(111 display labels)**. `kBodyAreaSymptoms` was expanded correspondingly
+so every new token is actually reachable through some body area, not
+just present in the map.
+
+## Ambiguous tokens — two real display-name collisions found and fixed
+
+The data engineer flagged 61/164 tokens ambiguous; most of their
+suggested plain-English display names were used as-is. Two needed a
+change because `kSymptomDisplayMap` keys must be unique and the
+suggested names collided:
+- `fast_breathing` (adult) vs. the already-existing
+  `fast_breathing_child` both suggested "Fast breathing" → the new
+  adult token is labelled "Rapid breathing (adult)".
+- `itchy_eyes` vs. `eye_itchiness` both suggested "Itchy eyes" (needed
+  by *different* target conditions — `allergic_reactions` and
+  `eye_infections` respectively, so neither could be dropped) → the
+  latter is labelled "Itchy, irritated eyes".
+
+Also found and fixed during on-device verification (not something the
+data engineer's note flagged): `wheeze`'s suggested display name,
+"Wheezing / whistling sound when breathing", doesn't contain the
+substring "wheeze" (English drops the trailing `-e` before adding
+`-ing`), so searching the literal token word found nothing — confirmed
+on-device before and after. Relabelled to "Wheeze / whistling sound
+when breathing". Also added "(palpitations)" parenthetically to that
+token's label, since it's a real word a lay user might actually type
+and it's `cardio_symptoms`'s core distinguishing symptom.
+
+## "General" (whole-body/systemic) tokens have no body-diagram zone
+
+39 of 164 tokens are tagged `body_area: General` by the data engineer —
+these don't correspond to any zone in the 9-region body diagram. Rather
+than add a new "General" zone (a much larger UI change — the diagram's
+tap regions and the search-tab area list would both need it, well
+beyond this ticket's scope), each General token was placed under the
+body area(s) its own condition's *other*, non-General top-5 symptoms
+already appear under — e.g. `weight_loss` (needed by `hiv_symptomatic`,
+`malnutrition`, `tuberculosis_suspected`) was added to Abdomen, Chest,
+Head, and Legs, matching where those conditions' other symptoms live.
+This mirrors the pattern this file already used pre-E9 for Fever/
+Chills/Weakness (systemic symptoms listed under several relevant
+areas, not a dedicated bucket).
+
+Four tokens belonging only to `fatigue_weakness` (`persistent_fatigue`,
+`general_weakness`, `reduced_daily_function`, `low_energy`) have no
+non-General sibling at all — that condition's entire top-5 is systemic.
+These were placed under Legs/Back/Buttocks, matching the existing
+Fatigue/Weakness placement.
+
+## Arms zone — decision: hidden, not given a placeholder token
+
+**Confirmed against the full 164-token vocabulary (not just the 91
+tokens added here): zero tokens are arm-specific.** The only candidate,
+`limb_weakness`, explicitly doesn't specify which limb (its own display
+name is "Weakness in an arm or leg") — the data engineer's own mapping
+already placed it under `General`, not `Arms`, for exactly this reason.
+
+Forcing it into `Arms` as a placeholder would misrepresent it (a user
+with leg weakness would see it filed under "Arms" and either miss it or
+be confused) for no reachability benefit — `limb_weakness` is already
+reachable via its General-token placement under Back.
+
+**Decision: hide the Arms zone.** Removed from
+`body_area_screen._bodyAreas` (search tab list) and both `_tapRegion`
+calls for it in the front/back body diagram (`body_area_screen.dart`).
+The diagram image itself still shows arms visually — only the tap
+region was removed, confirmed on-device: tapping the arm area of the
+diagram does nothing (no crash, no navigation), exactly as intended.
+The two symptoms that used to live under `Arms` in
+`kBodyAreaSymptoms` (`Swollen hands`, `Wrist pain` — both already
+generic, location-less tokens: `swelling`, `pain`) were moved to `Legs`
+rather than dropped, preserving their pre-existing reachability.
+
+## Verification
+
+New `test/core/constants/symptom_display_map_test.dart` (28 tests):
+- All 19 completely-unreachable + 5 effectively-unreachable conditions
+  (24 total) have at least one, and in fact more than one, of their
+  top-5 tokens reachable via `kSymptomDisplayMap` — a static fixture of
+  the data engineer's `condition_top5_symptom_tokens.json` is embedded
+  so this doesn't depend on fetching the live KB in a unit test.
+- Every label in every `kBodyAreaSymptoms` list has a corresponding
+  `kSymptomDisplayMap` entry (referential integrity — catches typos).
+- `Arms` is confirmed absent from `kBodyAreaSymptoms`.
+
+Full suite: **114/114 passing** (86 pre-existing + 28 new).
+`flutter analyze`: zero errors. `dart format`: clean.
+
+Manually verified on the Android emulator: "Arms" no longer appears in
+the body-area search list or as a tappable diagram region (tapping the
+arm silently does nothing); "Chest pain" and "Wheeze" are both
+selectable through the Chest area's "Show all symptoms" search,
+confirming the vocabulary expansion actually reaches the running app,
+not just the constants file.
+
+## Exit criteria
+
+- [x] All 19 completely-unreachable conditions now reachable
+- [x] Distinguishing tokens added for the 5 effectively-unreachable
+      conditions
+- [x] Body area routing correct for all 91 new tokens (verified by the
+      referential-integrity test + on-device spot checks)
+- [x] Arms zone decision made and documented: hidden, not given a
+      placeholder token
+- [x] Ambiguous tokens resolved with plain-English display names (2
+      genuine collisions fixed, plus 1 search-discoverability gap found
+      during on-device verification)
+- [x] Full test suite passing (114/114)
+- [x] `flutter analyze` clean
+- [x] `dart format` clean

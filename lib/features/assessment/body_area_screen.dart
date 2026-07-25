@@ -14,12 +14,14 @@ class BodyAreaScreen extends StatelessWidget {
 
   static const Color _primary = Color(0xFF6B4EFF);
 
+  // "Arms" was removed for E9 (issue #25): zero of the 164 symptom tokens
+  // in the KB's vocabulary are arm-specific, so the zone had nothing to
+  // route to. See PROGRESS.md for the decision record.
   static const List<String> _bodyAreas = [
     'Skin symptoms',
     'Head',
     'Neck',
     'Chest',
-    'Arms',
     'Abdomen',
     'Pelvis',
     'Back',
@@ -329,20 +331,6 @@ class _BodyDiagramTabState extends State<_BodyDiagramTab> {
                           w * 0.20,
                           h * 0.06,
                           'Neck',
-                        ),
-                        _tapRegion(
-                          w * 0.00,
-                          h * 0.20,
-                          w * 0.20,
-                          h * 0.38,
-                          'Arms',
-                        ),
-                        _tapRegion(
-                          w * 0.80,
-                          h * 0.20,
-                          w * 0.20,
-                          h * 0.38,
-                          'Arms',
                         ),
                         if (_showFront) ...[
                           _tapRegion(
