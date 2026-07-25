@@ -26,6 +26,31 @@ class ResultsScreen extends StatelessWidget {
     'self_care': Color(0xFF22C55E),
   };
 
+  // Purely presentational — matches the wording in the Figma design. The
+  // actual clinical content (careInstruction, explanationPoints, scoring)
+  // still comes entirely from the engine; these are just the UI labels
+  // wrapped around it, not new clinical logic.
+  static const Map<String, String> _urgencyLabels = {
+    'emergency': 'EMERGENCY',
+    'urgent': 'URGENT',
+    'non_urgent': 'NON-URGENT',
+    'self_care': 'NON-URGENT',
+  };
+
+  static const Map<String, String> _headlines = {
+    'emergency': 'Seek medical care immediately!',
+    'urgent': 'You should consult a doctor',
+    'non_urgent': 'Home self-care may be enough',
+    'self_care': 'Home self-care may be enough',
+  };
+
+  static const Map<String, IconData> _urgencyIcons = {
+    'emergency': Icons.emergency_rounded,
+    'urgent': Icons.medical_services_rounded,
+    'non_urgent': Icons.home_rounded,
+    'self_care': Icons.home_rounded,
+  };
+
   Future<void> _callEmergency() async {
     final Uri emergencyUri = Uri(scheme: 'tel', path: '112');
     await launchUrl(emergencyUri);
@@ -106,6 +131,159 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
+  void _showMatchStrengthExplainer(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          // The sheet's content can be taller than the screen (4 match
+          // strength rows + explanatory text) — isScrollControlled only
+          // lets the sheet itself grow, it doesn't make its content
+          // scrollable, so without this the bottom rows overflow.
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Understanding your result',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Note that',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                _explainerBullet(
+                  'Match strength shows how well the symptoms you entered '
+                  "match the symptoms of each condition. It's not the "
+                  'likelihood of having the condition.',
+                ),
+                _explainerBullet(
+                  'Your symptoms may be consistent with one or more of these '
+                  'conditions. This is not a diagnosis. Please seek '
+                  'professional care to confirm.',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Match Strength Key',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                _matchStrengthKeyRow(
+                  level: 4,
+                  label: 'Strong Match',
+                  description:
+                      'The symptoms you entered are a strong match with the '
+                      'symptoms of this condition.',
+                ),
+                _matchStrengthKeyRow(
+                  level: 3,
+                  label: 'Moderate Match',
+                  description:
+                      'The symptoms you entered are a moderate match with '
+                      'the symptoms of this condition.',
+                ),
+                _matchStrengthKeyRow(
+                  level: 2,
+                  label: 'Fair Evidence',
+                  description:
+                      'The symptoms you entered are a fair match with the '
+                      'symptoms of this condition.',
+                ),
+                _matchStrengthKeyRow(
+                  level: 1,
+                  label: 'Low Evidence',
+                  description:
+                      'The symptoms you entered are a low match with the '
+                      'symptoms of this condition.',
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _primary,
+                      side: const BorderSide(color: _primary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Okay'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _explainerBullet(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 7, right: 10),
+            child: CircleAvatar(radius: 3, backgroundColor: Colors.black54),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _matchStrengthKeyRow({
+    required int level,
+    required String label,
+    required String description,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              MatchStrengthBar(level: level, color: _primary),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: const TextStyle(fontSize: 13, color: Colors.black87),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionButton({
     required String label,
     required VoidCallback onPressed,
@@ -174,7 +352,6 @@ class ResultsScreen extends StatelessWidget {
           ],
         );
       case 'urgent':
-      case 'non_urgent':
         return Column(
           children: [
             _buildActionButton(
@@ -192,6 +369,7 @@ class ResultsScreen extends StatelessWidget {
             ),
           ],
         );
+      case 'non_urgent':
       case 'self_care':
         return Column(
           children: [
@@ -219,8 +397,23 @@ class ResultsScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: _primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Your assessment result',
+              style: TextStyle(
+                fontSize: 12,
+                color: _primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const Spacer(),
           IconButton(
             icon: const Icon(Icons.close, size: 22),
             onPressed: () => _showCloseConfirmationDialog(context),
@@ -230,34 +423,90 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUrgencyBanner() {
+  Widget _buildIllustrationBanner() {
     final color = _urgencyColors[engineOutput.urgency] ?? _primary;
+    final icon = _urgencyIcons[engineOutput.urgency] ?? Icons.info_outline;
+    return ClipRect(
+      child: Container(
+        height: 150,
+        width: double.infinity,
+        color: color,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(top: -36, left: -24, child: _decorativeCircle(96)),
+            Positioned(bottom: -50, right: -16, child: _decorativeCircle(130)),
+            Positioned(top: 12, right: 56, child: _decorativeCircle(36)),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 34),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _decorativeCircle(double size) {
     return Container(
-      width: double.infinity,
-      color: color,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.08),
+      ),
+    );
+  }
+
+  Widget _buildResultHeadline() {
+    final color = _urgencyColors[engineOutput.urgency] ?? _primary;
+    final label = _urgencyLabels[engineOutput.urgency] ?? '';
+    final headline = _headlines[engineOutput.urgency] ?? '';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            engineOutput.urgency.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+          if (label.isNotEmpty)
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                letterSpacing: 0.4,
+              ),
             ),
-          ),
           const SizedBox(height: 4),
+          if (headline.isNotEmpty)
+            Text(
+              headline,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
+              ),
+            ),
+          const SizedBox(height: 8),
           Text(
             engineOutput.careInstruction,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+              height: 1.4,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPossibleConditions() {
+  Widget _buildPossibleConditions(BuildContext context) {
     final topCauses = engineOutput.topCauses;
     if (topCauses.isEmpty) {
       return const Padding(
@@ -275,9 +524,9 @@ class ResultsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Text(
+            const Text(
               'Possible Conditions',
               style: TextStyle(
                 fontSize: 18,
@@ -285,8 +534,19 @@ class ResultsScreen extends StatelessWidget {
                 color: Colors.black87,
               ),
             ),
-            SizedBox(width: 8),
-            Icon(Icons.info_outline, size: 18, color: Colors.black45),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: () => _showMatchStrengthExplainer(context),
+              customBorder: const CircleBorder(),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(
+                  Icons.info_outline,
+                  size: 18,
+                  color: Colors.black45,
+                ),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -307,6 +567,18 @@ class ResultsScreen extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+
+  Widget _buildSymptomSummary() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: SymptomSummaryWidget(
+        symptomTokens: assessmentController.symptomTokens,
+      ),
     );
   }
 
@@ -335,21 +607,20 @@ class ResultsScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildUrgencyBanner(),
+                    _buildIllustrationBanner(),
+                    _buildResultHeadline(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                       child: _buildCTAPair(context),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _buildPossibleConditions(),
+                      child: _buildPossibleConditions(context),
                     ),
                     const SizedBox(height: 8),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: SymptomSummaryWidget(
-                        symptomTokens: assessmentController.symptomTokens,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildSymptomSummary(),
                     ),
                     const SizedBox(height: 16),
                     _buildDisclaimer(),
