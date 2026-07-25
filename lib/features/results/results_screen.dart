@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
+import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../locator/locator_screen.dart';
 import 'condition_card.dart';
@@ -75,35 +76,18 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
-  void _showCloseConfirmationDialog(BuildContext context) {
-    showDialog<void>(
+  Future<void> _showCloseConfirmationDialog(BuildContext context) async {
+    final confirmed = await showConfirmationDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Close your assessment result?'),
-        actions: [
-          OutlinedButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              assessmentController.clearAll();
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _primary,
-              side: const BorderSide(color: _primary),
-            ),
-            child: const Text('Yes, close'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('No, continue'),
-          ),
-        ],
-      ),
+      title: 'Close Assessment Result',
+      message: 'Are you sure you want to leave your symptom assessment result?',
+      cancelLabel: 'No, continue',
+      confirmLabel: 'Yes, close',
     );
+    if (confirmed && context.mounted) {
+      assessmentController.clearAll();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   Widget _buildActionButton({
