@@ -144,6 +144,7 @@ class CaseRunResult {
     required this.testCase,
     required this.wiring,
     required this.actualUrgency,
+    required this.actualUrgencySource,
     required this.actualTopCondition,
     required this.urgencyDirection,
     required this.topConditionMatched,
@@ -157,6 +158,10 @@ class CaseRunResult {
 
   /// Null when the engine threw — see [error].
   final String? actualUrgency;
+
+  /// `EngineOutput.urgencySource` — why the engine arrived at
+  /// [actualUrgency]. Null when the engine threw.
+  final String? actualUrgencySource;
 
   /// Null when the engine short-circuited on a red flag: that path returns
   /// `format(redFlagResult, null, urgencyResult)`, so `topCauses` is empty by
@@ -175,12 +180,33 @@ class CaseRunResult {
 
   bool get urgencyMatched => urgencyDirection == TriageDirection.match;
 
+  /// Whether the engine reached its answer for the reason the bank expected.
+  ///
+  /// A case can return the correct urgency down the wrong priority path — a
+  /// demographic escalation that happens to land on the same value a red flag
+  /// would have produced, say. Without this the two are indistinguishable, so
+  /// a source mismatch is a real failure even when the urgency is right.
+  ///
+  /// True when the bank asserts no source for the case.
+  bool get urgencySourceMatched =>
+      testCase.expectedUrgencySource == null ||
+      testCase.expectedUrgencySource == actualUrgencySource;
+
+  /// A source mismatch on a case whose urgency was nonetheless correct — the
+  /// specific thing this assertion exists to surface.
+  bool get isRightAnswerWrongReason =>
+      graded && error == null && urgencyMatched && !urgencySourceMatched;
+
   /// Observe cases assert nothing, so they are recorded but excluded from the
   /// pass rate entirely.
   bool get graded => !testCase.isObserveCase;
 
   bool get passed =>
-      graded && error == null && urgencyMatched && topConditionMatched;
+      graded &&
+      error == null &&
+      urgencyMatched &&
+      urgencySourceMatched &&
+      topConditionMatched;
 
   /// Under-triage on a case the bank marked safety critical. This is exit
   /// criterion 5 — it must be zero.
@@ -199,6 +225,8 @@ class CaseRunResult {
     'season': testCase.season,
     'expected_urgency': testCase.expectedUrgency,
     'expected_urgency_source': testCase.expectedUrgencySource,
+    'actual_urgency_source': actualUrgencySource,
+    'urgency_source_matched': urgencySourceMatched,
     'observe_case': testCase.isObserveCase,
     'actual_urgency': actualUrgency,
     'expected_top_condition': testCase.expectedTopCondition,
@@ -268,6 +296,16 @@ class CaseBankReport {
   List<CaseRunResult> get errored =>
       results.where((CaseRunResult r) => r.error != null).toList();
 
+  /// Graded cases where the engine's stated reason differs from the bank's.
+  List<CaseRunResult> get sourceMismatches => gradedResults
+      .where((CaseRunResult r) => r.error == null && !r.urgencySourceMatched)
+      .toList();
+
+  /// The subset of [sourceMismatches] where the urgency itself was correct.
+  List<CaseRunResult> get rightAnswerWrongReason => gradedResults
+      .where((CaseRunResult r) => r.isRightAnswerWrongReason)
+      .toList();
+
   List<CaseRunResult> get safetyCriticalFailures =>
       results.where((CaseRunResult r) => r.isSafetyCriticalFailure).toList();
 
@@ -305,6 +343,8 @@ class CaseBankReport {
       'under_triage': underTriage.length,
       'over_triage': overTriage.length,
       'errored': errored.length,
+      'urgency_source_mismatches': sourceMismatches.length,
+      'right_answer_wrong_reason': rightAnswerWrongReason.length,
       'safety_critical_failures': safetyCriticalFailures.length,
     },
     'red_flag_coverage': <String, dynamic>{
@@ -316,6 +356,9 @@ class CaseBankReport {
         .map((CaseRunResult r) => r.toJson())
         .toList(),
     'observe_case_outcomes': observeResults
+        .map((CaseRunResult r) => r.toJson())
+        .toList(),
+    'urgency_source_mismatches': sourceMismatches
         .map((CaseRunResult r) => r.toJson())
         .toList(),
     'failures': failures.map((CaseRunResult r) => r.toJson()).toList(),

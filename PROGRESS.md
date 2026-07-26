@@ -2547,3 +2547,98 @@ PRs so they stay independently reviewable.
 - [x] Every urgency path covered by a test
 - [x] `flutter analyze` zero errors, `dart format` clean, full suite passing
 - [ ] PR opened against `develop`
+
+---
+
+# Phase E8.1 — Urgency source assertion (follow-up to PR #39)
+
+Engineering lead instruction: wire the harness to assert
+`expected_urgency_source` against `EngineOutput.urgencySource` **before** the
+data engineer regenerates, so source verification lands in the single re-run
+rather than requiring a third.
+
+## What changed
+
+- `CaseRunResult.actualUrgencySource` — read from `EngineOutput.urgencySource`
+  (exposed by PR #40).
+- `urgencySourceMatched` — true when the bank asserts no source, else exact
+  match. A mismatch fails the case.
+- `isRightAnswerWrongReason` — the specific thing this exists to surface: the
+  urgency was correct but the engine got there down a different path.
+- Report gains `urgency_source_mismatches` and `right_answer_wrong_reason`
+  counts, a dedicated mismatch section in the console output and a
+  `urgency_source_mismatches` array in the results JSON.
+- New exit criterion 4b test: zero source mismatches.
+- 7 new self-tests (40 total in the harness).
+
+Observe cases are exempt — they are ungraded, so a source they never asserted
+cannot mismatch.
+
+## Dry run against the current (uncorrected) bank
+
+**20 source mismatches, 19 of them right-answer-wrong-reason.** None was
+visible before today: in every one of the 19 the urgency is exactly right.
+
+| Expected -> actual | Count | Assessment |
+|---|---|---|
+| `urgency_default` -> `demographic_escalation` | 18 | Semantics question — see below |
+| `condition_specific_red_flag` -> `global_red_flag` | 1 | Engine correct; rules artifact issue |
+| `empty_default` -> `urgency_default` | 1 | CB_211, already accepted (ruling 2) |
+
+### The 18 — this is issue #36 made visible
+
+Every one is a condition already at `urgent` or `emergency` carrying an
+`increase_urgency` demographic modifier. `UrgencyDeterminer` Priority 4a fires
+and reports `demographic_escalation`, but `_escalateOne` leaves `urgent` and
+`emergency` unchanged — so **the engine reports an escalation that did not
+change anything**. The bank recorded `urgency_default` because the value never
+moved.
+
+Both readings are defensible: the engine took the demographic path
+(mechanically true), the bank observed no escalation occurred (materially
+true). This is exactly the `increase_urgency` no-op already open as
+[#36](../../issues/36) — the source field is what makes it observable per
+case rather than a theoretical concern. **A ruling on #36 decides which side
+changes**, so these 18 should not be "fixed" in the bank until it lands.
+
+### CB_159 — engine correct, rules artifact carries a dead rule
+
+`circulatory_collapse` is registered **twice** in rules.ng.v2.1: as global
+rule `rf_006` (priority 1) and as condition-specific `rf_147`
+(road_traffic_injury_minor, priority 11). `RedFlagEvaluator` runs the global
+pass first and halts on first match, so `rf_006` wins and `rf_147` can never
+fire.
+
+The engine is right — LOCKED PRINCIPLE #5, a global red flag is absolute — and
+both paths return `emergency`, so no triage outcome differs. But **`rf_147` is
+dead in the artifact**. Checked systematically: it is the only one of the 63
+condition-specific rules shadowed this way.
+
+Fix belongs in the bank (expect `global_red_flag` for CB_159) and, separately,
+in the rules artifact (drop the redundant `rf_147`, or rescope `rf_006`).
+
+## Revised projection for the re-run
+
+My earlier "99.57% after Option A" figure did not account for source
+verification, which did not exist yet. With the assertion in:
+
+**Predicted after Option A alone: 211/231 = 91.34%**, with 20 remaining
+failures — 18 blocked on the #36 ruling, 1 CB_159, 1 CB_211 (accepted).
+
+If #36 resolves in the engine's favour (the bank adopts
+`demographic_escalation` for those 18) and CB_159 is corrected, the projection
+is **230/231 = 99.57%**, with CB_211 the sole accepted failure.
+
+## Verification
+
+Harness self-tests **40 passing**. Full suite **171 passing, 5 skipped**.
+`flutter analyze` zero errors, `dart format` clean.
+
+## Exit criteria
+
+- [x] `expected_urgency_source` asserted against actual per case
+- [x] Right-answer-wrong-reason surfaced as its own category
+- [x] Source mismatches serialised to the results JSON
+- [x] Self-tests cover match, no-assertion, wrong-path, condition-specific
+      source, no double counting, and observe-case exemption
+- [x] Branch ready for the data engineer to trigger the re-run

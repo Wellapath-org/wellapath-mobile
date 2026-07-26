@@ -134,6 +134,7 @@ CaseBankRunner _runner({
 
 CaseBankCase _case({
   String caseId = 'CB_TEST',
+  String? expectedUrgencySource,
   String conditionTarget = 'malaria',
   List<String> inputTokens = const <String>['fever', 'chills'],
   List<String> demographicTokens = const <String>[],
@@ -151,6 +152,7 @@ CaseBankCase _case({
     season: season,
     expectedUrgency: expectedUrgency,
     expectedTopCondition: expectedTopCondition,
+    expectedUrgencySource: expectedUrgencySource,
     safetyCritical: safetyCritical,
   );
 }
@@ -449,6 +451,113 @@ void main() {
 
       // No demographics either, so not even the one-level escalation.
       expect(result.actualUrgency, 'self_care');
+    });
+  });
+
+  group('urgency source assertion', () {
+    test('a matching source passes', () {
+      final CaseRunResult result = _runner().runCase(
+        _case(expectedUrgencySource: 'urgency_default'),
+      );
+
+      expect(result.actualUrgencySource, 'urgency_default');
+      expect(result.urgencySourceMatched, isTrue);
+      expect(result.passed, isTrue);
+    });
+
+    test('a case asserting no source is not held to one', () {
+      final CaseRunResult result = _runner().runCase(
+        _case(expectedUrgencySource: null),
+      );
+
+      expect(result.urgencySourceMatched, isTrue);
+      expect(result.passed, isTrue);
+    });
+
+    test('right answer via the wrong path fails and is labelled', () {
+      // Correct urgency, wrong reason: the bank expects this emergency to
+      // come from a demographic escalation, the engine reached it via a
+      // global red flag. Without the source these outputs are identical.
+      final CaseRunResult result = _runner().runCase(
+        _case(
+          inputTokens: <String>['seizures'],
+          expectedUrgency: 'emergency',
+          expectedUrgencySource: 'demographic_escalation',
+        ),
+      );
+
+      expect(result.actualUrgency, 'emergency');
+      expect(result.urgencyDirection, TriageDirection.match);
+      expect(result.actualUrgencySource, 'global_red_flag');
+      expect(result.urgencySourceMatched, isFalse);
+      expect(result.isRightAnswerWrongReason, isTrue);
+      expect(result.passed, isFalse);
+    });
+
+    test('condition-specific red flags report their own source', () {
+      final CaseRunResult result = _runner().runCase(
+        _case(
+          inputTokens: <String>['fever', 'haemoglobinuria'],
+          expectedUrgency: 'emergency',
+          expectedUrgencySource: 'condition_specific_red_flag',
+        ),
+      );
+
+      expect(result.actualUrgencySource, 'condition_specific_red_flag');
+      expect(result.urgencySourceMatched, isTrue);
+    });
+
+    test('a wrong urgency with a wrong source is not double counted', () {
+      final CaseRunResult result = _runner().runCase(
+        _case(
+          expectedUrgency: 'emergency',
+          expectedUrgencySource: 'global_red_flag',
+        ),
+      );
+
+      expect(result.urgencyDirection, TriageDirection.underTriage);
+      expect(result.urgencySourceMatched, isFalse);
+      // Only cases whose urgency was right count as right-answer-wrong-reason.
+      expect(result.isRightAnswerWrongReason, isFalse);
+    });
+
+    test('the report separates source mismatches from triage failures', () {
+      final CaseBankReport report = _runner().runAll(<CaseBankCase>[
+        _case(caseId: 'CB_001', expectedUrgencySource: 'urgency_default'),
+        _case(
+          caseId: 'CB_002',
+          inputTokens: <String>['seizures'],
+          expectedUrgency: 'emergency',
+          expectedUrgencySource: 'demographic_escalation',
+        ),
+        _case(caseId: 'CB_003', expectedUrgency: 'self_care'),
+      ]);
+
+      expect(
+        report.sourceMismatches.map((CaseRunResult r) => r.testCase.caseId),
+        <String>['CB_002'],
+      );
+      expect(report.rightAnswerWrongReason.length, 1);
+      expect(report.overTriage.length, 1);
+      expect(report.passed, 1);
+    });
+
+    test('observe cases are exempt from the source assertion', () {
+      final CaseBankReport report = _runner().runAll(<CaseBankCase>[
+        CaseBankCase(
+          caseId: 'CB_OBS',
+          conditionTarget: 'malaria',
+          description: 'observe',
+          inputTokens: const <String>['fever'],
+          demographicTokens: const <String>[],
+          expectedUrgency: null,
+          expectedUrgencySource: 'observe',
+          safetyCritical: false,
+        ),
+      ]);
+
+      expect(report.sourceMismatches, isEmpty);
+      expect(report.gradedTotal, 0);
     });
   });
 

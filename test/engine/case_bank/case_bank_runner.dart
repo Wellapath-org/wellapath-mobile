@@ -115,6 +115,7 @@ class CaseBankRunner {
     }
 
     final String? actualUrgency = output?.urgency;
+    final String? actualUrgencySource = output?.urgencySource;
     final String? actualTopCondition =
         (output != null && output.topCauses.isNotEmpty)
         ? output.topCauses.first['condition_id'] as String?
@@ -145,6 +146,7 @@ class CaseBankRunner {
       testCase: testCase,
       wiring: wiring,
       actualUrgency: actualUrgency,
+      actualUrgencySource: actualUrgencySource,
       actualTopCondition: actualTopCondition,
       urgencyDirection: direction,
       topConditionMatched: topConditionMatched,
