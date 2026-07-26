@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/engine/engine_controller.dart';
-import '../../core/engine/models/engine_input.dart';
 import '../../core/engine/models/engine_output.dart';
 import '../../core/network/staged_artifact_loader.dart';
 import '../../core/storage/storage_service.dart';
@@ -9,6 +8,8 @@ import '../results/red_flag_interrupt_screen.dart';
 import '../results/results_screen.dart';
 import '../status/system_status_screen.dart';
 import 'assessment_controller.dart';
+import 'engine_input_builder.dart';
+import 'symptom_selection_screen.dart';
 
 class LoadingScreen extends StatefulWidget {
   final AssessmentController assessmentController;
@@ -31,6 +32,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
   bool _step2Complete = false;
   bool _hasError = false;
   bool _isFirstLaunchOffline = false;
+  bool _noSymptomsSelected = false;
 
   @override
   void initState() {
@@ -56,6 +58,19 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   Future<void> _runAssessment() async {
     StagedArtifactLoader.instance.reset();
+
+    // Guard before anything else — with no symptoms the engine still scores
+    // every condition on base_weight alone and returns whichever has the
+    // highest one, presenting a fabricated result the user never described.
+    // The symptom selection screen already disables its Continue button when
+    // nothing is selected, so this is defence in depth on the last step
+    // before the engine, not the only gate.
+    if (widget.assessmentController.symptomTokens.isEmpty) {
+      debugPrint('Assessment blocked — no symptoms selected');
+      if (!mounted) return;
+      setState(() => _noSymptomsSelected = true);
+      return;
+    }
 
     await Future<void>.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
@@ -119,11 +134,21 @@ class _LoadingScreenState extends State<LoadingScreen> {
               tokenDictionary: coreArtifacts.tokenDictionary,
               knowledgeBase: coreArtifacts.conditions,
               configMetadata: Map<String, dynamic>.from(config),
+              // Seasonal modifiers on 21 conditions depend on this. Nothing
+              // currently assigns AssessmentInput.season, so it is null today
+              // and the seasonal path stays inert — but the plumbing is now
+              // complete, so a season source can be dropped in without
+              // touching the engine. See PROGRESS.md (E8 wiring fix).
+              currentSeason: assessmentInput.season,
             );
 
-            final engineInput = EngineInput(
-              symptomTokens: assessmentInput.symptomTokens,
-              candidateConditionIds: const [],
+            // Demographics, season and candidate conditions were all
+            // discarded here before E8: the input was built with
+            // `candidateConditionIds: const []`, which closed every gate the
+            // engine reads them through. See engine_input_builder.dart.
+            final engineInput = buildEngineInput(
+              assessmentInput: assessmentInput,
+              knowledgeBase: coreArtifacts.conditions,
             );
 
             output = engine.run(engineInput);
@@ -195,15 +220,73 @@ class _LoadingScreenState extends State<LoadingScreen> {
       _step2Complete = false;
       _hasError = false;
       _isFirstLaunchOffline = false;
+      _noSymptomsSelected = false;
     });
     _runAssessment();
   }
 
+  /// Returns to the symptom selection screen. The route is matched by name
+  /// (set where `body_area_screen.dart` pushes it) rather than by popping a
+  /// fixed number of times, since the follow-up screen's question count
+  /// varies. Falls back to the first route so a missing name can never empty
+  /// the navigator stack.
+  void _returnToSymptomSelection() {
+    Navigator.of(context).popUntil(
+      (Route<dynamic> route) =>
+          route.settings.name == kSymptomSelectionRouteName || route.isFirst,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_noSymptomsSelected) return _buildNoSymptomsView();
     if (_isFirstLaunchOffline) return _buildFirstLaunchOfflineView();
     if (_hasError) return _buildErrorView(context);
     return _buildLoadingView();
+  }
+
+  Widget _buildNoSymptomsView() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.checklist_rtl, size: 64, color: _primary),
+                const SizedBox(height: 20),
+                const Text(
+                  'Please select at least one symptom to continue.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, height: 1.5),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: _returnToSymptomSelection,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Select symptoms',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildLoadingView() {

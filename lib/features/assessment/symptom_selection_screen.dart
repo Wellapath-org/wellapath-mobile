@@ -3,6 +3,14 @@ import '../../core/constants/symptom_display_map.dart';
 import 'assessment_controller.dart';
 import 'followup_screen.dart';
 
+/// Route name for this screen, set where `body_area_screen.dart` pushes it.
+///
+/// `loading_screen.dart` pops back to it by name when an assessment reaches
+/// the engine with no symptoms selected — the number of screens in between
+/// varies with the follow-up question count, so popping by name is the only
+/// reliable way back.
+const String kSymptomSelectionRouteName = 'assessment/symptom_selection';
+
 class SymptomSelectionScreen extends StatefulWidget {
   final AssessmentController assessmentController;
   final VoidCallback onCancel;
