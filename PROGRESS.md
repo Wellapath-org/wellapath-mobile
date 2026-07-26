@@ -2491,3 +2491,59 @@ currently invisible.
       and triage direction — in `case_bank_results_v1.json`
 - [ ] 8. Results committed to
       `wellapath-knowledge-base/testing/case_bank_results_v1.json` — PR open
+
+---
+
+# Phase E8 — Expose urgencySource on EngineOutput
+
+Branch: `feat/e8-urgency-source-output` (off `develop`). Engineering lead
+ruling 4 from the E8.1 results review — fix before beta.
+
+## Why
+
+The E8.1 case bank asserts an `expected_urgency_source` on all 234 cases
+(`urgency_default` 88, `global_red_flag` 84, `condition_specific_red_flag` 40,
+`demographic_escalation` 18, `observe` 3, `empty_default` 1). `UrgencyDeterminer`
+computes exactly that value, but `EngineOutput` never carried it, so the
+harness could record the expectation and not check it. A case reaching the
+right urgency down the wrong priority path was indistinguishable from a
+correct one.
+
+## What changed
+
+- `EngineOutput.urgencySource` — new required field, carried straight through
+  from `UrgencyResult.urgencySource` by `OutputFormatter`.
+- **`EngineController` no longer mislabels condition-specific red flags.** The
+  red flag path hardcoded `urgencySource: 'global_red_flag'` regardless of
+  which pass matched, so all 40 of the bank's `condition_specific_red_flag`
+  cases would have been reported as global. It now reads
+  `redFlagResult.redFlagType`. The urgency itself is `emergency` either way —
+  only the stated reason changes, so this alters no triage outcome.
+
+Field made required rather than optional: it is always available at the point
+of construction, and 5 test mocks are the only other construction sites.
+
+## Verification
+
+New `test/engine/urgency_source_output_test.dart` (6 tests) pins the source
+reported by each path: global red flag, condition-specific red flag,
+demographic escalation, and plain urgency default — plus that the two red flag
+paths are distinguishable, and that two results with identical `emergency`
+urgency but different sources can be told apart, which is the case the field
+exists for.
+
+Full suite **138 passing**. `flutter analyze` zero errors, `dart format` clean.
+
+## Follow-up
+
+Once this and PR #39 are both merged, the harness can compare
+`expected_urgency_source` against the actual source per case. Kept out of both
+PRs so they stay independently reviewable.
+
+## Exit criteria
+
+- [x] `urgencySource` exposed on `EngineOutput`
+- [x] Condition-specific red flags report their own source, not `global_red_flag`
+- [x] Every urgency path covered by a test
+- [x] `flutter analyze` zero errors, `dart format` clean, full suite passing
+- [ ] PR opened against `develop`

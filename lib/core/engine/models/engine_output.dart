@@ -75,6 +75,7 @@ class UrgencyResult {
 class EngineOutput {
   const EngineOutput({
     required this.urgency,
+    required this.urgencySource,
     required this.redFlagTriggered,
     this.matchedRuleId,
     this.matchedRuleName,
@@ -85,6 +86,18 @@ class EngineOutput {
   });
 
   final String urgency;
+
+  /// Why [urgency] came out the way it did: one of `global_red_flag`,
+  /// `condition_specific_red_flag`, `demographic_escalation` or
+  /// `urgency_default`.
+  ///
+  /// Carried straight through from [UrgencyResult.urgencySource]. Exposed so a
+  /// caller can verify the engine reached the right answer for the right
+  /// reason — without it, a case that returns the correct urgency via the
+  /// wrong priority path is indistinguishable from a correct one. The E8.1
+  /// case bank asserts this per case.
+  final String urgencySource;
+
   final bool redFlagTriggered;
   final String? matchedRuleId;
   final String? matchedRuleName;

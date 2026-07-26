@@ -69,6 +69,7 @@ class OutputFormatter {
 
     return EngineOutput(
       urgency: urgency,
+      urgencySource: urgencyResult.urgencySource,
       redFlagTriggered: redFlagResult.redFlagTriggered,
       matchedRuleId: redFlagResult.matchedRuleId,
       matchedRuleName: redFlagResult.matchedRuleName,
