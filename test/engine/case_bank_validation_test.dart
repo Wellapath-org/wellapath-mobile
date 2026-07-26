@@ -46,13 +46,13 @@ String get _caseBankPath => _caseBankPathOverride.isNotEmpty
     : _defaultCaseBankPath;
 
 String _describe(CaseRunResult r) {
-  final String expected = r.testCase.expectedUrgency;
+  final String expected = r.testCase.expectedUrgency ?? '(observe)';
   final String actual = r.error != null ? 'ERROR' : (r.actualUrgency ?? 'none');
   final String direction = switch (r.urgencyDirection) {
     TriageDirection.underTriage => 'UNDER-TRIAGE',
     TriageDirection.overTriage => 'over-triage',
     TriageDirection.match => 'urgency ok',
-    null => 'no result',
+    null => r.testCase.isObserveCase ? 'observed' : 'no result',
   };
   final String topLine =
       (r.testCase.expectedTopCondition != null && !r.topConditionMatched)
@@ -74,6 +74,8 @@ void _printReport(CaseBankReport report) {
   print('');
   print('=== E8.1 CASE BANK RESULTS — $label ===');
   print('  total cases      : ${report.total}');
+  print('  graded cases     : ${report.gradedTotal}');
+  print('  observe cases    : ${report.observeResults.length}');
   print('  passed           : ${report.passed}');
   print('  failed           : ${report.failed}');
   print('  pass rate        : ${(report.passRate * 100).toStringAsFixed(2)}%');
@@ -97,6 +99,22 @@ void _printReport(CaseBankReport report) {
     print('--- SAFETY-CRITICAL FAILURES ($label) ---');
     for (final CaseRunResult r in report.safetyCriticalFailures) {
       print(_describe(r));
+    }
+  }
+
+  if (report.observeResults.isNotEmpty) {
+    print('');
+    print('--- OBSERVE CASES (recorded, not graded) ---');
+    for (final CaseRunResult r in report.observeResults) {
+      print(
+        '  ${r.testCase.caseId}  ${r.testCase.description}\n'
+        '    input: ${r.testCase.inputTokens.join(', ')}\n'
+        '    actual: urgency=${r.actualUrgency ?? 'none'}  '
+        'top=${r.actualTopCondition ?? 'none'}  '
+        'red_flag=${r.redFlagTriggered}'
+        '${r.matchedRuleId != null ? ' rule=${r.matchedRuleId}' : ''}'
+        '${r.error != null ? '\n    error: ${r.error}' : ''}',
+      );
     }
   }
 

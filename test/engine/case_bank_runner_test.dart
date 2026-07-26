@@ -21,6 +21,7 @@ final Map<String, dynamic> _tokenDictionary = <String, dynamic>{
     'headache',
     'watery_stool',
     'vomiting',
+    'runny_nose',
   ],
   'red_flag_tokens': <String>['seizures', 'haemoglobinuria'],
 };
@@ -63,6 +64,33 @@ final List<Map<String, dynamic>> _knowledgeBase = <Map<String, dynamic>>[
     'seasonal_modifiers': <Map<String, dynamic>>[
       <String, dynamic>{
         'season': 'rainy_season',
+        'effect': 'increase_base_weight',
+      },
+    ],
+  },
+  <String, dynamic>{
+    // Mirrors cough_common_cold in kb.ng.v2.3: self_care by default, an
+    // increase_urgency demographic and a seasonal modifier. Only this shape
+    // makes UrgencyDeterminer Priority 4c (demographic + seasonal -> urgent)
+    // observable, which is what catches a season that never reaches the
+    // engine.
+    'condition_id': 'common_cold',
+    'condition_name': 'Common Cold',
+    'base_weight': 8,
+    'urgency_default': 'self_care',
+    'explanation_template': 'Consistent with a common cold.',
+    'symptoms': <Map<String, dynamic>>[
+      <String, dynamic>{'token': 'runny_nose', 'weight': 8},
+    ],
+    'demographic_modifiers': <Map<String, dynamic>>[
+      <String, dynamic>{
+        'modifier': 'children_under_5',
+        'effect': 'increase_urgency',
+      },
+    ],
+    'seasonal_modifiers': <Map<String, dynamic>>[
+      <String, dynamic>{
+        'season': 'harmattan_season',
         'effect': 'increase_base_weight',
       },
     ],
@@ -377,17 +405,50 @@ void main() {
       expect(result.redFlagTriggered, isFalse);
     });
 
-    test('asShipped passes the season through to the engine', () {
+    test('asShipped passes the season through — Priority 4c fires', () {
+      // Without the season reaching EngineController, Priority 4a escalates
+      // self_care one level to non_urgent. With it, Priority 4c returns
+      // urgent. This is the assertion that catches a dropped season; a case
+      // whose condition already defaults to urgent cannot distinguish them.
+      final CaseBankCase seasonal = _case(
+        conditionTarget: 'common_cold',
+        inputTokens: <String>['runny_nose'],
+        demographicTokens: <String>['children_under_5'],
+        season: 'harmattan_season',
+        expectedUrgency: 'urgent',
+      );
+
+      expect(
+        _runner(wiring: EngineWiring.asShipped).runCase(seasonal).actualUrgency,
+        'urgent',
+      );
+    });
+
+    test('the same case without a season escalates only one level', () {
       final CaseRunResult result = _runner(wiring: EngineWiring.asShipped)
           .runCase(
             _case(
-              inputTokens: <String>['fever', 'chills'],
-              season: 'rainy_season',
+              conditionTarget: 'common_cold',
+              inputTokens: <String>['runny_nose'],
+              demographicTokens: <String>['children_under_5'],
             ),
           );
 
-      expect(result.error, isNull);
-      expect(result.actualUrgency, 'urgent');
+      expect(result.actualUrgency, 'non_urgent');
+    });
+
+    test('preFix dropped the season entirely', () {
+      final CaseRunResult result = _runner(wiring: EngineWiring.preFix).runCase(
+        _case(
+          conditionTarget: 'common_cold',
+          inputTokens: <String>['runny_nose'],
+          demographicTokens: <String>['children_under_5'],
+          season: 'harmattan_season',
+        ),
+      );
+
+      // No demographics either, so not even the one-level escalation.
+      expect(result.actualUrgency, 'self_care');
     });
   });
 

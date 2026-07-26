@@ -70,6 +70,7 @@ class CaseBankCase {
     required this.safetyCritical,
     this.season,
     this.expectedTopCondition,
+    this.expectedUrgencySource,
   });
 
   final String caseId;
@@ -78,7 +79,23 @@ class CaseBankCase {
   final List<String> inputTokens;
   final List<String> demographicTokens;
   final String? season;
-  final String expectedUrgency;
+
+  /// Null on an *observe* case: a scenario the bank deliberately leaves
+  /// unasserted (`expected_urgency_source: "observe"`) because the correct
+  /// answer is whatever the scorer produces. These are recorded, not graded —
+  /// counting them as failures would be wrong, and counting them as passes
+  /// would inflate the pass rate.
+  final String? expectedUrgency;
+
+  /// The bank's `expected_urgency_source`, e.g. `urgency_default`,
+  /// `global_red_flag`, `observe`.
+  ///
+  /// Recorded for reference only. `EngineOutput` does not surface the
+  /// `urgencySource` that `UrgencyDeterminer` computes, so the harness cannot
+  /// assert against this without an engine change. Flagged for the lead.
+  final String? expectedUrgencySource;
+
+  bool get isObserveCase => expectedUrgency == null;
 
   /// Null means "not asserted for this case". Red flag cases legitimately
   /// have no top condition — see [CaseRunResult.actualTopCondition].
@@ -100,11 +117,10 @@ class CaseBankCase {
       throw ArgumentError('Case bank entry missing case_id');
     }
     final String? expectedUrgency = json['expected_urgency'] as String?;
-    if (expectedUrgency == null) {
-      throw ArgumentError('Case $caseId missing expected_urgency');
-    }
-    // Validate eagerly so a malformed bank fails at load, not mid-run.
-    urgencyRank(expectedUrgency);
+    // A null expectation marks an observe case and is legitimate. A non-null
+    // one is validated eagerly, so a malformed bank fails at load, not
+    // mid-run.
+    if (expectedUrgency != null) urgencyRank(expectedUrgency);
 
     return CaseBankCase(
       caseId: caseId,
@@ -115,6 +131,7 @@ class CaseBankCase {
       season: json['season'] as String?,
       expectedUrgency: expectedUrgency,
       expectedTopCondition: json['expected_top_condition'] as String?,
+      expectedUrgencySource: json['expected_urgency_source'] as String?,
       safetyCritical: json['safety_critical'] as bool? ?? false,
     );
   }
@@ -158,12 +175,18 @@ class CaseRunResult {
 
   bool get urgencyMatched => urgencyDirection == TriageDirection.match;
 
-  bool get passed => error == null && urgencyMatched && topConditionMatched;
+  /// Observe cases assert nothing, so they are recorded but excluded from the
+  /// pass rate entirely.
+  bool get graded => !testCase.isObserveCase;
+
+  bool get passed =>
+      graded && error == null && urgencyMatched && topConditionMatched;
 
   /// Under-triage on a case the bank marked safety critical. This is exit
   /// criterion 5 — it must be zero.
   bool get isSafetyCriticalFailure =>
       testCase.safetyCritical &&
+      graded &&
       (error != null || urgencyDirection == TriageDirection.underTriage);
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -175,6 +198,8 @@ class CaseRunResult {
     'demographic_tokens': testCase.demographicTokens,
     'season': testCase.season,
     'expected_urgency': testCase.expectedUrgency,
+    'expected_urgency_source': testCase.expectedUrgencySource,
+    'observe_case': testCase.isObserveCase,
     'actual_urgency': actualUrgency,
     'expected_top_condition': testCase.expectedTopCondition,
     'actual_top_condition': actualTopCondition,
@@ -211,19 +236,30 @@ class CaseBankReport {
   final Set<String> globalRuleIds;
 
   int get total => results.length;
-  int get passed => results.where((CaseRunResult r) => r.passed).length;
-  int get failed => total - passed;
+
+  /// Cases the bank actually asserts an expectation for. Observe cases are
+  /// excluded — the pass rate is over graded cases only, so recording an
+  /// observation neither counts as a win nor a loss.
+  List<CaseRunResult> get gradedResults =>
+      results.where((CaseRunResult r) => r.graded).toList();
+
+  List<CaseRunResult> get observeResults =>
+      results.where((CaseRunResult r) => !r.graded).toList();
+
+  int get gradedTotal => gradedResults.length;
+  int get passed => gradedResults.where((CaseRunResult r) => r.passed).length;
+  int get failed => gradedTotal - passed;
 
   List<CaseRunResult> get failures =>
-      results.where((CaseRunResult r) => !r.passed).toList();
+      gradedResults.where((CaseRunResult r) => !r.passed).toList();
 
-  List<CaseRunResult> get underTriage => results
+  List<CaseRunResult> get underTriage => gradedResults
       .where(
         (CaseRunResult r) => r.urgencyDirection == TriageDirection.underTriage,
       )
       .toList();
 
-  List<CaseRunResult> get overTriage => results
+  List<CaseRunResult> get overTriage => gradedResults
       .where(
         (CaseRunResult r) => r.urgencyDirection == TriageDirection.overTriage,
       )
@@ -235,7 +271,7 @@ class CaseBankReport {
   List<CaseRunResult> get safetyCriticalFailures =>
       results.where((CaseRunResult r) => r.isSafetyCriticalFailure).toList();
 
-  double get passRate => total == 0 ? 0 : passed / total;
+  double get passRate => gradedTotal == 0 ? 0 : passed / gradedTotal;
 
   /// Global red flag rule ids actually exercised by this run.
   Set<String> get globalRulesTriggered => results
@@ -261,6 +297,8 @@ class CaseBankReport {
     'wiring': wiringName(wiring),
     'summary': <String, dynamic>{
       'total_cases': total,
+      'graded_cases': gradedTotal,
+      'observe_cases': observeResults.length,
       'passed': passed,
       'failed': failed,
       'pass_rate': double.parse((passRate * 100).toStringAsFixed(2)),
@@ -275,6 +313,9 @@ class CaseBankReport {
       'global_rules_not_triggered': globalRulesNotTriggered.toList()..sort(),
     },
     'safety_critical_failures': safetyCriticalFailures
+        .map((CaseRunResult r) => r.toJson())
+        .toList(),
+    'observe_case_outcomes': observeResults
         .map((CaseRunResult r) => r.toJson())
         .toList(),
     'failures': failures.map((CaseRunResult r) => r.toJson()).toList(),

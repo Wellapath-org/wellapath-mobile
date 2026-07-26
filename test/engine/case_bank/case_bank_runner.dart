@@ -97,8 +97,10 @@ class CaseBankRunner {
     }
   }
 
+  /// The production path passes the assessment's season through to
+  /// `EngineController`; the pre-fix regression fixture never did.
   String? _seasonFor(CaseBankCase testCase) =>
-      wiring == EngineWiring.asShipped ? null : testCase.season;
+      wiring == EngineWiring.asShipped ? testCase.season : null;
 
   CaseRunResult runCase(CaseBankCase testCase) {
     EngineOutput? output;
@@ -118,9 +120,12 @@ class CaseBankRunner {
         ? output.topCauses.first['condition_id'] as String?
         : null;
 
+    // Left null on an observe case: with nothing expected there is no
+    // direction to have missed in.
     TriageDirection? direction;
-    if (actualUrgency != null) {
-      final int expected = urgencyRank(testCase.expectedUrgency);
+    final String? expectedUrgency = testCase.expectedUrgency;
+    if (actualUrgency != null && expectedUrgency != null) {
+      final int expected = urgencyRank(expectedUrgency);
       final int actual = urgencyRank(actualUrgency);
       if (actual == expected) {
         direction = TriageDirection.match;

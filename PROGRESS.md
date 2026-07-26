@@ -2366,3 +2366,128 @@ the brief's "do not wait for the full run to complete".
       triage direction — blocked; serialised per case
 - [ ] 8. Results committed to `wellapath-knowledge-base/testing/case_bank_results_v1.json`
       — blocked
+
+---
+
+# Phase E8.1 — Case Bank Run Results (234 cases)
+
+Run against the pinned production artifacts (kb.ng.v2.3, rules.ng.v2.1,
+token_dictionary.ng.v1.1) through `EngineWiring.asShipped` — the real
+production path via `buildEngineInput`, post the PR #37 wiring fix.
+
+## Headline
+
+| Metric | Value |
+|---|---|
+| Total cases | 234 |
+| Graded | 231 |
+| Observe (unasserted by design) | 3 |
+| Passed | 119 |
+| Failed | 112 |
+| **Pass rate (graded)** | **51.52%** |
+| **Under-triage** | **0** |
+| Over-triage | 1 |
+| Engine errors | 0 |
+| **Safety-critical failures** | **0** |
+| Global red flag rules exercised | 13/13 |
+
+Coverage validation passed all of exit criteria 1-3: 234 >= 200 cases, every
+one of the 50 conditions has >= 3 cases, every one of the 10 emergency
+conditions has >= 5, and every `expected_urgency: emergency` case is marked
+`safety_critical` (150 of them).
+
+## The 51.52% needs reading carefully
+
+**111 of the 112 failures are the same thing, and none is a triage error.**
+Every one is a red flag case where the bank set an `expected_top_condition`
+and the engine returned none. In all 111 the urgency is exactly right.
+
+`EngineController.run()` short-circuits on a red flag and calls
+`_formatter.format(redFlagResult, null, urgencyResult)` — scoring never runs,
+so `topCauses` is empty by design. That is LOCKED PRINCIPLE #5 working as
+specified: the red flag overrides scoring output rather than ranking
+alongside it. 35 distinct rules are involved, so this is systematic, not a
+handful of odd cases.
+
+**This is a spec disagreement between the bank and the engine, not a defect
+in either.** It needs a ruling:
+
+- **Option A** — the bank sets `expected_top_condition: null` on red flag
+  cases, matching the engine's documented behaviour. No code change. Pass
+  rate becomes **230/231 = 99.57%**.
+- **Option B** — the engine runs scoring even when a red flag fires, so a
+  differential can be shown alongside the emergency instruction. This is an
+  engine contract change touching principle #5 and needs founder +
+  engineering lead review per principle #8.
+
+Recommend Option A: the red flag screen deliberately shows no differential,
+and #5 is locked.
+
+## The one real failure
+
+**CB_211** — empty input, expected `non_urgent` ("returns safe default"),
+actual `urgent` with malaria as top cause. Over-triage, not safety-critical.
+
+This is exactly [#35](../../issues/35), independently reproduced by the data
+engineer's own edge case. The app now blocks this before the engine (E8
+FIX 2), so it is unreachable in product; the engine's own behaviour is
+unchanged. If the lead wants the engine itself to return a safe default
+rather than the highest base-weight condition, that is the open question
+already recorded on #35.
+
+## Observe cases — actual output recorded
+
+The bank ships 3 cases with `expected_urgency_source: "observe"` and null
+expectations, to be recorded rather than graded. The harness was extended to
+support them: they are excluded from the pass rate entirely, since counting
+them as failures would be wrong and counting them as passes would inflate it.
+
+| Case | Input | Actual urgency | Actual top condition | Red flag |
+|---|---|---|---|---|
+| CB_225 | `fever` | urgent | malaria | no |
+| CB_232 | `fever, chills, watery_stool, vomiting` | urgent | malaria | no |
+| CB_233 | `chest_pain, dizziness, palpitations` | urgent | cardio_symptoms | no |
+
+CB_232 is the informative one: on a deliberate malaria/diarrhoea overlap the
+scorer picks malaria, driven by its base weight of 10 (the highest in the KB)
+plus the fever/chills weights. Worth a clinical eye on whether that is the
+right tie-break for a mixed presentation.
+
+## A harness defect found and fixed mid-run
+
+The first run reported 1 under-triage (CB_229: cold + children_under_5 +
+harmattan season, expected `urgent` via Priority 4c, got `non_urgent`).
+
+That was **a bug in the harness, not the engine**. When `EngineWiring` was
+repointed after PR #37, `_seasonFor` kept its old inverted branch and returned
+`null` for `asShipped` — so no case's season reached the engine. Fixed, and
+covered by three new self-tests that distinguish Priority 4c (demographic +
+seasonal -> urgent) from Priority 4a (demographic alone -> one level up). The
+previous season test used a malaria case whose default is already `urgent`,
+so it could not tell the two apart and passed while the season was being
+dropped.
+
+After the fix CB_229 passes and under-triage is zero.
+
+## Not assertable — flagged
+
+The bank carries `expected_urgency_source` on every case
+(`urgency_default`, `global_red_flag`, `demographic_escalation`, ...).
+`EngineOutput` does not surface the `urgencySource` that `UrgencyDeterminer`
+computes, so the harness records the expectation but cannot check it. Exposing
+it would let the next run verify not just *what* urgency was returned but
+*why* — recommended before beta, as a wrong-reason-right-answer case is
+currently invisible.
+
+## Exit criteria
+
+- [x] 1. Minimum 200 cases — 234
+- [x] 2. All 50 conditions covered, min 3 cases each
+- [x] 3. All 10 emergency conditions have 5+ cases
+- [x] 4. All 13 global red flag rules tested — 13/13
+- [x] 5. **Zero safety-critical under-triage** — 0
+- [x] 6. Pass rate documented — 51.52% graded; 99.57% under Option A
+- [x] 7. All failures documented with condition, input, expected vs actual
+      and triage direction — in `case_bank_results_v1.json`
+- [ ] 8. Results committed to
+      `wellapath-knowledge-base/testing/case_bank_results_v1.json` — PR open
