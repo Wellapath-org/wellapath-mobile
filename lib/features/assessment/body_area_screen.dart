@@ -33,6 +33,7 @@ class BodyAreaScreen extends StatelessWidget {
     assessmentController.setBodyArea(area);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: kSymptomSelectionRouteName),
         builder: (_) => SymptomSelectionScreen(
           assessmentController: assessmentController,
           onCancel: onCancel,
@@ -45,6 +46,7 @@ class BodyAreaScreen extends StatelessWidget {
   void _onNext(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        settings: const RouteSettings(name: kSymptomSelectionRouteName),
         builder: (_) => SymptomSelectionScreen(
           assessmentController: assessmentController,
           onCancel: onCancel,
