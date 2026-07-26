@@ -304,30 +304,14 @@ void main() {
   });
 
   group('wiring modes', () {
-    // These two tests encode the E8.1 finding: the app drops demographic and
-    // seasonal input, so escalations that exist in the knowledge base cannot
-    // fire in the shipping build. If loading_screen.dart is later fixed to
-    // pass them through, the asShipped expectation here is what changes.
-    test('asShipped drops demographics — pregnancy escalation cannot fire', () {
-      final CaseRunResult result = _runner(wiring: EngineWiring.asShipped)
-          .runCase(
-            _case(
-              inputTokens: <String>['fever', 'chills'],
-              demographicTokens: <String>['pregnancy'],
-              expectedUrgency: 'emergency',
-              safetyCritical: true,
-            ),
-          );
-
-      expect(result.actualUrgency, 'urgent');
-      expect(result.urgencyDirection, TriageDirection.underTriage);
-      expect(result.isSafetyCriticalFailure, isTrue);
-    });
-
+    // asShipped goes through buildEngineInput — the same function
+    // loading_screen.dart calls — so these assert the production path.
+    // preFix is retained only to pin what issue #34 looked like, so a silent
+    // revert of the wiring fix fails loudly here.
     test(
-      'asIntended passes demographics — pregnancy escalates to emergency',
+      'asShipped passes demographics — pregnancy escalates to emergency',
       () {
-        final CaseRunResult result = _runner(wiring: EngineWiring.asIntended)
+        final CaseRunResult result = _runner(wiring: EngineWiring.asShipped)
             .runCase(
               _case(
                 inputTokens: <String>['fever', 'chills'],
@@ -343,46 +327,67 @@ void main() {
       },
     );
 
-    test('asShipped cannot reach condition-specific red flag rules', () {
-      final CaseRunResult shipped = _runner(wiring: EngineWiring.asShipped)
-          .runCase(
-            _case(
-              inputTokens: <String>['haemoglobinuria'],
-              expectedUrgency: 'emergency',
-            ),
-          );
-      final CaseRunResult intended = _runner(wiring: EngineWiring.asIntended)
-          .runCase(
-            _case(
-              inputTokens: <String>['haemoglobinuria'],
-              expectedUrgency: 'emergency',
-            ),
-          );
+    test('preFix dropped demographics — the defect this fixture pins', () {
+      final CaseRunResult result = _runner(wiring: EngineWiring.preFix).runCase(
+        _case(
+          inputTokens: <String>['fever', 'chills'],
+          demographicTokens: <String>['pregnancy'],
+          expectedUrgency: 'emergency',
+          safetyCritical: true,
+        ),
+      );
 
-      expect(shipped.redFlagTriggered, isFalse);
-      expect(intended.redFlagTriggered, isTrue);
-      expect(intended.matchedRuleId, 'RF_COND_001');
+      expect(result.actualUrgency, 'urgent');
+      expect(result.urgencyDirection, TriageDirection.underTriage);
+      expect(result.isSafetyCriticalFailure, isTrue);
     });
 
-    test('asShipped ignores season, asIntended applies it', () {
-      final CaseBankCase seasonal = _case(
-        inputTokens: <String>['fever', 'chills'],
-        season: 'rainy_season',
+    test('asShipped reaches condition-specific red flag rules', () {
+      // fever makes malaria a candidate; the rule then matches on its own
+      // red flag token.
+      final CaseBankCase testCase = _case(
+        inputTokens: <String>['fever', 'haemoglobinuria'],
+        expectedUrgency: 'emergency',
       );
 
-      // Seasonal increase_base_weight adds score without changing urgency, so
-      // the observable difference here is that the intended wiring accepts the
-      // season at all — asserted via score-independent behaviour in the report.
-      expect(
-        _runner(wiring: EngineWiring.asShipped).runCase(seasonal).actualUrgency,
-        'urgent',
-      );
-      expect(
-        _runner(
-          wiring: EngineWiring.asIntended,
-        ).runCase(seasonal).actualUrgency,
-        'urgent',
-      );
+      final CaseRunResult shipped = _runner(
+        wiring: EngineWiring.asShipped,
+      ).runCase(testCase);
+      final CaseRunResult preFix = _runner(
+        wiring: EngineWiring.preFix,
+      ).runCase(testCase);
+
+      expect(shipped.redFlagTriggered, isTrue);
+      expect(shipped.matchedRuleId, 'RF_COND_001');
+      expect(preFix.redFlagTriggered, isFalse);
+    });
+
+    test('asShipped derives no candidates from an unmatched token alone', () {
+      // Without a symptom that maps to malaria, the condition-specific rule
+      // has no candidate to attach to — the derivation is symptom-driven,
+      // not a blanket "every condition is a candidate".
+      final CaseRunResult result = _runner(wiring: EngineWiring.asShipped)
+          .runCase(
+            _case(
+              inputTokens: <String>['haemoglobinuria'],
+              expectedUrgency: 'emergency',
+            ),
+          );
+
+      expect(result.redFlagTriggered, isFalse);
+    });
+
+    test('asShipped passes the season through to the engine', () {
+      final CaseRunResult result = _runner(wiring: EngineWiring.asShipped)
+          .runCase(
+            _case(
+              inputTokens: <String>['fever', 'chills'],
+              season: 'rainy_season',
+            ),
+          );
+
+      expect(result.error, isNull);
+      expect(result.actualUrgency, 'urgent');
     });
   });
 

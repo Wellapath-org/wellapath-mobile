@@ -2071,6 +2071,133 @@ not just the constants file.
 
 ---
 
+# Phase E8 — Engine Wiring Fix
+
+Branch: `feat/e8-engine-wiring-fix` (off `develop`). Two fixes ordered by the
+engineering lead after the E8.1 case bank harness review. Both must land
+before the 234-case bank is run.
+
+Issues: [#34](../../issues/34) (wiring), [#35](../../issues/35) (empty input),
+[#36](../../issues/36) (clinical review item, no code change).
+
+## Status: both fixes in, all confirmations verified — pending PR
+
+## FIX 1 — demographics, season and candidate conditions now reach the engine
+
+`loading_screen.dart` built `EngineInput` with `candidateConditionIds: const []`
+and never passed a season, closing three gates at once. Full defect analysis in
+the previous E8.1 section and in #34.
+
+### What changed
+
+New `lib/features/assessment/engine_input_builder.dart`:
+
+- `selectCandidateConditionIds(...)` — a condition is a candidate when at least
+  one of its knowledge base symptom tokens appears in the reported symptoms.
+- `buildEngineInput(...)` — passes the union of the user's demographic tokens
+  and the derived candidate condition ids as `candidateConditionIds`.
+
+The wiring was extracted out of the screen specifically so it is unit-testable:
+a defect this severe must be covered by tests that exercise the code path the
+app runs, not a copy of it. `loading_screen.dart` now calls
+`buildEngineInput(...)` and passes `currentSeason: assessmentInput.season`.
+
+`AssessmentController` gained a `season` field, `setSeason()` and season
+pass-through in `buildInput()`.
+
+### Candidate derivation — the one judgement call, flagged per FIX 3
+
+`candidateConditionIds` is read by two modules expecting different contents:
+`RedFlagEvaluator` matches condition ids, `ScoringEngine` matches demographic
+modifier names. The lead's instruction was to pass the union and flag.
+
+The app had no source of candidate condition ids at all, so passing the union
+required deriving them. Candidates are computed by symptom overlap, which is
+deliberately broad — red flags are evaluated *before* scoring, so the
+derivation cannot depend on rank, and a condition-specific rule only fires if
+the user additionally reports that rule's own red flag token. Erring wide errs
+toward escalation, the safe direction for a CDSS.
+
+**No unexpected results in verification**: 63 condition-specific rules became
+reachable without any over-triage appearing in the E3.5 pilot cases or the
+new tests. Still worth lead confirmation that symptom-overlap is the intended
+definition of "candidate".
+
+### Season remains inert — flagged
+
+Nothing assigns `AssessmentInput.season`. The KB uses five seasons (rainy,
+dry, harmattan, farming, lean) whose calendar boundaries vary by region;
+picking them is a clinical/data decision, not an engineering one, so no
+month mapping was invented here. The plumbing is complete end to end, so a
+season source drops in without touching the engine. Until then the 21
+conditions with seasonal modifiers stay inert **in the app** — the seasonal
+path itself is verified by passing a season explicitly in tests.
+
+## FIX 2 — empty input blocked before the engine
+
+`loading_screen.dart` checks `symptomTokens.isEmpty` before doing any work
+(before the artifact download, not just before `run()`), shows *"Please select
+at least one symptom to continue."* and returns the user to symptom selection.
+
+The return pops by route name — `kSymptomSelectionRouteName`, set at both
+`body_area_screen.dart` push sites — because the number of screens in between
+varies with the follow-up question count. The predicate falls back to
+`route.isFirst` so a missing name can never empty the navigator stack.
+
+### Severity correction
+
+The previous report overstated this. `symptom_selection_screen.dart:239`
+already disables Continue while no symptoms are selected, so the fabricated
+result was **not reachable through the normal UI**. This is defence in depth
+on the last step before the engine, not a live user-facing bug. The engine's
+own behaviour is unchanged and is now pinned by a test so it stays documented.
+
+## Verification — all four lead-requested confirmations
+
+Run against the **real pinned artifacts** (kb.ng.v2.3, rules.ng.v2.1,
+token_dictionary.ng.v1.1), not mocks, in
+`test/assessment/engine_wiring_test.dart` (15 tests). Every group asserts both
+the fixed and the pre-fix behaviour, so a revert fails loudly.
+
+| Confirmation | Result |
+|---|---|
+| 1. E3.5 pilot cases — no regressions | 13/13 pass, unchanged |
+| 2. SAM + diarrhoea -> emergency | Confirmed. Pre-fix: `non_urgent` (two-level under-triage) |
+| 2b. MAM + diarrhoea -> urgent, distinct from SAM | Confirmed. Pre-fix: `non_urgent` |
+| 3. children_under_5 + rainy_season + malaria -> urgent, not emergency (Option B) | Confirmed |
+| 4. Empty input rejected before the engine runs | Confirmed, `test/assessment/empty_input_guard_test.dart` (3 tests) |
+
+Additional coverage: condition-specific rule `rf_100` (haemoglobinuria, applies
+to malaria) now fires and returns emergency — pre-fix it never triggered at
+all; global red flags still override everything; the rule does not fire
+without its own red flag token.
+
+Note on confirmation 3: this case returns `urgent` both before and after the
+fix, because malaria's `urgency_default` is already `urgent`. Same answer,
+different reason — which is why the SAM case is the meaningful regression
+guard and this one alone would have hidden the defect. See #36 for the
+clinical question this raises about `increase_urgency`.
+
+## Test counts
+
+Full suite **132 passing** (114 on `develop` + 15 wiring + 3 guard).
+`flutter analyze` zero errors. `dart format` clean.
+
+## Exit criteria
+
+- [x] Demographics passed to the engine
+- [x] Season passed to the engine (plumbing complete; no source yet — flagged)
+- [x] `candidateConditionIds` passed as the union, derivation flagged
+- [x] Empty input blocked before the engine, user returned to symptom selection
+- [x] E3.5 pilot cases still pass (13/13)
+- [x] SAM + diarrhoea -> emergency
+- [x] children_under_5 + rainy_season + malaria -> urgent (Option B)
+- [x] `flutter analyze` zero errors, `dart format` clean, full suite passing
+- [ ] PR opened against `develop`
+- [ ] E8.1 case bank run — **deliberately not started**; lead asked to be
+      reported to first. `case_bank_v1.json` has since landed in
+      `wellapath-knowledge-base/testing/` on `main`.
+
 # Phase E8 — E8.1 Case Bank Testing (mobile side)
 
 Branch: `feat/e8-case-bank-testing`. Runs 200+ defined clinical scenarios

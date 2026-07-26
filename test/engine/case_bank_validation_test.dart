@@ -29,14 +29,12 @@ import 'case_bank/case_bank_runner.dart';
 /// Until then this file skips rather than fails — the harness's own behaviour
 /// is covered by case_bank_runner_test.dart, which does not need the bank.
 ///
-/// Every case is run twice, under both wirings (see [EngineWiring]):
-///
-///  * as_shipped  — what loading_screen.dart actually does today. This is the
-///                  run the exit criteria are asserted against, because it is
-///                  what a real user gets.
-///  * as_intended — demographics and season passed through as the engine's
-///                  modules expect. Diagnostic only. The gap between the two
-///                  is the size of the wiring defect, not a KB problem.
+/// Every case runs once, under [EngineWiring.asShipped] — the production path
+/// through `buildEngineInput`, the same function `loading_screen.dart` calls.
+/// Since the E8 engine wiring fix (PR #37) that path carries demographics,
+/// season and derived candidate conditions, so there is no longer a second
+/// wiring worth reporting. [EngineWiring.preFix] survives only as a
+/// regression fixture in case_bank_runner_test.dart.
 
 const String _caseBankPathOverride = String.fromEnvironment('CASE_BANK_PATH');
 const String _defaultCaseBankPath = 'test/fixtures/case_bank_v1.json';
@@ -124,7 +122,6 @@ void main() {
       late PinnedArtifacts artifacts;
       late List<CaseBankCase> cases;
       late CaseBankReport shipped;
-      late CaseBankReport intended;
       late CaseBankCoverage coverage;
 
       setUpAll(() {
@@ -137,26 +134,24 @@ void main() {
           emergencyConditionIds: artifacts.emergencyConditionIds,
         );
 
-        CaseBankRunner runnerFor(EngineWiring wiring) => CaseBankRunner(
+        final CaseBankRunner runner = CaseBankRunner(
           rules: artifacts.rules,
           tokenDictionary: artifacts.tokenDictionary,
           knowledgeBase: artifacts.conditions,
           configMetadata: artifacts.configMetadata,
-          wiring: wiring,
+          wiring: EngineWiring.asShipped,
           // Exit criterion: safety-critical failures surface immediately,
           // mid-run, not after all 200+ cases have finished.
           onSafetyCriticalFailure: (CaseRunResult r) => print(
-            '!! SAFETY-CRITICAL (${wiringName(wiring)}) ${r.testCase.caseId}: '
+            '!! SAFETY-CRITICAL ${r.testCase.caseId}: '
             'expected ${r.testCase.expectedUrgency}, '
             'got ${r.error != null ? 'ERROR' : r.actualUrgency}',
           ),
         );
 
-        shipped = runnerFor(EngineWiring.asShipped).runAll(cases);
-        intended = runnerFor(EngineWiring.asIntended).runAll(cases);
+        shipped = runner.runAll(cases);
 
         _printReport(shipped);
-        _printReport(intended);
 
         final Map<String, dynamic> payload = <String, dynamic>{
           'run_metadata': <String, dynamic>{
@@ -168,12 +163,13 @@ void main() {
               'token_dictionary':
                   'token_dictionary.ng.v$kTokenDictVersion.json',
             },
-            'wirings_run': <String>['as_shipped', 'as_intended'],
-            'assertions_applied_to': 'as_shipped',
+            'wiring': 'as_shipped',
+            'engine_wiring_fix':
+                'PR #37 — demographics, season and derived '
+                'candidate conditions reach the engine',
           },
           'coverage': coverage.toJson(),
           'as_shipped': shipped.toJson(),
-          'as_intended': intended.toJson(),
         };
 
         Directory(_outputDir).createSync(recursive: true);
@@ -236,10 +232,7 @@ void main() {
             isEmpty,
             reason:
                 '${shipped.safetyCriticalFailures.length} safety-critical '
-                'failure(s) under the shipping wiring. See $_outputFile. '
-                'The as_intended run had '
-                '${intended.safetyCriticalFailures.length} — a gap between the '
-                'two is the loading_screen.dart wiring defect, not a KB defect.',
+                'failure(s) under the shipping wiring. See $_outputFile.',
           );
         },
       );

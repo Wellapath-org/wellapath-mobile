@@ -1,6 +1,8 @@
 import 'package:wellapath_mobile/core/engine/engine_controller.dart';
 import 'package:wellapath_mobile/core/engine/models/engine_input.dart';
 import 'package:wellapath_mobile/core/engine/models/engine_output.dart';
+import 'package:wellapath_mobile/features/assessment/engine_input_builder.dart';
+import 'package:wellapath_mobile/features/assessment/models/assessment_input.dart';
 
 import 'case_bank_models.dart';
 
@@ -60,24 +62,37 @@ class CaseBankRunner {
       .whereType<String>()
       .toSet();
 
+  /// The case expressed as the assessment flow's own input type, so
+  /// [EngineWiring.asShipped] can go through the production builder rather
+  /// than a reimplementation of it.
+  ///
+  /// `condition_target` is deliberately not fed in: it is the case bank's
+  /// *expectation*, not something the user told the app. Candidate conditions
+  /// are derived from the reported symptoms exactly as they are in the app.
+  AssessmentInput _assessmentInputFor(CaseBankCase testCase) {
+    return AssessmentInput(
+      symptomTokens: testCase.inputTokens,
+      demographicTokens: testCase.demographicTokens,
+      severityTokens: const <String>[],
+      durationTokens: const <String>[],
+      season: testCase.season,
+    );
+  }
+
   EngineInput _inputFor(CaseBankCase testCase) {
     switch (wiring) {
       case EngineWiring.asShipped:
-        // Mirrors loading_screen.dart exactly — demographics and season are
-        // dropped on the floor by the app today.
+        // The same function loading_screen.dart calls — not a copy of it.
+        return buildEngineInput(
+          assessmentInput: _assessmentInputFor(testCase),
+          knowledgeBase: knowledgeBase,
+        );
+      case EngineWiring.preFix:
+        // Regression fixture only: the pre-E8 wiring that dropped
+        // demographics, season and candidate conditions (issue #34).
         return EngineInput(
           symptomTokens: testCase.inputTokens,
           candidateConditionIds: const <String>[],
-        );
-      case EngineWiring.asIntended:
-        // Union of both things candidateConditionIds is read as: demographic
-        // modifier names (ScoringEngine) and condition ids (RedFlagEvaluator).
-        return EngineInput(
-          symptomTokens: testCase.inputTokens,
-          candidateConditionIds: <String>[
-            ...testCase.demographicTokens,
-            if (testCase.conditionTarget.isNotEmpty) testCase.conditionTarget,
-          ],
         );
     }
   }

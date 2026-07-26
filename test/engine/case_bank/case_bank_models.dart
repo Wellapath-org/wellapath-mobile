@@ -35,31 +35,28 @@ int urgencyRank(String urgency) {
 enum TriageDirection { match, underTriage, overTriage }
 
 /// How the case's inputs are fed into the engine.
-///
-/// The two modes exist because they currently disagree. See the E8.1 section
-/// of PROGRESS.md for the full finding.
 enum EngineWiring {
-  /// Exactly what `loading_screen.dart` does in the shipping app today:
-  /// symptom tokens only, `candidateConditionIds` empty, no season. Under
-  /// this wiring the engine's demographic modifiers, seasonal modifiers and
-  /// condition-specific red flag rules are all unreachable.
+  /// The production path, as of the E8 engine wiring fix (PR #37): builds the
+  /// input through `buildEngineInput` — the same function
+  /// `loading_screen.dart` calls — so demographics, the case's season and the
+  /// derived candidate condition ids all reach the engine.
+  ///
+  /// This is the only wiring the E8.1 exit criteria are asserted against.
   asShipped,
 
-  /// What the engine's own modules are written to consume: demographic
-  /// tokens and the target condition id in `candidateConditionIds`, and the
-  /// case's season passed to `EngineController`.
+  /// The pre-E8 wiring: symptom tokens only, `candidateConditionIds` empty,
+  /// no season. Under this wiring the engine's demographic modifiers,
+  /// seasonal modifiers and 63 of 76 condition-specific red flag rules were
+  /// all unreachable (issue #34).
   ///
-  /// NOTE: `candidateConditionIds` is read by two modules that expect
-  /// different contents — `RedFlagEvaluator` matches condition ids against
-  /// it, `ScoringEngine` matches demographic modifier names against it — so
-  /// this mode passes the union of both. That overloading is flagged for
-  /// engineering lead review; this mode encodes an assumption, not a
-  /// confirmed contract.
-  asIntended,
+  /// Retained purely as a regression fixture — it pins what the defect looked
+  /// like so a silent revert fails loudly. It is not run against the case
+  /// bank and produces no reported numbers.
+  preFix,
 }
 
 String wiringName(EngineWiring wiring) =>
-    wiring == EngineWiring.asShipped ? 'as_shipped' : 'as_intended';
+    wiring == EngineWiring.asShipped ? 'as_shipped' : 'pre_fix';
 
 /// One scenario from the case bank.
 class CaseBankCase {
