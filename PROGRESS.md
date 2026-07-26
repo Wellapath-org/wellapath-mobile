@@ -2642,3 +2642,101 @@ Harness self-tests **40 passing**. Full suite **171 passing, 5 skipped**.
 - [x] Self-tests cover match, no-assertion, wrong-path, condition-specific
       source, no double counting, and observe-case exemption
 - [x] Branch ready for the data engineer to trigger the re-run
+
+---
+
+# Phase E8.1 — FINAL RUN (rules.ng.v2.2, corrected case bank)
+
+Green-lit by the engineering lead after rules.ng.v2.2 went live and the data
+engineer applied all four corrections.
+
+## Artifact verification before the run
+
+`/config` on staging confirmed, and the pinned fixtures refreshed to match:
+
+| Artifact | Version | sha256 verified |
+|---|---|---|
+| knowledge_base | 2.3 | `cb0e43fc…` unchanged |
+| rules | **2.2** | `1d27e854…` refreshed |
+| token_dictionary | 1.1 | `0cc47ad9…` unchanged |
+
+`rules.ng.v2.1.json` removed from `test/fixtures/artifacts/`, replaced by
+v2.2, and `artifact_fixtures.dart` updated with the new version and hash
+together — the refresh path the loader documents. rules v2.2 carries 75 rules
+(13 global, 62 condition-specific); dead `rf_147` is retired, down from 63.
+
+> NOTE: the harness runs against pinned fixtures, not a device Hive cache.
+> The versions above are verified against what `/config` currently serves,
+> which is the same source the device caches from.
+
+## RESULT — 230/231 = 99.57%
+
+| Metric | Value | Target |
+|---|---|---|
+| Total cases | 234 | — |
+| Graded / observe | 231 / 3 | — |
+| Passed | 230 | — |
+| **Pass rate** | **99.57%** | 99.57% ✅ |
+| **Under-triage** | **0** | 0 ✅ |
+| Over-triage | 1 | — |
+| **Safety-critical failures** | **0** | 0 ✅ |
+| Right answer, wrong reason | **0** | — |
+| Urgency-source mismatches | 1 | — |
+| Engine errors | 0 | — |
+| Global red flag rules exercised | 13/13 | 13/13 ✅ |
+
+Coverage criteria 1-3 all pass. Criterion 4b (source verification) fails on
+CB_211 alone — the accepted case below.
+
+## The single remaining failure
+
+**CB_211** — empty input. Expected `non_urgent` via `empty_default`, actual
+`urgent` via `urgency_default`, top cause malaria. Over-triage, not
+safety-critical, and **accepted under lead ruling 2** as unreachable in
+product: `loading_screen.dart` blocks empty input before the engine, and
+`symptom_selection_screen.dart` disables Continue with zero symptoms.
+
+It fails on both axes for the same underlying reason — the engine has no
+`empty_default` path, so with no symptoms it scores every condition on
+`base_weight` alone and malaria wins on the highest (10). Tracked as
+[#35](../../issues/35).
+
+## Right-answer-wrong-reason: zero
+
+The source assertion added in PR #41 found 19 such cases on the uncorrected
+bank. After the corrections there are none: every one of the 230 passing cases
+reached its urgency down the path the bank expected. The 18 `increase_urgency`
+cases from [#36](../../issues/36) were resolved in the engine's favour — the
+bank now expects `demographic_escalation` for them (18 -> 36 cases with that
+source), so the clinical reading is that taking the demographic path is the
+correct description even when the value does not move.
+
+## Observe cases — actual output
+
+| Case | Input | Urgency | Top condition | Red flag |
+|---|---|---|---|---|
+| CB_225 | `fever` | urgent | malaria | no |
+| CB_232 | `fever, chills, watery_stool, vomiting` | urgent | malaria | no |
+| CB_233 | `chest_pain, dizziness, palpitations` | urgent | cardio_symptoms | no |
+
+Unchanged from the first run. CB_232's malaria/diarrhoea tie-break remains
+open as [#38](../../issues/38) for E8.2.
+
+## Verification
+
+Full suite **178 passing, 6 skipped**. `flutter analyze` zero errors,
+`dart format` clean.
+
+## Exit criteria — all met
+
+- [x] 1. Minimum 200 cases — 234
+- [x] 2. All 50 conditions covered, min 3 cases each
+- [x] 3. All 10 emergency conditions have 5+ cases
+- [x] 4. All 13 global red flag rules tested — 13/13
+- [x] 4b. Engine reasoning matches expected source — 1 mismatch, accepted (CB_211)
+- [x] 5. **Zero safety-critical under-triage** — 0
+- [x] 6. Pass rate documented — **99.57%**
+- [x] 7. All failures documented with condition, input, expected vs actual,
+      triage direction and urgency source
+- [x] 8. Results committed to
+      `wellapath-knowledge-base/testing/case_bank_results_v1.json`
