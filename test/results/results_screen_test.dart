@@ -13,6 +13,7 @@ import 'package:wellapath_mobile/features/results/symptom_summary_widget.dart';
 // the tests below were updated to match.
 
 final mockUrgentOutput = EngineOutput(
+  urgencySource: 'urgency_default',
   urgency: 'urgent',
   redFlagTriggered: false,
   matchedRuleId: null,
@@ -43,6 +44,7 @@ final mockUrgentOutput = EngineOutput(
 );
 
 final mockNonUrgentOutput = EngineOutput(
+  urgencySource: 'urgency_default',
   urgency: 'non_urgent',
   redFlagTriggered: false,
   matchedRuleId: null,
@@ -66,6 +68,7 @@ final mockNonUrgentOutput = EngineOutput(
 );
 
 final mockEmergencyOutput = EngineOutput(
+  urgencySource: 'global_red_flag',
   urgency: 'emergency',
   redFlagTriggered: false,
   matchedRuleId: null,

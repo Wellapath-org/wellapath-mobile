@@ -32,9 +32,17 @@ class EngineController {
     final redFlagResult = _evaluator.evaluate(input);
 
     if (!redFlagResult.proceedToScoring) {
+      // The source must distinguish which pass matched. RedFlagEvaluator runs
+      // a global pass and then a condition-specific one, and reporting both
+      // as 'global_red_flag' would make a correct-answer-wrong-path result
+      // indistinguishable from a correct one now that EngineOutput exposes
+      // this. The urgency itself is 'emergency' either way — only the stated
+      // reason changes.
       final urgencyResult = UrgencyResult(
         finalUrgency: 'emergency',
-        urgencySource: 'global_red_flag',
+        urgencySource: redFlagResult.redFlagType == 'condition_specific'
+            ? 'condition_specific_red_flag'
+            : 'global_red_flag',
         redFlagTriggered: true,
         matchedRuleId: redFlagResult.matchedRuleId,
       );
