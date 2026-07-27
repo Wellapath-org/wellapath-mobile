@@ -23,8 +23,14 @@ import 'case_bank/case_bank_runner.dart';
 /// E8.1 case bank uses: kb.ng.v2.4, rules.ng.v2.2, token_dictionary.ng.v1.1,
 /// on the production wiring.
 ///
-/// The original E3.5 assertions covered urgency only, not top condition, so
-/// these do the same; the actual top condition is recorded for the record.
+/// Cases 03 and 08 pass against the real KB unchanged. Case 11 did not: E3.5
+/// documented `self_care`, the real KB returns `non_urgent` / hypertension.
+/// Per engineering lead ruling that expectation encoded the mock rather than
+/// clinical intent, and has been updated here — headache + dizziness in an
+/// adult reading as hypertension at `non_urgent` is clinically defensible.
+///
+/// Cases 03 and 08 keep E3.5's urgency-only assertions; Case 11 additionally
+/// asserts top condition and urgency source, which the ruling fixed.
 
 final List<CaseBankCase> _cases = <CaseBankCase>[
   const CaseBankCase(
@@ -51,13 +57,20 @@ final List<CaseBankCase> _cases = <CaseBankCase>[
     expectedUrgency: 'non_urgent',
     safetyCritical: false,
   ),
+  // Expectation updated per engineering lead ruling: E3.5's `self_care`
+  // encoded the inline mock (malaria headache weight lowered 6 -> 3 for the
+  // pilot only), not clinical intent. non_urgent / hypertension for headache
+  // + dizziness in an adult is the correct real-KB result and is clinically
+  // defensible. Root cause of the wider ranking question stays on #42.
   const CaseBankCase(
     caseId: 'E3.5_C11',
-    conditionTarget: 'headache',
+    conditionTarget: 'hypertension',
     description: 'headache + dizziness + fatigue',
     inputTokens: <String>['headache', 'dizziness', 'fatigue'],
     demographicTokens: <String>[],
-    expectedUrgency: 'self_care',
+    expectedUrgency: 'non_urgent',
+    expectedTopCondition: 'hypertension',
+    expectedUrgencySource: 'urgency_default',
     safetyCritical: false,
   ),
 ];
@@ -116,21 +129,14 @@ void main() {
     expect(runner.runCase(_cases[1]).actualUrgency, 'non_urgent');
   });
 
-  // Skipped, not deleted and not re-pointed at the actual value: against the
-  // real KB this returns hypertension / non_urgent, not the self_care E3.5
-  // documented. Asserting the actual result would bake in behaviour the
-  // clinical reviewer has not ruled on; asserting self_care reds the suite
-  // over a decision that is not the code's to make. The setUpAll block above
-  // still runs and prints the real output every time, so the divergence stays
-  // visible rather than hidden. Flip this to a live assertion once the
-  // engineering lead rules — see issue #42.
-  test(
-    'E3.5 Case 11 — headache + dizziness + fatigue',
-    () {
-      expect(runner.runCase(_cases[2]).actualUrgency, 'self_care');
-    },
-    skip:
-        'Diverges against the real KB: returns hypertension / non_urgent. '
-        'Awaiting ruling — case bank update or separate issue (#42).',
-  );
+  // Asserts urgency, top condition and urgency source together — the full
+  // CaseRunResult.passed — since the ruling fixed all three.
+  test('E3.5 Case 11 — headache + dizziness returns non_urgent', () {
+    final CaseRunResult result = runner.runCase(_cases[2]);
+
+    expect(result.actualUrgency, 'non_urgent');
+    expect(result.actualTopCondition, 'hypertension');
+    expect(result.actualUrgencySource, 'urgency_default');
+    expect(result.passed, isTrue);
+  });
 }
