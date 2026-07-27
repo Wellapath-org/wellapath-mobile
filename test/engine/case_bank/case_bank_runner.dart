@@ -102,6 +102,12 @@ class CaseBankRunner {
   String? _seasonFor(CaseBankCase testCase) =>
       wiring == EngineWiring.asShipped ? testCase.season : null;
 
+  /// Raw engine output for [testCase], for callers that need detail
+  /// [CaseRunResult] intentionally reduces away — the full scored top 3, say.
+  /// Throws whatever the engine throws; [runCase] is the safe wrapper.
+  EngineOutput outputFor(CaseBankCase testCase) =>
+      _controllerFor(_seasonFor(testCase)).run(_inputFor(testCase));
+
   CaseRunResult runCase(CaseBankCase testCase) {
     EngineOutput? output;
     String? error;
