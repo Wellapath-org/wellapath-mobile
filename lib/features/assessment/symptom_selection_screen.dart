@@ -3,6 +3,14 @@ import '../../core/constants/symptom_display_map.dart';
 import 'assessment_controller.dart';
 import 'followup_screen.dart';
 
+/// Route name for this screen, set where `body_area_screen.dart` pushes it.
+///
+/// `loading_screen.dart` pops back to it by name when an assessment reaches
+/// the engine with no symptoms selected — the number of screens in between
+/// varies with the follow-up question count, so popping by name is the only
+/// reliable way back.
+const String kSymptomSelectionRouteName = 'assessment/symptom_selection';
+
 class SymptomSelectionScreen extends StatefulWidget {
   final AssessmentController assessmentController;
   final VoidCallback onCancel;
@@ -325,12 +333,27 @@ class _SymptomPickerSheetState extends State<_SymptomPickerSheet> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              _hasAreaFilter
-                  ? '${widget.selectedBodyArea} symptoms'
-                  : 'Select symptoms',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                Expanded(
+                  child: Text(
+                    _hasAreaFilter
+                        ? '${widget.selectedBodyArea} symptoms'
+                        : 'Select symptoms',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 48),
+              ],
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -363,41 +386,78 @@ class _SymptomPickerSheetState extends State<_SymptomPickerSheet> {
                 ),
               ),
             Expanded(
-              child: ListView.separated(
-                itemCount: entries.length,
-                separatorBuilder: (_, _) =>
-                    const Divider(height: 1, indent: 16),
-                itemBuilder: (context, index) {
-                  final entry = entries[index];
-                  final isSelected = selected.contains(entry.value);
-                  return ListTile(
-                    title: Text(
-                      entry.key,
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    trailing: isSelected
-                        ? const Icon(Icons.check_circle, color: _primary)
-                        : const Icon(
-                            Icons.circle_outlined,
-                            color: Colors.black26,
+              child: entries.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No Results Found',
+                        style: TextStyle(fontSize: 15, color: Colors.black54),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: entries.length,
+                      separatorBuilder: (_, _) =>
+                          const Divider(height: 1, indent: 16),
+                      itemBuilder: (context, index) {
+                        final entry = entries[index];
+                        final isSelected = selected.contains(entry.value);
+                        return ListTile(
+                          title: Text(
+                            entry.key,
+                            style: const TextStyle(fontSize: 15),
                           ),
-                    onTap: () {
-                      if (isSelected) {
-                        widget.assessmentController.removeSymptomToken(
-                          entry.value,
+                          trailing: isSelected
+                              ? const Icon(Icons.check_circle, color: _primary)
+                              : const Icon(
+                                  Icons.circle_outlined,
+                                  color: Colors.black26,
+                                ),
+                          onTap: () {
+                            if (isSelected) {
+                              widget.assessmentController.removeSymptomToken(
+                                entry.value,
+                              );
+                            } else {
+                              widget.assessmentController.addSymptomToken(
+                                entry.value,
+                              );
+                            }
+                          },
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
                         );
-                      } else {
-                        widget.assessmentController.addSymptomToken(
-                          entry.value,
-                        );
-                      }
-                    },
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
+                      },
                     ),
-                  );
-                },
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: selected.isEmpty
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFE0E0E0),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Add symptom',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

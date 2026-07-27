@@ -1919,3 +1919,824 @@ refactor. Full suite: 86/86 passing. `flutter analyze` zero errors,
       device/carrier before production sign-off
 - [x] `flutter analyze` zero errors, `dart format` clean, full test
       suite passing (86/86)
+
+---
+
+# Phase E9 — Symptom Picker Vocabulary Expansion (issue #25)
+
+Branch: `feat/e9-symptom-picker-expansion`. Fixes the finding from issue
+#25: the picker exposed only 18 unique tokens (~11% of the 164-token
+vocabulary), leaving 19 of the KB's 50 conditions completely unreachable
+and 5 more (cardio_symptoms, sari, hypertension, tuberculosis_suspected,
+diabetes) reachable only via weak, generic shared tokens rather than
+their real distinguishing symptoms.
+
+## Data source
+
+Data engineer's mapping, `wellapath-knowledge-base` repo,
+`mobile_handoff/` directory, branch `feat/e9-symptom-token-mapping`
+(PR #9 — **still open, not yet merged into `develop`** as of this
+writing; read directly off the branch since the content was already
+final. Flagging this for the engineering lead to follow up on merging
+that PR, since another engineer relying on "it's in develop" would not
+find it there yet):
+- `symptom_display_body_area_map.csv`/`.json` — all 164 tokens: display
+  name, body area, ambiguous flag, note.
+- `condition_top5_symptom_tokens.json` — top 5 symptoms by weight for
+  all 50 conditions.
+
+## What changed
+
+**Diffed first**, per instruction — the data engineer's mapping covers
+all 164 tokens, not just the gap. Computed the actual new-token need by
+taking the union of top-5 tokens across the 24 priority conditions (19
+completely unreachable + 5 effectively-unreachable) and subtracting the
+18 tokens already in the picker: **91 new tokens**, not 164 — the scope
+stayed to what's needed to reach the 24 target conditions, not a full
+164-token import, consistent with this project's no-scope-creep
+principle.
+
+`kSymptomDisplayMap` (`lib/core/constants/symptom_display_map.dart`)
+grew from 18 unique tokens (20 display labels) to **109 unique tokens
+(111 display labels)**. `kBodyAreaSymptoms` was expanded correspondingly
+so every new token is actually reachable through some body area, not
+just present in the map.
+
+## Ambiguous tokens — two real display-name collisions found and fixed
+
+The data engineer flagged 61/164 tokens ambiguous; most of their
+suggested plain-English display names were used as-is. Two needed a
+change because `kSymptomDisplayMap` keys must be unique and the
+suggested names collided:
+- `fast_breathing` (adult) vs. the already-existing
+  `fast_breathing_child` both suggested "Fast breathing" → the new
+  adult token is labelled "Rapid breathing (adult)".
+- `itchy_eyes` vs. `eye_itchiness` both suggested "Itchy eyes" (needed
+  by *different* target conditions — `allergic_reactions` and
+  `eye_infections` respectively, so neither could be dropped) → the
+  latter is labelled "Itchy, irritated eyes".
+
+Also found and fixed during on-device verification (not something the
+data engineer's note flagged): `wheeze`'s suggested display name,
+"Wheezing / whistling sound when breathing", doesn't contain the
+substring "wheeze" (English drops the trailing `-e` before adding
+`-ing`), so searching the literal token word found nothing — confirmed
+on-device before and after. Relabelled to "Wheeze / whistling sound
+when breathing". Also added "(palpitations)" parenthetically to that
+token's label, since it's a real word a lay user might actually type
+and it's `cardio_symptoms`'s core distinguishing symptom.
+
+## "General" (whole-body/systemic) tokens have no body-diagram zone
+
+39 of 164 tokens are tagged `body_area: General` by the data engineer —
+these don't correspond to any zone in the 9-region body diagram. Rather
+than add a new "General" zone (a much larger UI change — the diagram's
+tap regions and the search-tab area list would both need it, well
+beyond this ticket's scope), each General token was placed under the
+body area(s) its own condition's *other*, non-General top-5 symptoms
+already appear under — e.g. `weight_loss` (needed by `hiv_symptomatic`,
+`malnutrition`, `tuberculosis_suspected`) was added to Abdomen, Chest,
+Head, and Legs, matching where those conditions' other symptoms live.
+This mirrors the pattern this file already used pre-E9 for Fever/
+Chills/Weakness (systemic symptoms listed under several relevant
+areas, not a dedicated bucket).
+
+Four tokens belonging only to `fatigue_weakness` (`persistent_fatigue`,
+`general_weakness`, `reduced_daily_function`, `low_energy`) have no
+non-General sibling at all — that condition's entire top-5 is systemic.
+These were placed under Legs/Back/Buttocks, matching the existing
+Fatigue/Weakness placement.
+
+## Arms zone — decision: hidden, not given a placeholder token
+
+**Confirmed against the full 164-token vocabulary (not just the 91
+tokens added here): zero tokens are arm-specific.** The only candidate,
+`limb_weakness`, explicitly doesn't specify which limb (its own display
+name is "Weakness in an arm or leg") — the data engineer's own mapping
+already placed it under `General`, not `Arms`, for exactly this reason.
+
+Forcing it into `Arms` as a placeholder would misrepresent it (a user
+with leg weakness would see it filed under "Arms" and either miss it or
+be confused) for no reachability benefit — `limb_weakness` is already
+reachable via its General-token placement under Back.
+
+**Decision: hide the Arms zone.** Removed from
+`body_area_screen._bodyAreas` (search tab list) and both `_tapRegion`
+calls for it in the front/back body diagram (`body_area_screen.dart`).
+The diagram image itself still shows arms visually — only the tap
+region was removed, confirmed on-device: tapping the arm area of the
+diagram does nothing (no crash, no navigation), exactly as intended.
+The two symptoms that used to live under `Arms` in
+`kBodyAreaSymptoms` (`Swollen hands`, `Wrist pain` — both already
+generic, location-less tokens: `swelling`, `pain`) were moved to `Legs`
+rather than dropped, preserving their pre-existing reachability.
+
+## Verification
+
+New `test/core/constants/symptom_display_map_test.dart` (28 tests):
+- All 19 completely-unreachable + 5 effectively-unreachable conditions
+  (24 total) have at least one, and in fact more than one, of their
+  top-5 tokens reachable via `kSymptomDisplayMap` — a static fixture of
+  the data engineer's `condition_top5_symptom_tokens.json` is embedded
+  so this doesn't depend on fetching the live KB in a unit test.
+- Every label in every `kBodyAreaSymptoms` list has a corresponding
+  `kSymptomDisplayMap` entry (referential integrity — catches typos).
+- `Arms` is confirmed absent from `kBodyAreaSymptoms`.
+
+Full suite: **114/114 passing** (86 pre-existing + 28 new).
+`flutter analyze`: zero errors. `dart format`: clean.
+
+Manually verified on the Android emulator: "Arms" no longer appears in
+the body-area search list or as a tappable diagram region (tapping the
+arm silently does nothing); "Chest pain" and "Wheeze" are both
+selectable through the Chest area's "Show all symptoms" search,
+confirming the vocabulary expansion actually reaches the running app,
+not just the constants file.
+
+## Exit criteria
+
+- [x] All 19 completely-unreachable conditions now reachable
+- [x] Distinguishing tokens added for the 5 effectively-unreachable
+      conditions
+- [x] Body area routing correct for all 91 new tokens (verified by the
+      referential-integrity test + on-device spot checks)
+- [x] Arms zone decision made and documented: hidden, not given a
+      placeholder token
+- [x] Ambiguous tokens resolved with plain-English display names (2
+      genuine collisions fixed, plus 1 search-discoverability gap found
+      during on-device verification)
+- [x] Full test suite passing (114/114)
+- [x] `flutter analyze` clean
+- [x] `dart format` clean
+
+---
+
+# Phase E8 — Engine Wiring Fix
+
+Branch: `feat/e8-engine-wiring-fix` (off `develop`). Two fixes ordered by the
+engineering lead after the E8.1 case bank harness review. Both must land
+before the 234-case bank is run.
+
+Issues: [#34](../../issues/34) (wiring), [#35](../../issues/35) (empty input),
+[#36](../../issues/36) (clinical review item, no code change).
+
+## Status: both fixes in, all confirmations verified — pending PR
+
+## FIX 1 — demographics, season and candidate conditions now reach the engine
+
+`loading_screen.dart` built `EngineInput` with `candidateConditionIds: const []`
+and never passed a season, closing three gates at once. Full defect analysis in
+the previous E8.1 section and in #34.
+
+### What changed
+
+New `lib/features/assessment/engine_input_builder.dart`:
+
+- `selectCandidateConditionIds(...)` — a condition is a candidate when at least
+  one of its knowledge base symptom tokens appears in the reported symptoms.
+- `buildEngineInput(...)` — passes the union of the user's demographic tokens
+  and the derived candidate condition ids as `candidateConditionIds`.
+
+The wiring was extracted out of the screen specifically so it is unit-testable:
+a defect this severe must be covered by tests that exercise the code path the
+app runs, not a copy of it. `loading_screen.dart` now calls
+`buildEngineInput(...)` and passes `currentSeason: assessmentInput.season`.
+
+`AssessmentController` gained a `season` field, `setSeason()` and season
+pass-through in `buildInput()`.
+
+### Candidate derivation — the one judgement call, flagged per FIX 3
+
+`candidateConditionIds` is read by two modules expecting different contents:
+`RedFlagEvaluator` matches condition ids, `ScoringEngine` matches demographic
+modifier names. The lead's instruction was to pass the union and flag.
+
+The app had no source of candidate condition ids at all, so passing the union
+required deriving them. Candidates are computed by symptom overlap, which is
+deliberately broad — red flags are evaluated *before* scoring, so the
+derivation cannot depend on rank, and a condition-specific rule only fires if
+the user additionally reports that rule's own red flag token. Erring wide errs
+toward escalation, the safe direction for a CDSS.
+
+**No unexpected results in verification**: 63 condition-specific rules became
+reachable without any over-triage appearing in the E3.5 pilot cases or the
+new tests. Still worth lead confirmation that symptom-overlap is the intended
+definition of "candidate".
+
+### Season remains inert — flagged
+
+Nothing assigns `AssessmentInput.season`. The KB uses five seasons (rainy,
+dry, harmattan, farming, lean) whose calendar boundaries vary by region;
+picking them is a clinical/data decision, not an engineering one, so no
+month mapping was invented here. The plumbing is complete end to end, so a
+season source drops in without touching the engine. Until then the 21
+conditions with seasonal modifiers stay inert **in the app** — the seasonal
+path itself is verified by passing a season explicitly in tests.
+
+## FIX 2 — empty input blocked before the engine
+
+`loading_screen.dart` checks `symptomTokens.isEmpty` before doing any work
+(before the artifact download, not just before `run()`), shows *"Please select
+at least one symptom to continue."* and returns the user to symptom selection.
+
+The return pops by route name — `kSymptomSelectionRouteName`, set at both
+`body_area_screen.dart` push sites — because the number of screens in between
+varies with the follow-up question count. The predicate falls back to
+`route.isFirst` so a missing name can never empty the navigator stack.
+
+### Severity correction
+
+The previous report overstated this. `symptom_selection_screen.dart:239`
+already disables Continue while no symptoms are selected, so the fabricated
+result was **not reachable through the normal UI**. This is defence in depth
+on the last step before the engine, not a live user-facing bug. The engine's
+own behaviour is unchanged and is now pinned by a test so it stays documented.
+
+## Verification — all four lead-requested confirmations
+
+Run against the **real pinned artifacts** (kb.ng.v2.3, rules.ng.v2.1,
+token_dictionary.ng.v1.1), not mocks, in
+`test/assessment/engine_wiring_test.dart` (15 tests). Every group asserts both
+the fixed and the pre-fix behaviour, so a revert fails loudly.
+
+| Confirmation | Result |
+|---|---|
+| 1. E3.5 pilot cases — no regressions | 13/13 pass, unchanged |
+| 2. SAM + diarrhoea -> emergency | Confirmed. Pre-fix: `non_urgent` (two-level under-triage) |
+| 2b. MAM + diarrhoea -> urgent, distinct from SAM | Confirmed. Pre-fix: `non_urgent` |
+| 3. children_under_5 + rainy_season + malaria -> urgent, not emergency (Option B) | Confirmed |
+| 4. Empty input rejected before the engine runs | Confirmed, `test/assessment/empty_input_guard_test.dart` (3 tests) |
+
+Additional coverage: condition-specific rule `rf_100` (haemoglobinuria, applies
+to malaria) now fires and returns emergency — pre-fix it never triggered at
+all; global red flags still override everything; the rule does not fire
+without its own red flag token.
+
+Note on confirmation 3: this case returns `urgent` both before and after the
+fix, because malaria's `urgency_default` is already `urgent`. Same answer,
+different reason — which is why the SAM case is the meaningful regression
+guard and this one alone would have hidden the defect. See #36 for the
+clinical question this raises about `increase_urgency`.
+
+## Test counts
+
+Full suite **132 passing** (114 on `develop` + 15 wiring + 3 guard).
+`flutter analyze` zero errors. `dart format` clean.
+
+## Exit criteria
+
+- [x] Demographics passed to the engine
+- [x] Season passed to the engine (plumbing complete; no source yet — flagged)
+- [x] `candidateConditionIds` passed as the union, derivation flagged
+- [x] Empty input blocked before the engine, user returned to symptom selection
+- [x] E3.5 pilot cases still pass (13/13)
+- [x] SAM + diarrhoea -> emergency
+- [x] children_under_5 + rainy_season + malaria -> urgent (Option B)
+- [x] `flutter analyze` zero errors, `dart format` clean, full suite passing
+- [ ] PR opened against `develop`
+- [ ] E8.1 case bank run — **deliberately not started**; lead asked to be
+      reported to first. `case_bank_v1.json` has since landed in
+      `wellapath-knowledge-base/testing/` on `main`.
+
+# Phase E8 — E8.1 Case Bank Testing (mobile side)
+
+Branch: `feat/e8-case-bank-testing`. Runs 200+ defined clinical scenarios
+through the live engine against `kb.ng.v2.3` as the definitive pre-beta
+validation across all 50 conditions.
+
+> NAMING COLLISION: this file already has an "E8.1" section (Urgency
+> Determiner Priority 4a safety fix, completed 2026-07-21). The engineering
+> lead's brief re-uses the E8.1 label for case bank testing. Both are recorded
+> under their own headings; flagged for the lead to renumber.
+
+## Status: harness complete — run blocked on the case bank
+
+`wellapath-knowledge-base/testing/case_bank_v1.json` does not exist yet: the
+repo has no `testing/` directory on any of its 13 branches. Expected — the
+data engineer's target is 2 days. Everything that does not depend on the bank
+is built and verified; the run itself is a same-day turnaround once it lands.
+
+## BLOCKING FINDING — the app drops demographic, seasonal and condition-specific input
+
+`lib/features/assessment/loading_screen.dart` builds its engine input as:
+
+```dart
+final engineInput = EngineInput(
+  symptomTokens: assessmentInput.symptomTokens,
+  candidateConditionIds: const [],
+);
+```
+
+`AssessmentController` collects demographic tokens across the sex, age,
+pregnancy and medical-conditions screens into
+`AssessmentInput.demographicTokens` — and `loading_screen.dart` discards them.
+`AssessmentInput.season` is never assigned by anything, and
+`EngineController(currentSeason:)` is never passed anywhere in `lib/`
+(verified by grep: zero non-engine references).
+
+Three engine gates read exactly those inputs. All three are permanently
+closed in the shipping build:
+
+| Gate | Code | Consequence against kb.ng.v2.3 / rules.ng.v2.1 |
+|------|------|-----------------------------------------------|
+| Condition-specific red flags | `red_flag_evaluator.dart:79` | 63 of 76 rules can never fire |
+| Demographic modifiers | `scoring_engine.dart:58` | 13 conditions' `escalate_emergency` and 43 `increase_urgency` modifiers never fire |
+| Seasonal modifiers | `scoring_engine.dart:83` | 21 conditions' seasonal modifiers never fire |
+
+Downstream, `UrgencyDeterminer` priorities 3, 4a, 4b and 4c are unreachable —
+every assessment falls through to Priority 5, the top condition's bare
+`urgency_default`. The E3.5 condition-specific red flag fix and the earlier
+E8.1 Priority 4a safety fix are both live in the engine and dead in the app.
+
+This is under-triage in the safety-critical direction. Not fixed here:
+`loading_screen.dart` is outside E8.1's assigned scope and sits on the locked
+boot path. Flagged for engineering lead prioritisation.
+
+Reproduced empirically, not just by code reading — see the `wiring modes`
+group in `test/engine/case_bank_runner_test.dart`, which asserts that a
+pregnancy + malaria case resolves to `urgent` under the shipping wiring and
+`emergency` under the intended one.
+
+## SECONDARY FINDING — empty input fabricates a result
+
+With zero symptoms selected, `RedFlagEvaluator` returns
+`proceedToScoring: true`, `ScoringEngine` scores all 50 conditions on
+`base_weight` alone, and malaria wins on the highest base weight (10). The
+user is told **"Visit a clinic or health facility today"** with malaria as
+their top cause, having entered nothing. Deterministic and reproducible.
+
+E3.5 Case 12 only asserted empty input "must not crash" — it does not crash,
+it fabricates. Flagged for the lead; no fix attempted here.
+
+## OPEN QUESTION — `increase_urgency` is a no-op on already-urgent conditions
+
+`UrgencyDeterminer._escalateOne` maps `self_care -> non_urgent` and
+`non_urgent -> urgent`, leaving `urgent` and `emergency` unchanged. In
+kb.ng.v2.3, malaria's `pregnancy` modifier is `increase_urgency` and malaria's
+default is already `urgent`, so pregnancy has no effect on a malaria
+presentation even under the intended wiring. Whether that is clinically
+correct is a medical reviewer question, not an engineering one — raising it
+rather than assuming either way.
+
+## DESIGN SMELL — `candidateConditionIds` is overloaded
+
+The field is read by two modules expecting different contents:
+`RedFlagEvaluator` matches condition ids against it, `ScoringEngine` matches
+demographic modifier names against it. The harness's `as_intended` wiring
+passes the union of both, which is an assumption, not a confirmed contract.
+Flagged for lead review.
+
+## What was built
+
+| File | Purpose |
+|------|---------|
+| `test/engine/case_bank/case_bank_models.dart` | Case, result and report models; urgency ladder; under/over-triage classification |
+| `test/engine/case_bank/case_bank_runner.dart` | Runs a bank through the live `EngineController`; bank parser |
+| `test/engine/case_bank/case_bank_coverage.dart` | Static validation of a delivered bank against exit criteria 1-3 |
+| `test/engine/case_bank/artifact_fixtures.dart` | Loads the pinned artifacts, sha256-verified against `/config` |
+| `test/engine/case_bank_runner_test.dart` | 30 self-tests for the harness — run today, no bank needed |
+| `test/engine/case_bank_validation_test.dart` | The E8.1 run; skips cleanly until the bank is delivered |
+| `test/fixtures/artifacts/*.json` | kb.ng.v2.3, rules.ng.v2.1, token_dictionary.ng.v1.1 |
+
+### Artifacts are pinned, not downloaded
+
+The three fixtures are byte-identical to what `/config` served from R2 on
+2026-07-26 and are sha256-verified on load against the hashes published in
+that same `/config` response — the same check
+`StagedArtifactLoader._matchesHash` performs at runtime. A sign-off number has
+to be re-derivable from the commit, not from whatever R2 serves later. If
+`/config` moves to a newer artifact version the fixtures and hashes must be
+refreshed together and the bank re-run; the hash check turns that into a loud
+failure instead of a silent drift.
+
+### Every case runs twice
+
+- **`as_shipped`** — byte-for-byte what `loading_screen.dart` does today. The
+  exit criteria are asserted against this run, because it is what a real user
+  gets.
+- **`as_intended`** — demographics and season passed through as the engine's
+  modules expect. Diagnostic only.
+
+The gap between the two runs is the size of the wiring defect. Without this
+split, every demographic, seasonal and condition-specific-red-flag case in the
+bank would fail and read as a knowledge base problem rather than four lines of
+missing wiring in the assessment screen.
+
+## Running it
+
+```sh
+flutter test test/engine/case_bank_validation_test.dart \
+  --dart-define=CASE_BANK_PATH=/path/to/case_bank_v1.json
+```
+
+Or drop the bank at `test/fixtures/case_bank_v1.json`. Results are written to
+`build/e8_case_bank/case_bank_results_v1.json` for commit to
+`wellapath-knowledge-base/testing/case_bank_results_v1.json`.
+
+Safety-critical failures print to stdout the moment they occur, mid-run, per
+the brief's "do not wait for the full run to complete".
+
+## Verification
+
+- 30 harness self-tests passing, covering triage direction classification,
+  safety-critical detection, the immediate-flag callback, engine-throw
+  isolation (one bad token does not cost the other 199 cases), red flag
+  short-circuit behaviour, both wiring modes, report aggregation, bank parsing
+  and coverage validation.
+- Harness smoke-tested end-to-end against a synthetic 6-case bank and the real
+  pinned artifacts: fixtures load and verify, both wirings run, results file
+  writes, and all five exit criteria fail correctly on a deliberately
+  insufficient bank.
+- Full suite: **144 passing, 5 skipped** (the 5 validation-run tests, pending
+  the bank). `flutter analyze` zero errors. `dart format` clean.
+
+## Exit criteria
+
+- [ ] 1. Minimum 200 cases in case bank — **blocked, data engineer**
+- [ ] 2. All 50 conditions covered (min 3 cases each) — blocked; automated
+      check implemented and tested
+- [ ] 3. All 10 emergency conditions have 5+ cases — blocked; automated check
+      implemented and tested
+- [ ] 4. All 13 global red flag rules tested — blocked; run-time coverage
+      tracking implemented and tested
+- [ ] 5. Zero safety-critical under-triage — blocked; **expected to fail on
+      the `as_shipped` run until the wiring defect above is fixed**
+- [ ] 6. Pass rate documented — blocked; computed and serialised
+- [ ] 7. All failures documented with condition, input, expected vs actual and
+      triage direction — blocked; serialised per case
+- [ ] 8. Results committed to `wellapath-knowledge-base/testing/case_bank_results_v1.json`
+      — blocked
+
+---
+
+# Phase E8.1 — Case Bank Run Results (234 cases)
+
+Run against the pinned production artifacts (kb.ng.v2.3, rules.ng.v2.1,
+token_dictionary.ng.v1.1) through `EngineWiring.asShipped` — the real
+production path via `buildEngineInput`, post the PR #37 wiring fix.
+
+## Headline
+
+| Metric | Value |
+|---|---|
+| Total cases | 234 |
+| Graded | 231 |
+| Observe (unasserted by design) | 3 |
+| Passed | 119 |
+| Failed | 112 |
+| **Pass rate (graded)** | **51.52%** |
+| **Under-triage** | **0** |
+| Over-triage | 1 |
+| Engine errors | 0 |
+| **Safety-critical failures** | **0** |
+| Global red flag rules exercised | 13/13 |
+
+Coverage validation passed all of exit criteria 1-3: 234 >= 200 cases, every
+one of the 50 conditions has >= 3 cases, every one of the 10 emergency
+conditions has >= 5, and every `expected_urgency: emergency` case is marked
+`safety_critical` (150 of them).
+
+## The 51.52% needs reading carefully
+
+**111 of the 112 failures are the same thing, and none is a triage error.**
+Every one is a red flag case where the bank set an `expected_top_condition`
+and the engine returned none. In all 111 the urgency is exactly right.
+
+`EngineController.run()` short-circuits on a red flag and calls
+`_formatter.format(redFlagResult, null, urgencyResult)` — scoring never runs,
+so `topCauses` is empty by design. That is LOCKED PRINCIPLE #5 working as
+specified: the red flag overrides scoring output rather than ranking
+alongside it. 35 distinct rules are involved, so this is systematic, not a
+handful of odd cases.
+
+**This is a spec disagreement between the bank and the engine, not a defect
+in either.** It needs a ruling:
+
+- **Option A** — the bank sets `expected_top_condition: null` on red flag
+  cases, matching the engine's documented behaviour. No code change. Pass
+  rate becomes **230/231 = 99.57%**.
+- **Option B** — the engine runs scoring even when a red flag fires, so a
+  differential can be shown alongside the emergency instruction. This is an
+  engine contract change touching principle #5 and needs founder +
+  engineering lead review per principle #8.
+
+Recommend Option A: the red flag screen deliberately shows no differential,
+and #5 is locked.
+
+## The one real failure
+
+**CB_211** — empty input, expected `non_urgent` ("returns safe default"),
+actual `urgent` with malaria as top cause. Over-triage, not safety-critical.
+
+This is exactly [#35](../../issues/35), independently reproduced by the data
+engineer's own edge case. The app now blocks this before the engine (E8
+FIX 2), so it is unreachable in product; the engine's own behaviour is
+unchanged. If the lead wants the engine itself to return a safe default
+rather than the highest base-weight condition, that is the open question
+already recorded on #35.
+
+## Observe cases — actual output recorded
+
+The bank ships 3 cases with `expected_urgency_source: "observe"` and null
+expectations, to be recorded rather than graded. The harness was extended to
+support them: they are excluded from the pass rate entirely, since counting
+them as failures would be wrong and counting them as passes would inflate it.
+
+| Case | Input | Actual urgency | Actual top condition | Red flag |
+|---|---|---|---|---|
+| CB_225 | `fever` | urgent | malaria | no |
+| CB_232 | `fever, chills, watery_stool, vomiting` | urgent | malaria | no |
+| CB_233 | `chest_pain, dizziness, palpitations` | urgent | cardio_symptoms | no |
+
+CB_232 is the informative one: on a deliberate malaria/diarrhoea overlap the
+scorer picks malaria, driven by its base weight of 10 (the highest in the KB)
+plus the fever/chills weights. Worth a clinical eye on whether that is the
+right tie-break for a mixed presentation.
+
+## A harness defect found and fixed mid-run
+
+The first run reported 1 under-triage (CB_229: cold + children_under_5 +
+harmattan season, expected `urgent` via Priority 4c, got `non_urgent`).
+
+That was **a bug in the harness, not the engine**. When `EngineWiring` was
+repointed after PR #37, `_seasonFor` kept its old inverted branch and returned
+`null` for `asShipped` — so no case's season reached the engine. Fixed, and
+covered by three new self-tests that distinguish Priority 4c (demographic +
+seasonal -> urgent) from Priority 4a (demographic alone -> one level up). The
+previous season test used a malaria case whose default is already `urgent`,
+so it could not tell the two apart and passed while the season was being
+dropped.
+
+After the fix CB_229 passes and under-triage is zero.
+
+## Not assertable — flagged
+
+The bank carries `expected_urgency_source` on every case
+(`urgency_default`, `global_red_flag`, `demographic_escalation`, ...).
+`EngineOutput` does not surface the `urgencySource` that `UrgencyDeterminer`
+computes, so the harness records the expectation but cannot check it. Exposing
+it would let the next run verify not just *what* urgency was returned but
+*why* — recommended before beta, as a wrong-reason-right-answer case is
+currently invisible.
+
+## Exit criteria
+
+- [x] 1. Minimum 200 cases — 234
+- [x] 2. All 50 conditions covered, min 3 cases each
+- [x] 3. All 10 emergency conditions have 5+ cases
+- [x] 4. All 13 global red flag rules tested — 13/13
+- [x] 5. **Zero safety-critical under-triage** — 0
+- [x] 6. Pass rate documented — 51.52% graded; 99.57% under Option A
+- [x] 7. All failures documented with condition, input, expected vs actual
+      and triage direction — in `case_bank_results_v1.json`
+- [ ] 8. Results committed to
+      `wellapath-knowledge-base/testing/case_bank_results_v1.json` — PR open
+
+---
+
+# Phase E8 — Expose urgencySource on EngineOutput
+
+Branch: `feat/e8-urgency-source-output` (off `develop`). Engineering lead
+ruling 4 from the E8.1 results review — fix before beta.
+
+## Why
+
+The E8.1 case bank asserts an `expected_urgency_source` on all 234 cases
+(`urgency_default` 88, `global_red_flag` 84, `condition_specific_red_flag` 40,
+`demographic_escalation` 18, `observe` 3, `empty_default` 1). `UrgencyDeterminer`
+computes exactly that value, but `EngineOutput` never carried it, so the
+harness could record the expectation and not check it. A case reaching the
+right urgency down the wrong priority path was indistinguishable from a
+correct one.
+
+## What changed
+
+- `EngineOutput.urgencySource` — new required field, carried straight through
+  from `UrgencyResult.urgencySource` by `OutputFormatter`.
+- **`EngineController` no longer mislabels condition-specific red flags.** The
+  red flag path hardcoded `urgencySource: 'global_red_flag'` regardless of
+  which pass matched, so all 40 of the bank's `condition_specific_red_flag`
+  cases would have been reported as global. It now reads
+  `redFlagResult.redFlagType`. The urgency itself is `emergency` either way —
+  only the stated reason changes, so this alters no triage outcome.
+
+Field made required rather than optional: it is always available at the point
+of construction, and 5 test mocks are the only other construction sites.
+
+## Verification
+
+New `test/engine/urgency_source_output_test.dart` (6 tests) pins the source
+reported by each path: global red flag, condition-specific red flag,
+demographic escalation, and plain urgency default — plus that the two red flag
+paths are distinguishable, and that two results with identical `emergency`
+urgency but different sources can be told apart, which is the case the field
+exists for.
+
+Full suite **138 passing**. `flutter analyze` zero errors, `dart format` clean.
+
+## Follow-up
+
+Once this and PR #39 are both merged, the harness can compare
+`expected_urgency_source` against the actual source per case. Kept out of both
+PRs so they stay independently reviewable.
+
+## Exit criteria
+
+- [x] `urgencySource` exposed on `EngineOutput`
+- [x] Condition-specific red flags report their own source, not `global_red_flag`
+- [x] Every urgency path covered by a test
+- [x] `flutter analyze` zero errors, `dart format` clean, full suite passing
+- [ ] PR opened against `develop`
+
+---
+
+# Phase E8.1 — Urgency source assertion (follow-up to PR #39)
+
+Engineering lead instruction: wire the harness to assert
+`expected_urgency_source` against `EngineOutput.urgencySource` **before** the
+data engineer regenerates, so source verification lands in the single re-run
+rather than requiring a third.
+
+## What changed
+
+- `CaseRunResult.actualUrgencySource` — read from `EngineOutput.urgencySource`
+  (exposed by PR #40).
+- `urgencySourceMatched` — true when the bank asserts no source, else exact
+  match. A mismatch fails the case.
+- `isRightAnswerWrongReason` — the specific thing this exists to surface: the
+  urgency was correct but the engine got there down a different path.
+- Report gains `urgency_source_mismatches` and `right_answer_wrong_reason`
+  counts, a dedicated mismatch section in the console output and a
+  `urgency_source_mismatches` array in the results JSON.
+- New exit criterion 4b test: zero source mismatches.
+- 7 new self-tests (40 total in the harness).
+
+Observe cases are exempt — they are ungraded, so a source they never asserted
+cannot mismatch.
+
+## Dry run against the current (uncorrected) bank
+
+**20 source mismatches, 19 of them right-answer-wrong-reason.** None was
+visible before today: in every one of the 19 the urgency is exactly right.
+
+| Expected -> actual | Count | Assessment |
+|---|---|---|
+| `urgency_default` -> `demographic_escalation` | 18 | Semantics question — see below |
+| `condition_specific_red_flag` -> `global_red_flag` | 1 | Engine correct; rules artifact issue |
+| `empty_default` -> `urgency_default` | 1 | CB_211, already accepted (ruling 2) |
+
+### The 18 — this is issue #36 made visible
+
+Every one is a condition already at `urgent` or `emergency` carrying an
+`increase_urgency` demographic modifier. `UrgencyDeterminer` Priority 4a fires
+and reports `demographic_escalation`, but `_escalateOne` leaves `urgent` and
+`emergency` unchanged — so **the engine reports an escalation that did not
+change anything**. The bank recorded `urgency_default` because the value never
+moved.
+
+Both readings are defensible: the engine took the demographic path
+(mechanically true), the bank observed no escalation occurred (materially
+true). This is exactly the `increase_urgency` no-op already open as
+[#36](../../issues/36) — the source field is what makes it observable per
+case rather than a theoretical concern. **A ruling on #36 decides which side
+changes**, so these 18 should not be "fixed" in the bank until it lands.
+
+### CB_159 — engine correct, rules artifact carries a dead rule
+
+`circulatory_collapse` is registered **twice** in rules.ng.v2.1: as global
+rule `rf_006` (priority 1) and as condition-specific `rf_147`
+(road_traffic_injury_minor, priority 11). `RedFlagEvaluator` runs the global
+pass first and halts on first match, so `rf_006` wins and `rf_147` can never
+fire.
+
+The engine is right — LOCKED PRINCIPLE #5, a global red flag is absolute — and
+both paths return `emergency`, so no triage outcome differs. But **`rf_147` is
+dead in the artifact**. Checked systematically: it is the only one of the 63
+condition-specific rules shadowed this way.
+
+Fix belongs in the bank (expect `global_red_flag` for CB_159) and, separately,
+in the rules artifact (drop the redundant `rf_147`, or rescope `rf_006`).
+
+## Revised projection for the re-run
+
+My earlier "99.57% after Option A" figure did not account for source
+verification, which did not exist yet. With the assertion in:
+
+**Predicted after Option A alone: 211/231 = 91.34%**, with 20 remaining
+failures — 18 blocked on the #36 ruling, 1 CB_159, 1 CB_211 (accepted).
+
+If #36 resolves in the engine's favour (the bank adopts
+`demographic_escalation` for those 18) and CB_159 is corrected, the projection
+is **230/231 = 99.57%**, with CB_211 the sole accepted failure.
+
+## Verification
+
+Harness self-tests **40 passing**. Full suite **171 passing, 5 skipped**.
+`flutter analyze` zero errors, `dart format` clean.
+
+## Exit criteria
+
+- [x] `expected_urgency_source` asserted against actual per case
+- [x] Right-answer-wrong-reason surfaced as its own category
+- [x] Source mismatches serialised to the results JSON
+- [x] Self-tests cover match, no-assertion, wrong-path, condition-specific
+      source, no double counting, and observe-case exemption
+- [x] Branch ready for the data engineer to trigger the re-run
+
+---
+
+# Phase E8.1 — FINAL RUN (rules.ng.v2.2, corrected case bank)
+
+Green-lit by the engineering lead after rules.ng.v2.2 went live and the data
+engineer applied all four corrections.
+
+## Artifact verification before the run
+
+`/config` on staging confirmed, and the pinned fixtures refreshed to match:
+
+| Artifact | Version | sha256 verified |
+|---|---|---|
+| knowledge_base | 2.3 | `cb0e43fc…` unchanged |
+| rules | **2.2** | `1d27e854…` refreshed |
+| token_dictionary | 1.1 | `0cc47ad9…` unchanged |
+
+`rules.ng.v2.1.json` removed from `test/fixtures/artifacts/`, replaced by
+v2.2, and `artifact_fixtures.dart` updated with the new version and hash
+together — the refresh path the loader documents. rules v2.2 carries 75 rules
+(13 global, 62 condition-specific); dead `rf_147` is retired, down from 63.
+
+> NOTE: the harness runs against pinned fixtures, not a device Hive cache.
+> The versions above are verified against what `/config` currently serves,
+> which is the same source the device caches from.
+
+## RESULT — 230/231 = 99.57%
+
+| Metric | Value | Target |
+|---|---|---|
+| Total cases | 234 | — |
+| Graded / observe | 231 / 3 | — |
+| Passed | 230 | — |
+| **Pass rate** | **99.57%** | 99.57% ✅ |
+| **Under-triage** | **0** | 0 ✅ |
+| Over-triage | 1 | — |
+| **Safety-critical failures** | **0** | 0 ✅ |
+| Right answer, wrong reason | **0** | — |
+| Urgency-source mismatches | 1 | — |
+| Engine errors | 0 | — |
+| Global red flag rules exercised | 13/13 | 13/13 ✅ |
+
+Coverage criteria 1-3 all pass. Criterion 4b (source verification) fails on
+CB_211 alone — the accepted case below.
+
+## The single remaining failure
+
+**CB_211** — empty input. Expected `non_urgent` via `empty_default`, actual
+`urgent` via `urgency_default`, top cause malaria. Over-triage, not
+safety-critical, and **accepted under lead ruling 2** as unreachable in
+product: `loading_screen.dart` blocks empty input before the engine, and
+`symptom_selection_screen.dart` disables Continue with zero symptoms.
+
+It fails on both axes for the same underlying reason — the engine has no
+`empty_default` path, so with no symptoms it scores every condition on
+`base_weight` alone and malaria wins on the highest (10). Tracked as
+[#35](../../issues/35).
+
+## Right-answer-wrong-reason: zero
+
+The source assertion added in PR #41 found 19 such cases on the uncorrected
+bank. After the corrections there are none: every one of the 230 passing cases
+reached its urgency down the path the bank expected. The 18 `increase_urgency`
+cases from [#36](../../issues/36) were resolved in the engine's favour — the
+bank now expects `demographic_escalation` for them (18 -> 36 cases with that
+source), so the clinical reading is that taking the demographic path is the
+correct description even when the value does not move.
+
+## Observe cases — actual output
+
+| Case | Input | Urgency | Top condition | Red flag |
+|---|---|---|---|---|
+| CB_225 | `fever` | urgent | malaria | no |
+| CB_232 | `fever, chills, watery_stool, vomiting` | urgent | malaria | no |
+| CB_233 | `chest_pain, dizziness, palpitations` | urgent | cardio_symptoms | no |
+
+Unchanged from the first run. CB_232's malaria/diarrhoea tie-break remains
+open as [#38](../../issues/38) for E8.2.
+
+## Verification
+
+Full suite **178 passing, 6 skipped**. `flutter analyze` zero errors,
+`dart format` clean.
+
+## Exit criteria — all met
+
+- [x] 1. Minimum 200 cases — 234
+- [x] 2. All 50 conditions covered, min 3 cases each
+- [x] 3. All 10 emergency conditions have 5+ cases
+- [x] 4. All 13 global red flag rules tested — 13/13
+- [x] 4b. Engine reasoning matches expected source — 1 mismatch, accepted (CB_211)
+- [x] 5. **Zero safety-critical under-triage** — 0
+- [x] 6. Pass rate documented — **99.57%**
+- [x] 7. All failures documented with condition, input, expected vs actual,
+      triage direction and urgency source
+- [x] 8. Results committed to
+      `wellapath-knowledge-base/testing/case_bank_results_v1.json`

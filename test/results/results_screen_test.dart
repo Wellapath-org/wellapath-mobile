@@ -6,7 +6,14 @@ import 'package:wellapath_mobile/features/results/condition_card.dart';
 import 'package:wellapath_mobile/features/results/results_screen.dart';
 import 'package:wellapath_mobile/features/results/symptom_summary_widget.dart';
 
+// NOTE: Result screen copy was updated for the Figma redesign (see
+// PROGRESS.md) — the urgency label is now "NON-URGENT" (hyphen, matching
+// the design) rather than "NON_URGENT", and each condition card now shows
+// "{rank}. {name}" as a single line (no separate numbered-circle avatar) —
+// the tests below were updated to match.
+
 final mockUrgentOutput = EngineOutput(
+  urgencySource: 'urgency_default',
   urgency: 'urgent',
   redFlagTriggered: false,
   matchedRuleId: null,
@@ -37,6 +44,7 @@ final mockUrgentOutput = EngineOutput(
 );
 
 final mockNonUrgentOutput = EngineOutput(
+  urgencySource: 'urgency_default',
   urgency: 'non_urgent',
   redFlagTriggered: false,
   matchedRuleId: null,
@@ -60,6 +68,7 @@ final mockNonUrgentOutput = EngineOutput(
 );
 
 final mockEmergencyOutput = EngineOutput(
+  urgencySource: 'global_red_flag',
   urgency: 'emergency',
   redFlagTriggered: false,
   matchedRuleId: null,
@@ -82,7 +91,10 @@ final mockEmergencyOutput = EngineOutput(
   },
 );
 
-Future<double> _pumpBarWidth(WidgetTester tester, double barFraction) async {
+Future<int> _pumpFilledSegmentCount(
+  WidgetTester tester,
+  double barFraction,
+) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -98,14 +110,17 @@ Future<double> _pumpBarWidth(WidgetTester tester, double barFraction) async {
     ),
   );
 
-  final barFinder = find.byWidgetPredicate((widget) {
-    if (widget is! Container) return false;
-    final decoration = widget.decoration;
-    if (decoration is! BoxDecoration) return false;
-    return decoration.color == const Color(0xFF9CA3AF);
-  });
-
-  return tester.getSize(barFinder).width;
+  final segments = tester.widgetList<Container>(
+    find.descendant(
+      of: find.byType(MatchStrengthBar),
+      matching: find.byType(Container),
+    ),
+  );
+  return segments.where((c) {
+    final decoration = c.decoration;
+    return decoration is BoxDecoration &&
+        decoration.color == const Color(0xFF9CA3AF);
+  }).length;
 }
 
 void main() {
@@ -121,7 +136,7 @@ void main() {
         ),
       );
 
-      expect(find.text('NON_URGENT'), findsWidgets);
+      expect(find.text('NON-URGENT'), findsWidgets);
       expect(find.text('Visit a clinic within 1-2 days.'), findsOneWidget);
     },
   );
@@ -171,7 +186,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Malaria'), findsOneWidget);
+    expect(find.text('1. Malaria'), findsOneWidget);
   });
 
   testWidgets('top_causes[0].explanation renders from engine output', (
@@ -194,13 +209,13 @@ void main() {
   });
 
   testWidgets(
-    'ConditionCard bar width scales with barFraction (full vs proportional)',
+    'ConditionCard match-strength bar fills more segments for a higher barFraction',
     (tester) async {
-      final fullWidth = await _pumpBarWidth(tester, 1.0);
-      final proportionalWidth = await _pumpBarWidth(tester, 20 / 37);
+      final fullLevelSegments = await _pumpFilledSegmentCount(tester, 1.0);
+      final lowerLevelSegments = await _pumpFilledSegmentCount(tester, 20 / 37);
 
-      expect(fullWidth, isNot(equals(proportionalWidth)));
-      expect(fullWidth, greaterThan(proportionalWidth));
+      expect(fullLevelSegments, isNot(equals(lowerLevelSegments)));
+      expect(fullLevelSegments, greaterThan(lowerLevelSegments));
     },
   );
 
@@ -235,6 +250,6 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
 
-    expect(find.text('Close your assessment result?'), findsOneWidget);
+    expect(find.text('Close Assessment Result'), findsOneWidget);
   });
 }

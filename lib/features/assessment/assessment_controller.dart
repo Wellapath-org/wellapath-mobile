@@ -10,6 +10,17 @@ class AssessmentController extends ChangeNotifier {
   final List<String> _durationTokens = [];
   String? _selectedBodyArea;
 
+  /// Feeds `EngineController(currentSeason:)`, which gates the seasonal
+  /// modifiers on 21 conditions in kb.ng.v2.3.
+  ///
+  /// Nothing sets this yet: the knowledge base uses five distinct seasons
+  /// (rainy, dry, harmattan, farming, lean) whose calendar boundaries vary by
+  /// region, and picking them is a clinical/data decision rather than an
+  /// engineering one. The plumbing through to the engine is complete, so a
+  /// season source can be added without touching the engine. Until then the
+  /// seasonal path stays inert. Flagged for engineering lead.
+  String? _season;
+
   String? get sex => _sex;
   String? get ageToken => _ageToken;
   List<String> get demographicTokens => List.unmodifiable(_demographicTokens);
@@ -17,6 +28,7 @@ class AssessmentController extends ChangeNotifier {
   List<String> get severityTokens => List.unmodifiable(_severityTokens);
   List<String> get durationTokens => List.unmodifiable(_durationTokens);
   String? get selectedBodyArea => _selectedBodyArea;
+  String? get season => _season;
 
   bool get shouldShowPregnancyScreen => _sex == 'female';
 
@@ -110,6 +122,11 @@ class AssessmentController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSeason(String? season) {
+    _season = season;
+    notifyListeners();
+  }
+
   void clearAll() {
     _sex = null;
     _ageToken = null;
@@ -118,6 +135,7 @@ class AssessmentController extends ChangeNotifier {
     _severityTokens.clear();
     _durationTokens.clear();
     _selectedBodyArea = null;
+    _season = null;
     notifyListeners();
   }
 
@@ -127,6 +145,7 @@ class AssessmentController extends ChangeNotifier {
       demographicTokens: List.of(_demographicTokens),
       severityTokens: List.of(_severityTokens),
       durationTokens: List.of(_durationTokens),
+      season: _season,
     );
   }
 }

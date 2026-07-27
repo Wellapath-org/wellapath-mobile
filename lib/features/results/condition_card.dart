@@ -36,14 +36,28 @@ class _ConditionCardState extends State<ConditionCard> {
       case 'emergency':
         return 'Seek emergency care';
       case 'urgent':
-        return 'Seek urgent care';
+        return 'Seek medical advice';
       case 'non_urgent':
         return 'Seek non-urgent care';
       case 'self_care':
-        return 'Self-care recommended';
+        return 'This can be managed at home';
       default:
         return '';
     }
+  }
+
+  /// Buckets [barFraction] (this condition's score relative to the top
+  /// condition's score) into one of 4 discrete match-strength levels,
+  /// matching the "Match Strength Key" shown in the Understanding Your
+  /// Result explainer (Strong/Moderate/Fair/Low). No exact scoring
+  /// thresholds were specified for this bucketing — these cut points are a
+  /// reasonable first pass, not a clinical determination, and may need
+  /// tuning once real distributions are reviewed.
+  int _matchLevel(double fraction) {
+    if (fraction >= 0.85) return 4;
+    if (fraction >= 0.6) return 3;
+    if (fraction >= 0.35) return 2;
+    return 1;
   }
 
   @override
@@ -53,6 +67,7 @@ class _ConditionCardState extends State<ConditionCard> {
     final explanation = widget.condition['explanation'] as String? ?? '';
     final color = _colorForUrgency(urgency);
     final careLabel = _careLabelForUrgency(urgency);
+    final matchLevel = _matchLevel(widget.barFraction);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -66,23 +81,11 @@ class _ConditionCardState extends State<ConditionCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 14,
-                backgroundColor: const Color(0xFFF3F4F6),
-                child: Text(
-                  '${widget.rank}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  conditionName,
+                  '${widget.rank}. $conditionName',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -90,55 +93,26 @@ class _ConditionCardState extends State<ConditionCard> {
                   ),
                 ),
               ),
-              if (urgency.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    urgency.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                ),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: MatchStrengthBar(level: matchLevel, color: color),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final maxBarWidth = constraints.maxWidth;
-              final barWidth = maxBarWidth * widget.barFraction.clamp(0.0, 1.0);
-              return Container(
-                height: 6,
-                width: maxBarWidth,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    height: 6,
-                    width: barWidth,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          if (careLabel.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              careLabel,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ],
           if (explanation.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               explanation,
               maxLines: _expanded ? null : 2,
@@ -166,19 +140,38 @@ class _ConditionCardState extends State<ConditionCard> {
               ),
             ),
           ],
-          if (careLabel.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              careLabel,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
         ],
       ),
+    );
+  }
+}
+
+/// The 4-segment discrete bar used both on each condition card and in the
+/// "Understanding your result" Match Strength Key — [level] is 1-4
+/// (Low/Fair/Moderate/Strong), with that many segments filled in [color]
+/// and the rest shown as a light neutral track.
+class MatchStrengthBar extends StatelessWidget {
+  final int level;
+  final Color color;
+
+  const MatchStrengthBar({super.key, required this.level, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(4, (index) {
+        final filled = index < level;
+        return Container(
+          margin: EdgeInsets.only(left: index == 0 ? 0 : 3),
+          width: 14,
+          height: 6,
+          decoration: BoxDecoration(
+            color: filled ? color : const Color(0xFFE5E7EB),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        );
+      }),
     );
   }
 }

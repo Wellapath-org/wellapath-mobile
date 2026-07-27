@@ -6,6 +6,7 @@ import 'package:wellapath_mobile/features/results/red_flag_interrupt_screen.dart
 import 'package:wellapath_mobile/features/results/results_screen.dart';
 
 final mockRedFlagOutput = EngineOutput(
+  urgencySource: 'global_red_flag',
   urgency: 'emergency',
   redFlagTriggered: true,
   matchedRuleId: 'rf_002',
@@ -29,6 +30,7 @@ final mockRedFlagOutput = EngineOutput(
 );
 
 final mockNormalOutput = EngineOutput(
+  urgencySource: 'urgency_default',
   urgency: 'urgent',
   redFlagTriggered: false,
   matchedRuleId: null,

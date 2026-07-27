@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
 
@@ -48,12 +49,23 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute<void>(
         builder: (_) => IntroScreen(
           assessmentController: controller,
-          onCancel: () => Navigator.of(
-            context,
-          ).popUntil((r) => r == homeRoute || r.isFirst),
+          onCancel: () => _confirmCancelAssessment(homeRoute),
         ),
       ),
     );
+  }
+
+  Future<void> _confirmCancelAssessment(ModalRoute<void>? homeRoute) async {
+    final confirmed = await showConfirmationDialog(
+      context: context,
+      title: 'Cancel Assessment',
+      message: 'Are you sure you want to cancel your symptom assessment?',
+      cancelLabel: 'No, continue',
+      confirmLabel: 'Yes, cancel',
+    );
+    if (confirmed && mounted) {
+      Navigator.of(context).popUntil((r) => r == homeRoute || r.isFirst);
+    }
   }
 
   @override
