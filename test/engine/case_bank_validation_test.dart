@@ -54,6 +54,11 @@ String _describe(CaseRunResult r) {
     TriageDirection.match => 'urgency ok',
     null => r.testCase.isObserveCase ? 'observed' : 'no result',
   };
+  final String sourceLine =
+      (r.testCase.expectedUrgencySource != null && !r.urgencySourceMatched)
+      ? '    source: expected ${r.testCase.expectedUrgencySource}, '
+            'got ${r.actualUrgencySource ?? 'none'}'
+      : '';
   final String topLine =
       (r.testCase.expectedTopCondition != null && !r.topConditionMatched)
       ? '  top: expected ${r.testCase.expectedTopCondition}, '
@@ -65,6 +70,7 @@ String _describe(CaseRunResult r) {
       '    input: ${r.testCase.inputTokens.join(', ')}\n'
       '    demographics: ${r.testCase.demographicTokens.isEmpty ? 'none' : r.testCase.demographicTokens.join(', ')}'
       '${r.testCase.season != null ? '  season: ${r.testCase.season}' : ''}'
+      '${sourceLine.isEmpty ? '' : '\n$sourceLine'}'
       '${topLine.isEmpty ? '' : '\n$topLine'}'
       '${r.error != null ? '\n    error: ${r.error}' : ''}';
 }
@@ -82,6 +88,10 @@ void _printReport(CaseBankReport report) {
   print('  under-triage     : ${report.underTriage.length}');
   print('  over-triage      : ${report.overTriage.length}');
   print('  engine errors    : ${report.errored.length}');
+  print('  urgency-source mismatches: ${report.sourceMismatches.length}');
+  print(
+    '  right answer, wrong reason: ${report.rightAnswerWrongReason.length}',
+  );
   print('  safety-critical failures: ${report.safetyCriticalFailures.length}');
   print(
     '  global red flag rules exercised: '
@@ -118,6 +128,14 @@ void _printReport(CaseBankReport report) {
     }
   }
 
+  if (report.sourceMismatches.isNotEmpty) {
+    print('');
+    print('--- URGENCY SOURCE MISMATCHES ($label) ---');
+    for (final CaseRunResult r in report.sourceMismatches) {
+      print(_describe(r));
+    }
+  }
+
   final List<CaseRunResult> other = report.failures
       .where((CaseRunResult r) => !r.isSafetyCriticalFailure)
       .toList();
@@ -129,6 +147,11 @@ void _printReport(CaseBankReport report) {
     }
   }
 }
+
+List<String> _sourceMismatchIds(CaseBankReport report) => report
+    .sourceMismatches
+    .map((CaseRunResult r) => r.testCase.caseId)
+    .toList();
 
 void main() {
   final File caseBankFile = File(_caseBankPath);
@@ -239,6 +262,18 @@ void main() {
           reason:
               'Global red flag rules never triggered by any case: '
               '${(shipped.globalRulesNotTriggered.toList()..sort()).join(', ')}',
+        );
+      });
+
+      test('exit criterion 4b — engine reasoning matches expected source', () {
+        expect(
+          _sourceMismatchIds(shipped),
+          isEmpty,
+          reason:
+              '${shipped.sourceMismatches.length} case(s) where the engine '
+              'reached its answer for a different reason than the bank '
+              'expected, of which ${shipped.rightAnswerWrongReason.length} '
+              'returned the correct urgency anyway. See $_outputFile.',
         );
       });
 

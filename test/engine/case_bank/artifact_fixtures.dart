@@ -41,14 +41,14 @@ class PinnedArtifacts {
       .toSet();
 }
 
-const String kKbVersion = '2.3';
-const String kRulesVersion = '2.1';
+const String kKbVersion = '2.4';
+const String kRulesVersion = '2.2';
 const String kTokenDictVersion = '1.1';
 
 const String _kbHash =
-    'cb0e43fc20bfab4351e123e73bc997d663469a36bca3222ec7fdbe5d7dc4e9f8';
+    '6c00d8257f8417e86bd5e237630bf8a4623ad72e2e46b1b071dd447c067cec2b';
 const String _rulesHash =
-    '57da3ff543c0e2e948c196930de75b40f70edf7d40b6ef4e90b8ccbe10481b79';
+    '1d27e854cba95b179577a88f92445400f494a7fe8e6a53a60fcaa98b3870d1c4';
 const String _tokenDictHash =
     '0cc47ad9537c0bd4c6ef3aec8f1931eb9b4c62103a8809d16544f94a90b5c019';
 
