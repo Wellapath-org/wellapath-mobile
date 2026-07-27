@@ -28,8 +28,13 @@ class RedFlagEvaluator {
       debugPrint(
         'RedFlagEvaluator: ${unknownTokens.length} unknown token(s) rejected from input',
       );
+      // The message carries the count only, never the token values. An
+      // exception message is not a safe place for PHI: it reaches the default
+      // Flutter error handler on an uncaught throw, and any crash reporter
+      // added later would capture it verbatim.
       throw ArgumentError(
-        'Input contains unknown token(s) not found in token dictionary: $unknownTokens',
+        'Input contains ${unknownTokens.length} token(s) not found in the '
+        'token dictionary',
       );
     }
 
