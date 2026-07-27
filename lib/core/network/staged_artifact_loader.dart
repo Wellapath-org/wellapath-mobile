@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'retry_with_backoff.dart';
+
 /// Hive box/key names shared by [StagedArtifactLoader] and any screen that
 /// reads the artifacts it caches (loading_screen.dart, locator_screen.dart).
 class ArtifactCacheKeys {
@@ -184,18 +186,13 @@ class StagedArtifactLoader {
     return response.data as String;
   }
 
-  Future<String> _downloadWithBackoff(String url) async {
-    Object? lastError;
-    for (var attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        return await _attemptDownload(url).timeout(perAttemptTimeout);
-      } catch (e) {
-        lastError = e;
-        if (attempt == maxRetries) break;
-        await Future<void>.delayed(backoffDurations[attempt]);
-      }
-    }
-    throw lastError ?? const FirstLaunchOfflineException();
+  Future<String> _downloadWithBackoff(String url) {
+    return retryWithBackoff<String>(
+      attempt: () => _attemptDownload(url),
+      maxRetries: maxRetries,
+      backoffDurations: backoffDurations,
+      perAttemptTimeout: perAttemptTimeout,
+    );
   }
 
   bool _matchesHash(String rawBody, String? expectedHash) {

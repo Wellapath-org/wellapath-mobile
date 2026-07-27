@@ -12,7 +12,10 @@ class BootResult {
 }
 
 class BootController {
-  final ConfigService _configService = ConfigService();
+  BootController({ConfigService? configService})
+    : _configService = configService ?? ConfigService();
+
+  final ConfigService _configService;
 
   Future<BootResult> boot() async {
     // Step 1 — Try to fetch fresh config from backend
