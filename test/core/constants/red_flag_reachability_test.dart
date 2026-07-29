@@ -67,13 +67,23 @@ void main() {
     expect(unresolved, isEmpty, reason: 'labels with no display map entry');
   });
 
-  test('the seizures global rule is now UI-reachable', () {
-    // Narrow, deliberate assertion. The other 12 global red flag tokens are
-    // absent from kSymptomDisplayMap entirely and so cannot be selected by
-    // any UI path — that gap needs plain-English clinical labels from the
-    // data engineer and is tracked separately. Asserting all 13 here would
-    // red the suite over work this branch does not own.
-    expect(_globalRedFlagTokens(), contains('seizures'));
-    expect(_tokensReachableByBodyArea(), contains('seizures'));
+  test('ALL 13 global red flag tokens are selectable in the picker', () {
+    // The gap this closes: 12 of the 13 were absent from kSymptomDisplayMap
+    // entirely, so no UI path could reach them. Display names come from the
+    // data engineer's red_flag_display_map.json.
+    final Set<String> selectable = kSymptomDisplayMap.values.toSet();
+    final Set<String> missing = _globalRedFlagTokens().difference(selectable);
+
+    expect(missing, isEmpty, reason: 'not selectable by any UI path');
+  });
+
+  test('ALL 13 global red flag tokens are reachable via a body area', () {
+    // Stronger than the above: reachable by walking into a body area, not
+    // only through the picker's "Show all symptoms" fallback.
+    final Set<String> missing = _globalRedFlagTokens().difference(
+      _tokensReachableByBodyArea(),
+    );
+
+    expect(missing, isEmpty, reason: 'not reachable from any body area');
   });
 }

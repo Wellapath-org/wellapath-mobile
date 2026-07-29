@@ -95,6 +95,12 @@ class _FollowupScreenState extends State<FollowupScreen> {
           for (final token in entry.value as Set<String>) {
             widget.assessmentController.addSymptomToken(token);
           }
+        case QuestionType.redFlagClarifier:
+          // Only an explicit yes raises the red flag. "No" leaves the milder
+          // near-miss token as the user reported it.
+          if (entry.value == 'Yes' && question.redFlagToken != null) {
+            widget.assessmentController.addSymptomToken(question.redFlagToken!);
+          }
       }
     }
   }
@@ -207,7 +213,88 @@ class _FollowupScreenState extends State<FollowupScreen> {
         return _buildDurationSection(question);
       case QuestionType.additionalSymptoms:
         return _buildAdditionalSymptomsSection(question);
+      case QuestionType.redFlagClarifier:
+        return _buildRedFlagClarifierSection(question);
     }
+  }
+
+  Widget _buildRedFlagClarifierSection(FollowupQuestion question) {
+    final selected = _answers[_currentQuestion] as String?;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          question.questionText,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 20),
+        ...question.options.map((option) {
+          final isSelected = selected == option;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              onTap: () => setState(() => _answers[_currentQuestion] = option),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: isSelected ? _primary : const Color(0xFFE0E0E0),
+                    width: isSelected ? 2 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected
+                              ? _primary
+                              : const Color(0xFFBDBDBD),
+                          width: 2,
+                        ),
+                      ),
+                      child: isSelected
+                          ? Center(
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _primary,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      option,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
   }
 
   Widget _buildSeveritySection(FollowupQuestion question) {

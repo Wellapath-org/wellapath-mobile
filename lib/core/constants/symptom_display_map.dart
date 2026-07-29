@@ -124,6 +124,33 @@ const Map<String, String> kSymptomDisplayMap = {
   'Losing weight without trying': 'weight_loss',
   'Wheeze / whistling sound when breathing': 'wheeze',
   'Wound where the bite happened': 'wound_at_bite',
+
+  // --- E9: the 13 global red flag tokens ---
+  // Display names supplied by the data engineer
+  // (wellapath-knowledge-base mobile_handoff/red_flag_display_map.json).
+  // Before this, 12 of the 13 universal danger signs were absent from this
+  // map entirely and could not be selected by any UI path — the case bank
+  // exercises the rules by feeding tokens straight to the engine, so it
+  // could not see the gap. 'Seizures' was already present.
+  'Not able to drink or feed at all': 'inability_to_drink',
+  'Confusion or unresponsiveness (not their normal self)':
+      'altered_consciousness',
+  'Struggling to breathe even while sitting still / at rest':
+      'breathlessness_at_rest',
+  'Collapsed — cold, clammy skin, very weak or fainting':
+      'circulatory_collapse',
+  'Too weak to stand, sit up, or feed without help': 'prostration',
+  'Heavy or uncontrolled bleeding': 'abnormal_bleeding',
+  'Blue or grey lips, tongue, or face': 'blue_lips_face',
+  'Severe dehydration — sunken eyes, no tears, not passing urine, very drowsy':
+      'severe_dehydration',
+  'Hard to wake, very drowsy, or not responding normally':
+      'impaired_consciousness',
+  'Working very hard to breathe — nostrils flaring, chest pulling in, or can\'t speak a full sentence':
+      'respiratory_distress',
+  'Cold hands and feet, fast weak pulse, very drowsy or fainting': 'shock',
+  'Severe allergic reaction — face/throat swelling, widespread hives, and trouble breathing together':
+      'anaphylaxis_signs',
 };
 
 /// Maps each selectable body area to the display names of relevant symptoms.
@@ -145,6 +172,23 @@ const Map<String, String> kSymptomDisplayMap = {
 /// The two symptoms it used to carry (Swollen hands, Wrist pain — both
 /// already generic, location-less tokens) moved to Legs.
 const Map<String, List<String>> kBodyAreaSymptoms = {
+  // 'General' carries systemic danger signs that belong to no body part —
+  // collapse, shock, severe dehydration. E9's symptom expansion avoided a
+  // General zone by placing each systemic token under the areas its own
+  // condition's other symptoms already used; these have no such sibling,
+  // and a caregiver looking for 'collapsed, cold and clammy' will not think
+  // 'Legs'. It is listed in the Search tab only — the body diagram has no
+  // region to attach it to.
+  'General': [
+    'Not able to drink or feed at all',
+    'Collapsed — cold, clammy skin, very weak or fainting',
+    'Too weak to stand, sit up, or feed without help',
+    'Heavy or uncontrolled bleeding',
+    'Severe dehydration — sunken eyes, no tears, not passing urine, very drowsy',
+    'Cold hands and feet, fast weak pulse, very drowsy or fainting',
+    'Severe allergic reaction — face/throat swelling, widespread hives, and trouble breathing together',
+  ],
+
   'Head': [
     // 'Seizures' maps to the `seizures` global red flag rule (rf_002, "Active
     // Seizures — this is a universal danger sign"). It was in
@@ -189,6 +233,9 @@ const Map<String, List<String>> kBodyAreaSymptoms = {
     'Toothache',
     'Feeling unsteady on your feet',
     'Losing weight without trying',
+    'Confusion or unresponsiveness (not their normal self)',
+    'Blue or grey lips, tongue, or face',
+    'Hard to wake, very drowsy, or not responding normally',
   ],
   'Neck': [
     'Headache',
@@ -226,6 +273,8 @@ const Map<String, List<String>> kBodyAreaSymptoms = {
     'Shortness of breath',
     'Losing weight without trying',
     'Wheeze / whistling sound when breathing',
+    'Struggling to breathe even while sitting still / at rest',
+    'Working very hard to breathe — nostrils flaring, chest pulling in, or can\'t speak a full sentence',
   ],
   'Abdomen': [
     'Nausea',
