@@ -146,6 +146,13 @@ const Map<String, String> kSymptomDisplayMap = {
 /// already generic, location-less tokens) moved to Legs.
 const Map<String, List<String>> kBodyAreaSymptoms = {
   'Head': [
+    // 'Seizures' maps to the `seizures` global red flag rule (rf_002, "Active
+    // Seizures — this is a universal danger sign"). It was in
+    // kSymptomDisplayMap but under no body area, so it was reachable only
+    // through the picker's "Show all symptoms" fallback — a caregiver
+    // looking under Head for convulsions would not find it. Listed first
+    // because it is a danger sign, not an ordinary head symptom.
+    'Seizures',
     'Headache',
     'Dizziness',
     'Fever',
