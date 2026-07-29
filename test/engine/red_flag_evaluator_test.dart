@@ -116,6 +116,36 @@ void main() {
       );
     });
 
+    // TEST 5b — PHI: the exception message must not carry token values.
+    // An exception message is not a safe place for PHI. It reaches the
+    // default Flutter error handler on an uncaught throw, and any crash
+    // reporter added later captures it verbatim.
+    test(
+      'unknown token exception message carries the count, not the values',
+      () {
+        try {
+          evaluator.evaluate(
+            const EngineInput(
+              symptomTokens: [
+                'fever',
+                'UNKNOWN_TOKEN_XYZ',
+                'ANOTHER_BAD_TOKEN',
+              ],
+              candidateConditionIds: [],
+            ),
+          );
+          fail('expected ArgumentError');
+        } on ArgumentError catch (e) {
+          final String message = e.toString();
+
+          expect(message, isNot(contains('UNKNOWN_TOKEN_XYZ')));
+          expect(message, isNot(contains('ANOTHER_BAD_TOKEN')));
+          expect(message, isNot(contains('fever')));
+          expect(message, contains('2'));
+        }
+      },
+    );
+
     // TEST 6
     test('empty symptom input returns no red flag, proceeds to scoring', () {
       final result = evaluator.evaluate(
