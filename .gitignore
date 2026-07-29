@@ -53,3 +53,10 @@ app.*.map.json
 .github/.env
 
 .claude/
+
+# Android release signing — credentials and keystores are never committed
+# (LOCKED PRINCIPLE #6). Create android/key.properties locally from the
+# founder-issued keystore; see docs/BETA_ROLLBACK.md.
+android/key.properties
+*.keystore
+*.jks
