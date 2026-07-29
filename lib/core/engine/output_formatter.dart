@@ -32,6 +32,13 @@ class OutputFormatter {
           'condition_id': condition.conditionId,
           'condition_name': condition.conditionName,
           'score': condition.score,
+          // Each cause carries its OWN explanation_template, taken from that
+          // condition's knowledge base entry. [explanationPoints] below holds
+          // only the top-ranked condition's template, so a caller rendering a
+          // card per cause must read this field — reusing explanationPoints
+          // for every card shows the top condition's text under every other
+          // condition's heading, which is misleading clinical content.
+          'explanation': condition.explanationTemplate ?? '',
         });
       }
     }

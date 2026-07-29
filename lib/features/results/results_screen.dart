@@ -503,7 +503,12 @@ class ResultsScreen extends StatelessWidget {
     }
 
     final maxScore = (topCauses.first['score'] as num?)?.toDouble() ?? 0.0;
-    final explanationText = engineOutput.explanationPoints.join(' ');
+
+    // Fallback only. Each cause carries its own 'explanation' from its own
+    // condition's explanation_template; explanationPoints holds the top
+    // condition's alone, so using it per card labelled every condition with
+    // the top one's description.
+    final fallbackExplanation = engineOutput.explanationPoints.join(' ');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -539,10 +544,14 @@ class ResultsScreen extends StatelessWidget {
           final cause = entry.value;
           final score = (cause['score'] as num?)?.toDouble() ?? 0.0;
           final barFraction = maxScore > 0 ? score / maxScore : 0.0;
+          final causeExplanation = cause['explanation'] as String?;
           final enriched = <String, dynamic>{
             ...cause,
             'urgency': engineOutput.urgency,
-            'explanation': explanationText,
+            'explanation':
+                (causeExplanation == null || causeExplanation.isEmpty)
+                ? fallbackExplanation
+                : causeExplanation,
           };
           return ConditionCard(
             condition: enriched,
