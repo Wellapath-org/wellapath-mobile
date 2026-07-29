@@ -18,6 +18,11 @@ class BodyAreaScreen extends StatelessWidget {
   // in the KB's vocabulary are arm-specific, so the zone had nothing to
   // route to. See PROGRESS.md for the decision record.
   static const List<String> _bodyAreas = [
+    // Listed first: it carries the systemic danger signs (collapse, shock,
+    // severe dehydration) that belong to no body part, and a caregiver
+    // reporting one should not have to guess which limb to tap. Search tab
+    // only — the body diagram has no region to attach it to.
+    'General',
     'Skin symptoms',
     'Head',
     'Neck',
