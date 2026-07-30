@@ -120,6 +120,7 @@ class StagedArtifactLoader {
     this.maxRetries = 3,
     List<Duration>? backoffDurations,
     this.perAttemptTimeout = const Duration(seconds: 15),
+    this.facilitiesPerAttemptTimeout = const Duration(seconds: 90),
     Future<String> Function(String url)? downloadOverride,
   }) : _dio =
            dio ??
@@ -169,6 +170,23 @@ class StagedArtifactLoader {
   /// value is based on, including a finding that the harshest observed
   /// `umts` conditions still exceeded 15s for artifacts above ~10KB.
   final Duration perAttemptTimeout;
+
+  /// Per-attempt cap for the facilities artifact alone.
+  ///
+  /// Facilities is ~1.7MB against ~102KB for the largest core artifact — 17x
+  /// bigger, inheriting a cap tuned for the small ones. At 15s it cannot
+  /// complete below roughly 900kbps, so EDGE and marginal 3G failed every
+  /// attempt and the locator showed "could not load" rather than downloading
+  /// slowly. Measured: 384kbps `umts` needs ~35s, 240kbps `edge` ~56s.
+  ///
+  /// 90s covers real Nigerian 3G with headroom. It is safe to wait that long
+  /// here in a way it is not for the core artifacts: facilities downloads in
+  /// the background and blocks only the locator, which now shows a
+  /// determinate progress bar, so the user can see the wait is productive.
+  /// The core artifacts stay at 15s — they gate the assessment result, and
+  /// the E9 hang fix depends on that cap staying tight.
+  final Duration facilitiesPerAttemptTimeout;
+
   final Future<String> Function(String url)? _downloadOverride;
 
   final ValueNotifier<BootProgress> progress = ValueNotifier(
@@ -214,6 +232,7 @@ class StagedArtifactLoader {
   Future<String> _downloadWithBackoff(
     String url, {
     void Function(int received, int total)? onReceiveProgress,
+    Duration? timeoutOverride,
   }) {
     return retryWithBackoff<String>(
       // Each retry restarts the transfer, so the byte count restarts too —
@@ -222,7 +241,7 @@ class StagedArtifactLoader {
           _attemptDownload(url, onReceiveProgress: onReceiveProgress),
       maxRetries: maxRetries,
       backoffDurations: backoffDurations,
-      perAttemptTimeout: perAttemptTimeout,
+      perAttemptTimeout: timeoutOverride ?? perAttemptTimeout,
     );
   }
 
@@ -245,6 +264,7 @@ class StagedArtifactLoader {
     Box<dynamic> box,
     ArtifactSpec spec, {
     void Function(int received, int total)? onReceiveProgress,
+    Duration? timeoutOverride,
   }) async {
     final versionedKey = '${spec.cacheKey}_v${spec.version}';
     final cachedRaw = box.get(versionedKey) as String?;
@@ -263,6 +283,7 @@ class StagedArtifactLoader {
       final rawBody = await _downloadWithBackoff(
         spec.url,
         onReceiveProgress: onReceiveProgress,
+        timeoutOverride: timeoutOverride,
       );
 
       if (_matchesHash(rawBody, spec.hash)) {
@@ -345,6 +366,7 @@ class StagedArtifactLoader {
       final data = await _loadArtifact(
         artifactBox,
         spec,
+        timeoutOverride: facilitiesPerAttemptTimeout,
         onReceiveProgress: (int received, int total) {
           // total is -1 when the server sends no Content-Length. Leave the
           // notifier null in that case so the UI stays indeterminate rather
