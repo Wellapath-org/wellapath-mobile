@@ -174,6 +174,19 @@ class StagedArtifactLoader {
   final ValueNotifier<BootProgress> progress = ValueNotifier(
     const BootProgress(step: 0),
   );
+
+  /// Download progress for the facilities artifact, 0.0–1.0.
+  ///
+  /// Null means the size is not known yet — either the download has not
+  /// started, or the server sent no `Content-Length`, in which case the UI
+  /// should stay indeterminate rather than invent a number.
+  ///
+  /// Only facilities are tracked: it is ~1.7MB and, since the locator can now
+  /// be opened directly from home, its download is the one a user actually
+  /// sits and waits through. The three core artifacts total ~140KB and are
+  /// already covered by the step-based [progress].
+  final ValueNotifier<double?> facilitiesProgress = ValueNotifier(null);
+
   final ValueNotifier<bool> facilitiesReady = ValueNotifier(false);
 
   /// True once a facilities download has been kicked off in this app run.
@@ -185,18 +198,28 @@ class StagedArtifactLoader {
   bool _facilitiesDownloadStarted = false;
   final ValueNotifier<bool> facilitiesFailed = ValueNotifier(false);
 
-  Future<String> _attemptDownload(String url) async {
+  Future<String> _attemptDownload(
+    String url, {
+    void Function(int received, int total)? onReceiveProgress,
+  }) async {
     if (_downloadOverride != null) return await _downloadOverride(url);
     final response = await _dio.get<dynamic>(
       url,
       options: Options(responseType: ResponseType.plain),
+      onReceiveProgress: onReceiveProgress,
     );
     return response.data as String;
   }
 
-  Future<String> _downloadWithBackoff(String url) {
+  Future<String> _downloadWithBackoff(
+    String url, {
+    void Function(int received, int total)? onReceiveProgress,
+  }) {
     return retryWithBackoff<String>(
-      attempt: () => _attemptDownload(url),
+      // Each retry restarts the transfer, so the byte count restarts too —
+      // the callback naturally reports from 0 again on a new attempt.
+      attempt: () =>
+          _attemptDownload(url, onReceiveProgress: onReceiveProgress),
       maxRetries: maxRetries,
       backoffDurations: backoffDurations,
       perAttemptTimeout: perAttemptTimeout,
@@ -220,8 +243,9 @@ class StagedArtifactLoader {
   /// network retries layered on top.
   Future<Map<String, dynamic>> _loadArtifact(
     Box<dynamic> box,
-    ArtifactSpec spec,
-  ) async {
+    ArtifactSpec spec, {
+    void Function(int received, int total)? onReceiveProgress,
+  }) async {
     final versionedKey = '${spec.cacheKey}_v${spec.version}';
     final cachedRaw = box.get(versionedKey) as String?;
 
@@ -236,7 +260,10 @@ class StagedArtifactLoader {
     }
 
     for (var attempt = 1; attempt <= 2; attempt++) {
-      final rawBody = await _downloadWithBackoff(spec.url);
+      final rawBody = await _downloadWithBackoff(
+        spec.url,
+        onReceiveProgress: onReceiveProgress,
+      );
 
       if (_matchesHash(rawBody, spec.hash)) {
         await box.put(versionedKey, rawBody);
@@ -315,7 +342,16 @@ class StagedArtifactLoader {
       final artifactBox = Hive.isBoxOpen(ArtifactCacheKeys.artifactBox)
           ? Hive.box(ArtifactCacheKeys.artifactBox)
           : await Hive.openBox(ArtifactCacheKeys.artifactBox);
-      final data = await _loadArtifact(artifactBox, spec);
+      final data = await _loadArtifact(
+        artifactBox,
+        spec,
+        onReceiveProgress: (int received, int total) {
+          // total is -1 when the server sends no Content-Length. Leave the
+          // notifier null in that case so the UI stays indeterminate rather
+          // than showing a bar that cannot fill.
+          facilitiesProgress.value = total > 0 ? received / total : null;
+        },
+      );
       final list =
           (data['facilities'] as List?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
@@ -326,6 +362,7 @@ class StagedArtifactLoader {
           ? Hive.box(ArtifactCacheKeys.facilityBox)
           : await Hive.openBox(ArtifactCacheKeys.facilityBox);
       await facilityBox.put(ArtifactCacheKeys.facilityData, list);
+      facilitiesProgress.value = 1.0;
       facilitiesReady.value = true;
     } catch (_) {
       debugPrint(
@@ -341,6 +378,7 @@ class StagedArtifactLoader {
     progress.value = const BootProgress(step: 0);
     facilitiesReady.value = false;
     facilitiesFailed.value = false;
+    facilitiesProgress.value = null;
     _facilitiesDownloadStarted = false;
   }
 }
