@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
+import '../locator/locator_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,7 +13,36 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const Color _primary = Color(0xFF6B4EFF);
+  static const Color _emergencyRed = Color(0xFFDC2626);
+  static const Color _ink = Color(0xFF1A1A2E);
+
   bool _infoShown = false;
+
+  /// Opening the locator without an assessment still needs an urgency, since
+  /// it drives which facility types are returned. `non_urgent` yields
+  /// hospitals and clinics — the right set for someone browsing for care.
+  ///
+  /// Not an arbitrary placeholder: `_typesForUrgency` returns an *empty* set
+  /// for any unrecognised value, so an invented urgency would silently show
+  /// an empty locator.
+  static const String _browseUrgency = 'non_urgent';
+
+  void _onFindClinic() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const LocatorScreen(urgency: _browseUrgency),
+      ),
+    );
+  }
+
+  /// Opens the dialer with 112 entered. The `tel:` scheme uses ACTION_DIAL,
+  /// which does not place the call — the user still presses dial. That is the
+  /// confirmation step, so no extra "are you sure" is added here: friction in
+  /// front of an emergency number is its own harm.
+  Future<void> _onCallEmergency() async {
+    await launchUrl(Uri(scheme: 'tel', path: '112'));
+  }
 
   void _onStart() {
     if (_infoShown) {
@@ -77,69 +108,203 @@ class _HomeScreenState extends State<HomeScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [Colors.white, Color(0xFF3D1F9E)],
-            stops: [0.4, 1.0],
+            stops: [0.35, 1.0],
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 24),
-                Image.asset(
-                  'assets/images/logo_icon.png',
-                  width: 48,
-                  height: 48,
-                ),
-                const SizedBox(height: 40),
-                Image.asset('assets/images/icon_search.png', width: 80),
-                const SizedBox(height: 40),
-                const Text(
-                  'Hello and welcome!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF4A4A5A),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Take a quick symptom assessment',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w800,
-                    height: 1.25,
-                    color: Color(0xFF1A1A2E),
-                  ),
-                ),
-                const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _onStart,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF1A1A2E),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+          // Scrollable with a minimum height of the viewport: on a tall
+          // screen the Spacer pushes the disclaimer to the bottom as
+          // designed, and on a short one the content scrolls instead of
+          // clipping. Measured clipping the disclaimer mid-sentence on a
+          // 720x1280 device — and that copy is LOCKED PRINCIPLE #1, so it
+          // must never be the thing that gets cut off.
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 8),
+                          Center(
+                            child: Image.asset(
+                              'assets/images/logo_icon.png',
+                              width: 40,
+                              height: 40,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          const Text(
+                            'Hello and welcome!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF4A4A5A),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'How can we help you today?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              height: 1.25,
+                              color: _ink,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          _ServiceCard(
+                            icon: Icons.checklist_rounded,
+                            accent: _primary,
+                            title: 'Check your symptoms',
+                            subtitle:
+                                'Answer a few questions and see how urgent it is.',
+                            onTap: _onStart,
+                          ),
+                          const SizedBox(height: 12),
+                          _ServiceCard(
+                            icon: Icons.location_on_rounded,
+                            accent: _primary,
+                            title: 'Find a clinic near me',
+                            subtitle:
+                                'See hospitals and clinics sorted by distance.',
+                            onTap: _onFindClinic,
+                          ),
+                          const SizedBox(height: 12),
+                          _ServiceCard(
+                            icon: Icons.call_rounded,
+                            accent: _emergencyRed,
+                            title: 'Call emergency — 112',
+                            subtitle:
+                                'Opens your dialer. No assessment needed.',
+                            onTap: _onCallEmergency,
+                            emphasised: true,
+                          ),
+                          const Spacer(),
+                          // The disclaimer is on the home screen itself now, not only
+                          // inside the assessment modal. Two of the three services skip
+                          // the assessment entirely, so a user can reach care without
+                          // ever opening that modal — and LOCKED PRINCIPLE #1 requires
+                          // WellaPath never read as a diagnosis engine.
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 16, top: 12),
+                            child: Text(
+                              'WellaPath helps you decide what to do next. It '
+                              'is not a diagnosis and not a substitute for '
+                              'emergency services.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.45,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text(
-                      'Start Symptom Assessment',
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One of the three home services. White on the gradient so it reads against
+/// both the pale top and the deep purple bottom.
+class _ServiceCard extends StatelessWidget {
+  const _ServiceCard({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.emphasised = false,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  /// The emergency card. Distinct by accent colour and a tinted border rather
+  /// than a solid red fill — it must stand out without reading as an alarm on
+  /// a screen the user sees every time they open the app.
+  final bool emphasised;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.15),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: emphasised
+                  ? accent.withValues(alpha: 0.45)
+                  : const Color(0xFFE8E8EF),
+              width: emphasised ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: accent, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        color: emphasised ? accent : const Color(0xFF1A1A2E),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: Color(0xFF6B6B7B),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: emphasised ? accent : const Color(0xFFB0B0BF),
+              ),
+            ],
           ),
         ),
       ),

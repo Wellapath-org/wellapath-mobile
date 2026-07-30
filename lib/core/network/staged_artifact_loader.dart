@@ -175,6 +175,14 @@ class StagedArtifactLoader {
     const BootProgress(step: 0),
   );
   final ValueNotifier<bool> facilitiesReady = ValueNotifier(false);
+
+  /// True once a facilities download has been kicked off in this app run.
+  ///
+  /// Facilities can now be started from two places — the assessment loading
+  /// screen, and the locator opened directly from home — and the artifact is
+  /// ~1.7MB, so starting it twice is worth avoiding.
+  bool get facilitiesDownloadStarted => _facilitiesDownloadStarted;
+  bool _facilitiesDownloadStarted = false;
   final ValueNotifier<bool> facilitiesFailed = ValueNotifier(false);
 
   Future<String> _attemptDownload(String url) async {
@@ -296,6 +304,8 @@ class StagedArtifactLoader {
   /// Flips [facilitiesReady] or [facilitiesFailed] when done, so any screen
   /// observing this same [instance] (namely the locator) can react.
   void loadFacilitiesInBackground(ArtifactSpec spec) {
+    if (_facilitiesDownloadStarted) return;
+    _facilitiesDownloadStarted = true;
     unawaited(_loadFacilities(spec));
   }
 
@@ -331,5 +341,6 @@ class StagedArtifactLoader {
     progress.value = const BootProgress(step: 0);
     facilitiesReady.value = false;
     facilitiesFailed.value = false;
+    _facilitiesDownloadStarted = false;
   }
 }
