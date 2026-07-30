@@ -41,7 +41,24 @@ cached config. The app then proceeds normally.
 Not blocking. Worth noting for a tester who would otherwise force-quit at the
 30 second mark and report a freeze.
 
-## 3. "Call" button rarely appears in the facility locator — [#50](../../issues/50)
+## 3. First "Find a Clinic" on a new install takes about 60 seconds
+
+First time opening Find a Clinic on a new install takes approximately 60
+seconds to download facility data (1.7MB). A progress indicator is shown.
+Subsequent opens are instant from cache.
+
+**What a tester sees:** a determinate progress bar with *"Downloading facility
+data... X%"* and *"This happens once. Next time it opens instantly."*
+
+Previously this artifact downloaded invisibly in the background during an
+assessment. Now that Find a Clinic is a direct entry point from home, a user
+can reach the locator without ever running one — so the download became
+user-facing, and on a fresh install it is the wait before the map appears.
+
+Not blocking, and not a hang. Worth listing so a tester who sees a minute of
+progress bar does not force-quit and report a freeze.
+
+## 4. "Call" button rarely appears in the facility locator — [#50](../../issues/50)
 
 **What a tester sees:** facility cards show **Directions** but usually no
 **Call**.
@@ -63,7 +80,7 @@ with markers, list view, and correct distance sorting (0.3 → 0.5 → 0.6 →
 
 Improves when the NHFR API key lands and phone coverage is enriched.
 
-## 4. Locator does not re-query when location changes — [#49](../../issues/49)
+## 5. Locator does not re-query when location changes — [#49](../../issues/49)
 
 **What a tester sees:** if the device location changes while the locator is
 open, the facility list keeps the previous location's results and distances.
@@ -72,7 +89,7 @@ Low impact within a single assessment. Observed on emulator with a synthetic
 location fix; to be re-checked on a real device during SIM validation
 ([#23](../../issues/23)).
 
-## 5. Body-area search box does not search symptoms — [#45](../../issues/45)
+## 6. Body-area search box does not search symptoms — [#45](../../issues/45)
 
 **What a tester sees:** the box on the body-area screen is placeholdered
 *"Search symptoms eg. headache"*, but it filters **body areas**. Typing a
@@ -82,7 +99,7 @@ empty list with no "no results" message.
 **Workaround:** tap into a body area, then "Add symptoms", and use the search
 inside that sheet. That inner search does search symptoms correctly.
 
-## 6. Clinical questions open against the knowledge base
+## 7. Clinical questions open against the knowledge base
 
 Not defects — open questions recorded for the clinical reviewer, listed here
 so testers do not re-report them:

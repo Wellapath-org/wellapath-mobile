@@ -506,19 +506,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
       return _buildOutsideCoverageView();
     }
     if (_waitingForFacilities) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: _primary),
-            SizedBox(height: 16),
-            Text(
-              'Finding nearby facilities... please wait',
-              style: TextStyle(fontSize: 14, color: Colors.black54),
-            ),
-          ],
-        ),
-      );
+      return _buildFacilitiesDownloadView();
     }
     if (_facilitiesLoadFailed) {
       return const Center(
@@ -537,6 +525,66 @@ class _LocatorScreenState extends State<LocatorScreen> {
       return _buildManualFallback();
     }
     return _buildLocationResults();
+  }
+
+  /// Shown while the ~1.7MB facilities artifact downloads.
+  ///
+  /// A bare spinner here reads as a freeze: on a fresh install this wait was
+  /// measured at around 60 seconds, and a tester with no feedback force-quits
+  /// and reports a hang. A determinate bar and a percentage make it legible
+  /// as work in progress.
+  Widget _buildFacilitiesDownloadView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: ValueListenableBuilder<double?>(
+          valueListenable: StagedArtifactLoader.instance.facilitiesProgress,
+          builder: (BuildContext context, double? progress, _) {
+            final bool determinate = progress != null;
+            final int percent = determinate ? (progress * 100).round() : 0;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    // Null value keeps the bar animating indeterminately,
+                    // which is the honest display when the server sent no
+                    // Content-Length.
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: const Color(0xFFE8E8EF),
+                    valueColor: const AlwaysStoppedAnimation<Color>(_primary),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  determinate
+                      ? 'Downloading facility data... $percent%'
+                      : 'Downloading facility data...',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A2E),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'This happens once. Next time it opens instantly.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Widget _buildOutsideCoverageView() {
