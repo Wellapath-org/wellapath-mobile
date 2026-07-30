@@ -25,6 +25,19 @@ class _LocatorScreenState extends State<LocatorScreen> {
 
   static const latlong.LatLng _fallbackCenter = latlong.LatLng(9.0820, 8.6753);
 
+  /// Facility names are drawn on the pins themselves so a caregiver can read
+  /// them without tapping. Two limits keep 30 pins legible:
+  ///
+  ///  * only the nearest [_maxLabelledPins] are labelled — results arrive
+  ///    distance-sorted, and the far ones are the ones that overlap;
+  ///  * labels disappear below [_labelZoomThreshold], where pins converge to
+  ///    the point that any label overlaps its neighbours.
+  ///
+  /// A tapped pin is always labelled regardless of either limit.
+  static const int _maxLabelledPins = 8;
+  static const double _labelZoomThreshold = 12.5;
+  static const double _labelMaxWidth = 132;
+
   final MapController _mapController = MapController();
 
   FacilityLocatorService? _service;
@@ -36,6 +49,10 @@ class _LocatorScreenState extends State<LocatorScreen> {
   bool _locationDenied = false;
   bool _isMapView = true;
   latlong.LatLng? _userLatLng;
+
+  /// Drives label visibility. Updated only when it actually flips, not on
+  /// every camera frame — onPositionChanged fires continuously while panning.
+  bool _labelsVisible = true;
 
   // True while facilities are still being fetched in the background (kicked
   // off from loading_screen.dart as part of the staged artifact pipeline —
@@ -461,7 +478,12 @@ class _LocatorScreenState extends State<LocatorScreen> {
       for (final facility in facilities)
         if ((facility['latitude'] as num?) != null &&
             (facility['longitude'] as num?) != null)
-          _facilityMarker(facility),
+          _facilityMarker(
+            facility,
+            showLabel:
+                _labelsVisible &&
+                facilities.indexOf(facility) < _maxLabelledPins,
+          ),
       if (_userLatLng != null)
         Marker(
           point: _userLatLng!,
@@ -487,6 +509,14 @@ class _LocatorScreenState extends State<LocatorScreen> {
             initialCenter: _userLatLng ?? _fallbackCenter,
             initialZoom: 13,
             onTap: (_, _) => _dismissSelectedFacility(),
+            onPositionChanged: (camera, _) {
+              final zoom = camera.zoom;
+              if (zoom == null) return;
+              final shouldShow = zoom >= _labelZoomThreshold;
+              if (shouldShow != _labelsVisible) {
+                setState(() => _labelsVisible = shouldShow);
+              }
+            },
           ),
           children: [
             TileLayer(
@@ -552,43 +582,104 @@ class _LocatorScreenState extends State<LocatorScreen> {
     );
   }
 
-  Marker _facilityMarker(Map<String, dynamic> facility) {
+  Marker _facilityMarker(
+    Map<String, dynamic> facility, {
+    required bool showLabel,
+  }) {
     final isSelected =
         _selectedFacility != null &&
         _selectedFacility!['facility_id'] == facility['facility_id'];
-    final size = isSelected ? 40.0 : 32.0;
+    final pinSize = isSelected ? 40.0 : 32.0;
+    // A selected pin is always labelled — the user has just asked about it.
+    final withLabel = showLabel || isSelected;
+    final name = (facility['name'] as String?)?.trim();
+    final hasName = name != null && name.isNotEmpty;
+
+    // The marker box must fit the widest of pin and label, and be tall
+    // enough for both stacked. flutter_map centres the box on the point, so
+    // the extra height is split above and below; the alignment below pins
+    // the circle to the coordinate and lets the label hang under it.
+    final width = withLabel && hasName ? _labelMaxWidth : pinSize;
+    final height = withLabel && hasName ? pinSize + 34 : pinSize;
+
     return Marker(
       point: latlong.LatLng(
         (facility['latitude'] as num).toDouble(),
         (facility['longitude'] as num).toDouble(),
       ),
-      width: size,
-      height: size,
+      width: width,
+      height: height,
+      alignment: Alignment.topCenter,
       child: GestureDetector(
         onTap: () => _selectFacility(facility),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF4A2FCC) : _primary,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: pinSize,
+              height: pinSize,
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF4A2FCC) : _primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              'H',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: isSelected ? 16 : 13,
+              child: Center(
+                child: Text(
+                  'H',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: isSelected ? 16 : 13,
+                  ),
+                ),
               ),
             ),
-          ),
+            if (withLabel && hasName) ...[
+              const SizedBox(height: 3),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.94),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE0E0E0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10,
+                      height: 1.15,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: const Color(0xFF1A1A2E),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
