@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/network/staged_artifact_loader.dart';
+import '../../core/storage/storage_service.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
 import 'nigeria_coverage.dart';
@@ -112,6 +113,26 @@ class _LocatorScreenState extends State<LocatorScreen> {
       return;
     }
 
+    // Reaching the locator directly from home means no assessment ran, so
+    // nothing kicked off the facilities download — loading_screen.dart is
+    // the only other caller. Without this the screen waits on notifiers that
+    // will never fire and sits on "please wait" forever.
+    if (!loader.facilitiesReady.value &&
+        !loader.facilitiesFailed.value &&
+        !loader.facilitiesDownloadStarted) {
+      final started = _startFacilitiesDownload(loader);
+      if (!started) {
+        // No cached config means no artifact URL to fetch from. Show the
+        // failure state rather than wait for something that cannot happen.
+        if (!mounted) return;
+        setState(() {
+          _facilitiesLoadFailed = true;
+          _loading = false;
+        });
+        return;
+      }
+    }
+
     if (!loader.facilitiesReady.value) {
       // Not in cache, not yet flagged ready or failed — the background
       // download kicked off from the assessment loading screen is still in
@@ -137,8 +158,31 @@ class _LocatorScreenState extends State<LocatorScreen> {
     await _requestLocation();
   }
 
+  /// Kicks off the facilities download from the cached config. Returns false
+  /// when there is no config or no facilities URL to work from.
+  bool _startFacilitiesDownload(StagedArtifactLoader loader) {
+    final config = StorageService.getLastKnownConfig();
+    final artifacts = config?['artifacts'];
+    if (artifacts is! Map) return false;
+
+    final entry = Map<String, dynamic>.from(artifacts)['facilities'] as Map?;
+    final url = entry?['url'] as String?;
+    if (url == null) return false;
+
+    loader.loadFacilitiesInBackground(
+      ArtifactSpec(
+        url: url,
+        cacheKey: ArtifactCacheKeys.facilities,
+        version: entry?['version'] as String? ?? '1.0',
+        hash: entry?['hash'] as String?,
+      ),
+    );
+    return true;
+  }
+
   /// Resolves once the background facilities download (kicked off from
-  /// loading_screen.dart) reports either success or failure.
+  /// loading_screen.dart, or by this screen when opened directly) reports
+  /// either success or failure.
   Future<void> _awaitBackgroundFacilities(StagedArtifactLoader loader) async {
     if (loader.facilitiesReady.value || loader.facilitiesFailed.value) return;
 
