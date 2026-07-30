@@ -121,7 +121,10 @@ class StagedArtifactLoader {
     List<Duration>? backoffDurations,
     this.perAttemptTimeout = const Duration(seconds: 15),
     this.facilitiesPerAttemptTimeout = const Duration(seconds: 90),
+    this.firstByteTimeout = const Duration(seconds: 20),
     Future<String> Function(String url)? downloadOverride,
+    Future<String> Function(String url, void Function(int, int) emitProgress)?
+    progressDownloadOverride,
   }) : _dio =
            dio ??
            Dio(
@@ -137,7 +140,8 @@ class StagedArtifactLoader {
              Duration(seconds: 4),
              Duration(seconds: 8),
            ],
-       _downloadOverride = downloadOverride;
+       _downloadOverride = downloadOverride,
+       _progressDownloadOverride = progressDownloadOverride;
 
   /// Shared app-wide instance. `loading_screen.dart` kicks off the download
   /// through this instance; `locator_screen.dart` observes
@@ -187,7 +191,28 @@ class StagedArtifactLoader {
   /// the E9 hang fix depends on that cap staying tight.
   final Duration facilitiesPerAttemptTimeout;
 
+  /// How long an attempt may go without receiving a single byte.
+  ///
+  /// The 90s facilities cap is there so a transfer that is genuinely moving
+  /// has time to finish. On a dead connection nothing moves, and waiting out
+  /// 3 x 90s plus backoff means ~4.5 minutes before the user is told
+  /// anything. This separates the two cases: no bytes at all inside this
+  /// window fails the attempt straight away, while a transfer that has
+  /// started keeps the full cap.
+  ///
+  /// Distinct from Dio's `receiveTimeout`, which measures the gap *between*
+  /// chunks and so only covers a stall after the first byte has arrived.
+  /// Nothing covered the never-starts case.
+  final Duration firstByteTimeout;
+
   final Future<String> Function(String url)? _downloadOverride;
+
+  /// Test seam for a fake download that reports byte progress, so the
+  /// first-byte guard can be exercised. [_downloadOverride] cannot report
+  /// progress, which means a download faked through it looks like a
+  /// zero-progress connection to the guard.
+  final Future<String> Function(String url, void Function(int, int))?
+  _progressDownloadOverride;
 
   final ValueNotifier<BootProgress> progress = ValueNotifier(
     const BootProgress(step: 0),
@@ -220,6 +245,12 @@ class StagedArtifactLoader {
     String url, {
     void Function(int received, int total)? onReceiveProgress,
   }) async {
+    if (_progressDownloadOverride != null) {
+      return await _progressDownloadOverride(
+        url,
+        (int received, int total) => onReceiveProgress?.call(received, total),
+      );
+    }
     if (_downloadOverride != null) return await _downloadOverride(url);
     final response = await _dio.get<dynamic>(
       url,
@@ -227,6 +258,46 @@ class StagedArtifactLoader {
       onReceiveProgress: onReceiveProgress,
     );
     return response.data as String;
+  }
+
+  /// Runs one attempt, failing early if not a single byte arrives within
+  /// [firstByteTimeout]. Once any byte has been received the guard stands
+  /// down and the outer per-attempt cap takes over.
+  Future<String> _attemptWithFirstByteGuard(
+    String url, {
+    void Function(int received, int total)? onReceiveProgress,
+  }) {
+    var receivedAnyBytes = false;
+    final completer = Completer<String>();
+
+    final guard = Timer(firstByteTimeout, () {
+      if (!receivedAnyBytes && !completer.isCompleted) {
+        completer.completeError(
+          TimeoutException('No data received within $firstByteTimeout'),
+        );
+      }
+    });
+
+    unawaited(
+      _attemptDownload(
+        url,
+        onReceiveProgress: (int received, int total) {
+          if (received > 0) receivedAnyBytes = true;
+          onReceiveProgress?.call(received, total);
+        },
+      ).then(
+        (String body) {
+          if (!completer.isCompleted) completer.complete(body);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
+        },
+      ),
+    );
+
+    return completer.future.whenComplete(guard.cancel);
   }
 
   Future<String> _downloadWithBackoff(
@@ -238,7 +309,7 @@ class StagedArtifactLoader {
       // Each retry restarts the transfer, so the byte count restarts too —
       // the callback naturally reports from 0 again on a new attempt.
       attempt: () =>
-          _attemptDownload(url, onReceiveProgress: onReceiveProgress),
+          _attemptWithFirstByteGuard(url, onReceiveProgress: onReceiveProgress),
       maxRetries: maxRetries,
       backoffDurations: backoffDurations,
       perAttemptTimeout: timeoutOverride ?? perAttemptTimeout,

@@ -64,6 +64,11 @@ complete below roughly 900kbps, so EDGE and marginal 3G failed every attempt
 and the locator showed "could not load" instead of downloading slowly. Core
 artifacts keep the tighter cap — they gate the assessment result.
 
+A separate **20 second first-byte guard** covers the opposite case: if no data
+arrives at all, the attempt fails immediately rather than waiting out the 90s.
+So a genuinely dead connection reports "could not load" in well under a
+minute, while a slow-but-moving transfer still gets the full 90s.
+
 ## 4. "Call" button rarely appears in the facility locator — [#50](../../issues/50)
 
 **What a tester sees:** facility cards show **Directions** but usually no
