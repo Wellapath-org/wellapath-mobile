@@ -58,6 +58,12 @@ user-facing, and on a fresh install it is the wait before the map appears.
 Not blocking, and not a hang. Worth listing so a tester who sees a minute of
 progress bar does not force-quit and report a freeze.
 
+The per-attempt download cap for facilities is **90 seconds**, separate from
+the 15s used for the three core artifacts. At 15s a 1.7MB transfer could not
+complete below roughly 900kbps, so EDGE and marginal 3G failed every attempt
+and the locator showed "could not load" instead of downloading slowly. Core
+artifacts keep the tighter cap — they gate the assessment result.
+
 ## 4. "Call" button rarely appears in the facility locator — [#50](../../issues/50)
 
 **What a tester sees:** facility cards show **Directions** but usually no
