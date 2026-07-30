@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/network/staged_artifact_loader.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
+import 'nigeria_coverage.dart';
 
 class LocatorScreen extends StatefulWidget {
   final String urgency;
@@ -29,14 +30,16 @@ class _LocatorScreenState extends State<LocatorScreen> {
   /// them without tapping. Two limits keep 30 pins legible:
   ///
   ///  * only the nearest [_maxLabelledPins] are labelled — results arrive
-  ///    distance-sorted, and the far ones are the ones that overlap;
+  ///    distance-sorted, and the far ones are the ones that overlap. Tuned
+  ///    down to 5 after 8 was measured overlapping on-device in dense
+  ///    central Lagos, where facilities sit a few hundred metres apart;
   ///  * labels disappear below [_labelZoomThreshold], where pins converge to
   ///    the point that any label overlaps its neighbours.
   ///
   /// A tapped pin is always labelled regardless of either limit.
-  static const int _maxLabelledPins = 8;
+  static const int _maxLabelledPins = 5;
   static const double _labelZoomThreshold = 12.5;
-  static const double _labelMaxWidth = 132;
+  static const double _labelMaxWidth = 116;
 
   final MapController _mapController = MapController();
 
@@ -53,6 +56,10 @@ class _LocatorScreenState extends State<LocatorScreen> {
   /// Drives label visibility. Updated only when it actually flips, not on
   /// every camera frame — onPositionChanged fires continuously while panning.
   bool _labelsVisible = true;
+
+  /// Set when a successful location fix lands outside Nigeria. Distinct from
+  /// [_locationDenied]: we know where the user is, and it is out of coverage.
+  bool _outsideCoverage = false;
 
   // True while facilities are still being fetched in the background (kicked
   // off from loading_screen.dart as part of the staged artifact pipeline —
@@ -188,6 +195,20 @@ class _LocatorScreenState extends State<LocatorScreen> {
 
     try {
       final position = await Geolocator.getCurrentPosition();
+
+      // Out of coverage: show the region message instead of a map full of
+      // facilities the user cannot reach.
+      if (!isWithinNigeria(position.latitude, position.longitude)) {
+        if (!mounted) return;
+        setState(() {
+          _outsideCoverage = true;
+          _results = const [];
+          _locationDenied = false;
+          _loading = false;
+        });
+        return;
+      }
+
       final results = _service!.getNearbyFacilities(
         userLat: position.latitude,
         userLon: position.longitude,
@@ -198,6 +219,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         _userLatLng = latlong.LatLng(position.latitude, position.longitude);
         _results = results;
         _locationDenied = false;
+        _outsideCoverage = false;
         _loading = false;
       });
       // FlutterMap's initialCenter/initialZoom only apply on first mount —
@@ -333,7 +355,9 @@ class _LocatorScreenState extends State<LocatorScreen> {
         child: Column(
           children: [
             _buildSearchHeader(),
-            if (!_locationDenied) _buildViewToggle(),
+            // Out of coverage there is neither a map nor a list to switch
+            // between, so the toggle would be a control that does nothing.
+            if (!_locationDenied && !_outsideCoverage) _buildViewToggle(),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -432,6 +456,11 @@ class _LocatorScreenState extends State<LocatorScreen> {
   }
 
   Widget _buildBody() {
+    // Checked first: if the user is out of coverage there is nothing useful
+    // to show them, whatever the facilities download is doing.
+    if (_outsideCoverage) {
+      return _buildOutsideCoverageView();
+    }
     if (_waitingForFacilities) {
       return const Center(
         child: Column(
@@ -464,6 +493,55 @@ class _LocatorScreenState extends State<LocatorScreen> {
       return _buildManualFallback();
     }
     return _buildLocationResults();
+  }
+
+  Widget _buildOutsideCoverageView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.public_off_rounded,
+              size: 56,
+              color: _primary.withValues(alpha: 0.7),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'WellaPath Clinic Locator is not yet available in your '
+              'region. We are currently serving Nigeria and will expand '
+              'to more countries soon.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Back to Results',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildLocationResults() {
