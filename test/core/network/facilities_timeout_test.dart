@@ -131,5 +131,98 @@ void main() {
 
     expect(loader.perAttemptTimeout, const Duration(seconds: 15));
     expect(loader.facilitiesPerAttemptTimeout, const Duration(seconds: 90));
+    expect(loader.firstByteTimeout, const Duration(seconds: 20));
   });
+
+  group('first-byte guard', () {
+    test('a connection that never delivers a byte fails fast', () async {
+      // The point of the guard: the 90s cap exists for transfers that are
+      // moving. A dead connection moves nothing, and waiting out 3 x 90s plus
+      // backoff meant ~4.5 minutes before the user was told anything.
+      final Stopwatch stopwatch = Stopwatch()..start();
+      final StagedArtifactLoader loader = StagedArtifactLoader(
+        facilitiesPerAttemptTimeout: const Duration(seconds: 5),
+        firstByteTimeout: const Duration(milliseconds: 150),
+        backoffDurations: const <Duration>[
+          Duration(milliseconds: 10),
+          Duration(milliseconds: 10),
+          Duration(milliseconds: 10),
+        ],
+        // Never reports progress and never finishes inside the cap.
+        downloadOverride: _slowDownload(const Duration(seconds: 5)),
+      );
+
+      loader.loadFacilitiesInBackground(_facilitiesSpec);
+      await _settled(loader);
+      stopwatch.stop();
+
+      expect(loader.facilitiesFailed.value, isTrue);
+      // Four attempts x 150ms + backoff is well under one 5s cap, let alone
+      // the 4 x 5s the old behaviour would have taken.
+      expect(
+        stopwatch.elapsed,
+        lessThan(const Duration(seconds: 3)),
+        reason: 'must fail on the first-byte guard, not the per-attempt cap',
+      );
+    });
+
+    test('a transfer that starts moving keeps the full per-attempt cap', () {
+      // Emits a byte before the guard window closes, then takes longer than
+      // that window to finish. The guard must stand down.
+      return _expectSucceeds(
+        StagedArtifactLoader(
+          facilitiesPerAttemptTimeout: const Duration(seconds: 3),
+          firstByteTimeout: const Duration(milliseconds: 150),
+          progressDownloadOverride:
+              (String url, void Function(int, int) emitProgress) async {
+                await Future<void>.delayed(const Duration(milliseconds: 40));
+                emitProgress(512, 4096);
+                // Past the guard window, inside the cap.
+                await Future<void>.delayed(const Duration(milliseconds: 600));
+                emitProgress(4096, 4096);
+                return _facilitiesBody;
+              },
+        ),
+      );
+    });
+
+    test('a byte arriving does not exempt it from the per-attempt cap', () {
+      // Standing down the guard must not become an unbounded wait — the E9
+      // hang fix still has to hold.
+      return _expectFails(
+        StagedArtifactLoader(
+          facilitiesPerAttemptTimeout: const Duration(milliseconds: 400),
+          firstByteTimeout: const Duration(milliseconds: 150),
+          backoffDurations: const <Duration>[
+            Duration(milliseconds: 10),
+            Duration(milliseconds: 10),
+            Duration(milliseconds: 10),
+          ],
+          progressDownloadOverride:
+              (String url, void Function(int, int) emitProgress) async {
+                await Future<void>.delayed(const Duration(milliseconds: 40));
+                emitProgress(512, 4096);
+                await Future<void>.delayed(const Duration(seconds: 30));
+                return _facilitiesBody;
+              },
+        ),
+      );
+    });
+  });
+}
+
+Future<void> _expectSucceeds(StagedArtifactLoader loader) async {
+  loader.loadFacilitiesInBackground(_facilitiesSpec);
+  await _settled(loader);
+
+  expect(loader.facilitiesReady.value, isTrue);
+  expect(loader.facilitiesFailed.value, isFalse);
+}
+
+Future<void> _expectFails(StagedArtifactLoader loader) async {
+  loader.loadFacilitiesInBackground(_facilitiesSpec);
+  await _settled(loader);
+
+  expect(loader.facilitiesFailed.value, isTrue);
+  expect(loader.facilitiesReady.value, isFalse);
 }
