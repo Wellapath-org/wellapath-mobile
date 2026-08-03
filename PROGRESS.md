@@ -2740,3 +2740,342 @@ Full suite **178 passing, 6 skipped**. `flutter analyze` zero errors,
       triage direction and urgency source
 - [x] 8. Results committed to
       `wellapath-knowledge-base/testing/case_bank_results_v1.json`
+
+---
+
+# Phase E9 — Internal Beta Readiness
+
+**Phase:** E9 — Internal Beta Readiness
+**Branch:** `develop`
+**Tags:** `v0.1.0-beta.1`, `v0.2.0-beta.1`, `v0.2.0-beta.2`
+**Last Updated:** 2026-08-03
+
+---
+
+## CURRENT STATUS: v0.2.0-beta.2 tagged and signed — pending distribution
+
+---
+
+## E9.1 — Release prep
+
+### Artifact freeze
+
+Locked. `docs/BETA_ROLLBACK.md` records versions and sha256 for all four,
+verified against live `/config`:
+
+| Artifact | Version | sha256 (short) |
+|---|---|---|
+| knowledge_base | 2.4 | `6c00d825…` |
+| rules | 2.2 | `1d27e854…` |
+| token_dictionary | 1.1 | `0cc47ad9…` |
+| facilities | 1.1 | `25684c71…` |
+
+The three core hashes are also pinned in
+`test/engine/case_bank/artifact_fixtures.dart`, which fails loudly on drift.
+kb went 2.3 -> 2.4 during E8.2 (malaria `headache` weight 3 -> 6); rules went
+2.1 -> 2.2 (dead `rf_147` retired).
+
+### Rollback plan — `docs/BETA_ROLLBACK.md` (PR #44)
+
+Two levers: server-side artifact rollback (minutes, no tester action,
+preferred) and APK rollback (hours, needs testers to install), with a
+symptom-to-lever table and a verification checklist. Records that a rolled
+back `/config` must update version **and** hash together — a stale hash fails
+the client integrity check and blocks assessments entirely.
+
+### Release signing (PR #47)
+
+`android/app/build.gradle.kts` reads credentials from `android/key.properties`,
+gitignored and never committed (LOCKED PRINCIPLE #6). Adapted to the Kotlin
+DSL — the brief's snippet was Groovy. When the file is absent the build falls
+back to debug signing and logs an internal-use-only warning, so CI and fresh
+clones still build.
+
+`.gitignore` did not previously cover `key.properties`, `*.keystore` or
+`*.jks` — a keystore dropped into the repo could have been committed by
+accident. Added.
+
+> The founder's `key.properties` was initially created in the stale
+> `~/Documents/project/wellapath-mobile` copy rather than the active repo at
+> `~/dev/wellapath-mobile`. Copied across; worth knowing if it recurs.
+
+### PHI fix (PR #44)
+
+`red_flag_evaluator.dart` logged only a count of unknown tokens under a
+comment reading "never log token values (PHI risk)", then put the values
+straight into the `ArgumentError` message two lines below. Not a live leak —
+`loading_screen.dart` catches it and there is no crash reporter — but an
+exception message reaches the default Flutter error handler and any crash
+reporter added later would capture it verbatim. Message now carries the count
+only; a regression test asserts no token value appears in it.
+
+### Logging audit — release build
+
+Zero `print()` in `lib/`. All 14 `debugPrint` sites reviewed individually:
+status markers only. Dio interceptor `requestBody: false`,
+`responseBody: false`. Hive holds artifacts, facilities and config — no PHI.
+No crash reporter or analytics SDK.
+
+**Verified empirically on the release build**: a full assessment produced zero
+symptom tokens, condition names or urgency values in logcat. Note that
+`debugPrint` is *not* stripped in release — the claim holds because every
+message is PHI-free by content, not because logging is off.
+
+---
+
+## E9 — Red flag reachability (PRs #48, #52)
+
+**The largest safety finding of the phase.** The case bank exercises all 13
+global red flag rules by feeding tokens straight to the engine, so it
+structurally could not see whether the UI lets a user *select* them.
+
+Audit result: **12 of the 13 were absent from `kSymptomDisplayMap` entirely**
+and selectable by no UI path. The 13th, `seizures`, was in the map but under
+no body area — reachable only via the picker's "Show all symptoms" fallback.
+
+Worse, near-miss tokens existed that look right and bypass the rules:
+
+| Caregiver picks | Token | They meant | Fired? |
+|---|---|---|---|
+| "Confusion / not thinking clearly" | `confusion` | `altered_consciousness` | no |
+| "Difficulty breathing" | `difficulty_breathing` | `breathlessness_at_rest` | no |
+| "Bleeding" | `bleeding` | `abnormal_bleeding` | no |
+
+### Fixed
+
+- PR #48: `Seizures` added to Head, listed first as a danger sign.
+- PR #52: all 12 remaining tokens added with the data engineer's display names
+  from `mobile_handoff/red_flag_display_map.json`, mapped to body areas.
+- New **`General`** body area for the 7 systemic danger signs that belong to
+  no body part. E9's symptom expansion had avoided a General zone by placing
+  systemic tokens under their condition's other symptoms; these have no such
+  sibling, and a caregiver reporting "collapsed, cold and clammy" will not
+  think "Legs". Search tab only — the body diagram has no region for it.
+- **Clarifying questions** for needs-clarifying near-misses
+  (`QuestionType.redFlagClarifier`): a milder selection raises one yes/no
+  question, asked first since it decides whether the result is an emergency,
+  and only an explicit yes adds the red flag token. Escalate-safe near-misses
+  need no question — the red flag being directly selectable covers them.
+
+3 clarifiers implemented, not the 4 anticipated: the
+`dehydration -> severe_dehydration` clarifier has **no trigger**, since
+`dehydration` is not in `kSymptomDisplayMap`. A test now asserts every
+clarifier's trigger tokens are selectable, so a dead clarifier cannot be
+added silently.
+
+### Open, flagged for ruling
+
+- **Age-conditional near-misses.** `altered_consciousness`,
+  `impaired_consciousness`, `prostration`, `respiratory_distress` are
+  escalate-safe in a child (IMCI danger signs) but need clarification in an
+  adult. Buildable — the controller has the age token — but "auto-escalate
+  for under-5s, ask everyone else" is a clinical rule, not a mobile call.
+- **Anaphylaxis needs a combined-trigger rule**: swelling/hives *together
+  with* breathing difficulty after exposure; no single sign should fire.
+  Multi-token, arguably a rules-artifact change.
+- **Nine listed near-miss tokens do not exist in the picker**: `pallor`,
+  `severe_weakness`, `chest_indrawing`, `facial_swelling`, `vaginal_bleeding`,
+  `bleeding_gums`, `blood_in_stool`, `breathlessness`, `dehydration`.
+
+---
+
+## E9 — Results screen defect (PR #46)
+
+Every "Possible Conditions" card rendered the **top** condition's explanation.
+On a real device result the card headed "2. Lassa Fever" displayed malaria's
+description — misleading clinical content, found during E9.3 demo 1.
+
+`OutputFormatter` populated `explanationPoints` from the top condition alone
+and `results_screen.dart` reused that one string for every card. Each
+`topCauses` entry now carries its own `explanation` from its own
+`explanation_template`. `explanationPoints` is unchanged — the red flag
+interrupt screen reads it. Confirmed fixed on the signed build.
+
+---
+
+## E9.3 — Device verification
+
+Run on the Android emulator (`wellapath_lowend`, 720x1280 @ density 320 =
+logical 360x640) against signed release builds.
+
+| Demo | Result |
+|---|---|
+| Triage flow — malaria symptoms -> urgent | **PASS** — fever + headache + chills -> URGENT, malaria top |
+| Red flag interrupt — seizures -> emergency | **PASS** — rule name "Active Seizures — this is a universal danger sign", Call Emergency CTA, CDSS disclaimer |
+| Locator flow | **PARTIAL** — permission, map, list, distance sorting all correct; Call button never appears (see #50) |
+| Offline assessment | **PASS on 3 of 4** — completes from cached artifacts, no crash, no error; **no offline indicator** (#21, waived) |
+
+Offline was achieved with a true block: `adb root` +
+`iptables -I OUTPUT -m owner --uid-owner <app> -j REJECT`, artifacts
+pre-cached. `svc wifi/data disable`, the airplane-mode setting and
+`cmd connectivity` all failed to sever emulator networking.
+
+**Emergency dialer** verified on emulator only — no physical handset was
+available. Tapping the card put `com.google.android.dialer` in the foreground
+with **112 entered and the call not placed**. Engineering lead accepted this:
+`ACTION_DIAL` is OS-level deterministic.
+
+---
+
+## E9 — Home screen redesign (PR #56)
+
+Home offered a single "Start Symptom Assessment" button. It now offers three
+services as cards — check your symptoms, find a clinic near me, call
+emergency 112 — so the user picks what they need.
+
+- Emergency card distinguished by accent colour and tinted border, not a solid
+  red fill: it must stand out without reading as an alarm on a screen opened
+  every time.
+- **No confirmation before 112, deliberately.** `tel:` uses `ACTION_DIAL`,
+  which opens the dialer without placing the call — the OS is already the
+  confirmation, and friction in front of an emergency number is its own harm.
+- **The CDSS disclaimer moved onto the home screen.** Two of the three
+  services skip the assessment entirely, so a user can reach care without ever
+  seeing the modal that used to carry that wording (LOCKED PRINCIPLE #1). It
+  was then found clipping mid-sentence at 360x640; the screen is now
+  scroll-safe and the vertical rhythm was tightened so it fits without
+  scrolling at that size.
+- Onboarding reduced from **4** pages (the brief said 3) to one, skippable.
+
+### A hang this exposed, and fixed in the same PR
+
+Opening the locator from home **hung indefinitely** on a fresh install.
+`LocatorScreen` waits on `facilitiesReady`/`facilitiesFailed`, which only
+`loading_screen.dart` ever flipped — reaching the locator without running an
+assessment meant waiting on a download nobody had started. Confirmed still
+spinning after 45s on device.
+
+The locator now starts the download itself from cached config, falls back to
+the failure state when no config exists, and `StagedArtifactLoader` guards
+against fetching the 1.7MB artifact twice now that two callers exist.
+
+---
+
+## E9 — Locator improvements
+
+### Pin labels (PR #53)
+
+Pins showed an `H` only. Each now carries its facility name beneath it.
+Nearest 5 labelled, hidden below zoom 12.5, tapped pin always labelled.
+
+Tuned down from 8 to 5 after measuring overlap on-device. **Residual overlap
+remains** in dense central Lagos — the nearest facilities are precisely the
+clustered ones around Yaba/Igbobi, so any zoom showing them all shows their
+labels colliding. Tracked as [#55](../../issues/55); needs label collision
+avoidance, which `flutter_map` gives no help with.
+
+### Nigeria-only (PR #54)
+
+A location fix outside latitude 4.0–14.0 / longitude 2.5–15.0 shows a region
+message and a single "Back to Results" button — no map, no list, and no
+Map/List toggle, which would otherwise switch between two things that are not
+there. Distinct from location-denied: we know where the user is.
+
+`isWithinNigeria` lives in `nigeria_coverage.dart` rather than the screen so
+it is unit testable — 15 tests including inclusive corners, just-outside
+edges, and the two classic geo bugs (negated latitude, swapped lat/lon).
+
+Manual state selection was already limited to Lagos, FCT, Kano — no change
+needed.
+
+### Download progress and timeouts (PRs #57, #58, #59)
+
+First locator entry on a fresh install sat on a bare spinner for ~60s while
+the 1.7MB facilities artifact downloaded — a tester force-quits and reports a
+freeze.
+
+- **#57**: Dio only reports progress when passed an `onReceiveProgress`
+  callback, and none was wired. Added it and exposed
+  `StagedArtifactLoader.facilitiesProgress`. The locator shows a determinate
+  bar with "Downloading facility data... X%", falling back to indeterminate
+  when the server reports no content length.
+- **#58**: `perAttemptTimeout` was 15s, tuned in E9 for the ~102KB core
+  artifacts. Facilities is 1.7MB — 17x larger — and could not complete below
+  roughly 900kbps, so EDGE (~56s) and 3G (~35s) failed *every* attempt.
+  Facilities now gets a separate **90s** cap; core artifacts stay at 15s,
+  since they gate the assessment result and the E9 hang fix depends on that
+  cap staying tight.
+- **#59**: the 90s cap then meant ~4.5 minutes before a *dead* connection
+  reported failure. Added a **20s first-byte guard** — no bytes at all fails
+  the attempt immediately, a transfer that has started keeps the full cap.
+  Worst case to a failure message drops to ~1.6 minutes. Distinct from Dio's
+  `receiveTimeout`, which measures the gap between chunks and so only covers
+  a stall *after* the first byte.
+
+---
+
+## Releases
+
+| Tag | Commit | APK sha256 | Notes |
+|---|---|---|---|
+| `v0.1.0-beta.1` | `0efaf6e` | `7e4362f5…fa15` | First signed build |
+| `v0.2.0-beta.1` | `7f72c40` | `2fb51e0b…dc1a` | Home redesign, Nigeria-only, pin labels |
+| `v0.2.0-beta.2` | `5d5d34b` | `9db847cd…4e21` | Progress bar, 90s timeout, fast-fail |
+
+All signed with the `wellapath` alias, verified by fingerprint match against
+the keystore (`94e7c574…d836`) rather than the certificate DN alone.
+
+`v0.2.0-beta.2` is the intended external-beta build. **It has not had a device
+pass** — the last full pass was on `v0.2.0-beta.1`, before #57/#58/#59 changed
+the facilities download path.
+
+### Distribution — blocked
+
+Not distributed. The Drive tool takes file content as a base64 *parameter*
+(58.9MB -> ~78MB, not feasible), the Gmail tool does not support attachments
+and caps at 25MB, and no `firebase`/`rclone`/`gdrive`/`gcloud` CLI is
+installed. Staged locally at `~/Desktop/wellapath-v0.2.0-beta.2.apk`.
+
+> **The repo is PUBLIC.** A GitHub release would publish a signed production
+> build of a CDSS to the open internet. Not an acceptable shortcut unless the
+> repo goes private first. The same caution applies to any quick share link.
+
+Firebase App Distribution is the intended route and needs `firebase-tools`
+installed plus founder authentication. Note the Firebase app must be
+registered under package **`org.wellapath.wellapath_mobile`** — an app was
+initially created as `wellapath.org`, which is the domain written forwards
+rather than reverse-DNS. Changing the app's `applicationId` to match was
+declined: it is permanent on Android, would invalidate the tag and circulated
+hashes, and would force testers to uninstall and reinstall.
+
+---
+
+## Known limitations going into beta — `docs/BETA_NOTES.md` (PR #51)
+
+Written for testers, each entry leading with what they will see:
+
+| # | Item | Issue |
+|---|---|---|
+| 1 | No offline indicator | [#21](../../issues/21) |
+| 2 | Offline cold boot holds the splash ~50s (correct `/config` retry backoff) | — |
+| 3 | First "Find a Clinic" takes ~60s to download 1.7MB; 90s cap + 20s first-byte guard | — |
+| 4 | Call button rarely appears — 45 of 5,344 facilities have phones (0.84%) | [#50](../../issues/50) |
+| 5 | Locator does not re-query on location change | [#49](../../issues/49) |
+| 6 | Body-area search placeholder says "symptoms" but filters body areas | [#45](../../issues/45) |
+| 7 | Open clinical questions | #42, #38, #36, #35 |
+
+---
+
+## Open issues at end of E9
+
+| Issue | Label | Summary |
+|---|---|---|
+| [#42](../../issues/42) | clinical-review | Isolated headache routes to malaria at `urgent`; weight 3 vs 6 |
+| [#45](../../issues/45) | bug | Body-area search placeholder/behaviour mismatch |
+| [#49](../../issues/49) | bug | Locator retains stale results on location change |
+| [#50](../../issues/50) | bug | Call button unreachable in practice — data coverage gap |
+| [#55](../../issues/55) | enhancement | Pin label collision avoidance for dense clusters |
+| #38, #36, #35 | clinical-review | Malaria base_weight dominance; `increase_urgency` no-op; empty input |
+
+Also unresolved: the picker's inner symptom search is **case-sensitive** —
+typing `Difficulty` returns nothing while `breath` works, because the label is
+lowercased for comparison but the query is not. Found during the E9 device
+pass, not yet filed.
+
+---
+
+## Verification at end of E9
+
+Full suite **244 passing, 6 skipped** (the case bank validation tests, which
+skip when no bank is present at the default path). `flutter analyze` zero
+errors. `dart format` clean.
