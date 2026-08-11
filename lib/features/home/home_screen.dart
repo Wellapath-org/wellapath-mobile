@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/telemetry/contract/telemetry_event.dart';
+import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
@@ -41,6 +43,15 @@ class _HomeScreenState extends State<HomeScreen> {
   /// confirmation step, so no extra "are you sure" is added here: friction in
   /// front of an emergency number is its own harm.
   Future<void> _onCallEmergency() async {
+    // Captured before the handoff, and not awaited: `capture` returns
+    // immediately and the dialer opens exactly as fast as it did before.
+    // Carries the action type only — this card is reachable without an
+    // assessment, and the contract rejects a session ID here regardless.
+    Telemetry.capture(
+      const EmergencyActionEvent(
+        actionType: EmergencyActionType.callEmergencyNumber,
+      ),
+    );
     await launchUrl(Uri(scheme: 'tel', path: '112'));
   }
 
@@ -75,18 +86,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _goToIntro() {
     final controller = AssessmentController();
+    // The assessment begins here: one controller, one session ID, one
+    // `assessment_start`. A previous attempt's ID is never carried forward
+    // because a previous attempt's controller is never carried forward.
+    controller.telemetrySession.recordStart(
+      entryPoint: AssessmentEntryPoint.home,
+    );
+    // Step 0 is the intro screen about to be pushed. Every later step records
+    // itself from the transition that displays it.
+    controller.telemetrySession.recordStepView();
     final homeRoute = ModalRoute.of(context);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => IntroScreen(
           assessmentController: controller,
-          onCancel: () => _confirmCancelAssessment(homeRoute),
+          onCancel: () => _confirmCancelAssessment(homeRoute, controller),
         ),
       ),
     );
   }
 
-  Future<void> _confirmCancelAssessment(ModalRoute<void>? homeRoute) async {
+  Future<void> _confirmCancelAssessment(
+    ModalRoute<void>? homeRoute,
+    AssessmentController controller,
+  ) async {
     final confirmed = await showConfirmationDialog(
       context: context,
       title: 'Cancel Assessment',
@@ -95,6 +118,9 @@ class _HomeScreenState extends State<HomeScreen> {
       confirmLabel: 'Yes, cancel',
     );
     if (confirmed && mounted) {
+      // A user-initiated exit. `abandoned` describes who stopped it, not what
+      // was found — no result exists at this point and none is referenced.
+      controller.telemetrySession.recordComplete(CompletionStatus.abandoned);
       Navigator.of(context).popUntil((r) => r == homeRoute || r.isFirst);
     }
   }

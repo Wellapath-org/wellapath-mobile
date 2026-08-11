@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/symptom_display_map.dart';
+import '../../core/telemetry/contract/telemetry_event.dart';
 import 'assessment_controller.dart';
 import 'loading_screen.dart';
 import 'models/followup_question.dart';
@@ -67,6 +68,11 @@ class _FollowupScreenState extends State<FollowupScreen> {
 
   void _onNext(BuildContext context) {
     if (_currentQuestion < _questions.length - 1) {
+      // Each follow-up question is a step. The question itself is never
+      // recorded — no question ID, no category, no answer. `_questions.length`
+      // is derived from the selected symptom tokens, which is exactly why the
+      // step-view event carries no `step_count`.
+      widget.assessmentController.telemetrySession.recordStepView();
       setState(() => _currentQuestion += 1);
     } else {
       _commitAnswers();
@@ -117,6 +123,12 @@ class _FollowupScreenState extends State<FollowupScreen> {
           OutlinedButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
+              // Recorded before `clearAll()`, so the session still exists.
+              // `abandoned` says the user stopped; it says nothing about what
+              // had been entered, and nothing was computed at this point.
+              widget.assessmentController.telemetrySession.recordComplete(
+                CompletionStatus.abandoned,
+              );
               widget.assessmentController.clearAll();
               widget.onCancel();
             },

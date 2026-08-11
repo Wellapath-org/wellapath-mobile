@@ -53,6 +53,11 @@ class _MedicalConditionsScreenState extends State<MedicalConditionsScreen> {
   }
 
   void _onNext(BuildContext context) {
+    // Recorded once, before the branch. Both destinations are "the next step",
+    // and the counter must not reveal which branch was taken — the pregnancy
+    // screen only appears for one answer to the sex question, so a
+    // branch-dependent index would leak that answer.
+    widget.assessmentController.telemetrySession.recordStepView();
     if (widget.assessmentController.shouldShowPregnancyScreen) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
