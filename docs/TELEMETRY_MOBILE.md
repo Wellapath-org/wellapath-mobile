@@ -18,6 +18,30 @@ assessment, red-flag evaluation, scoring, results, emergency or locator
 behaviour. Scoring remains entirely on-device. Turning telemetry off changes
 nothing a user can see.
 
+### `os_version` is intentionally omitted
+
+The backend contract declares `os_version` as an **optional** field of the `app`
+block. **This client does not send it**, and the key is omitted entirely — not
+nulled, not blanked, not filled with a placeholder.
+
+Dart's `Platform.operatingSystemVersion` is not an authoritative product OS
+release. On Android it returns a kernel/uname string
+(`Linux localhost 3.18.94+ #17 SMP … aarch64`), and an earlier normaliser that
+took the leading numeric fragment shipped **`"64"` from a device running Android
+8.0.0**. That value matched the contract's `\d{1,3}(\.\d{1,3})?` pattern, so the
+backend accepted it with a 202 — **no server-side validation could have caught
+it**. A silently wrong optional value is worse than an absent one, because it
+corrupts cohorting invisibly rather than failing loudly.
+
+No proxy is substituted. Kernel version, API level, architecture, user agent and
+build fingerprint are correlates of the OS release, not the OS release; deriving
+from any of them reintroduces the same defect.
+
+Restoring the field is a possible future **backward-compatible** enhancement. It
+would need an authoritative platform adapter plus real-device validation on both
+platforms, and requires no backend change, since the contract already permits
+the field. Pinned by `test/telemetry/os_version_omission_test.dart`.
+
 ### The one-line summary of the privacy model
 
 Two layers. The **typed event classes** (`lib/core/telemetry/contract/telemetry_event.dart`)

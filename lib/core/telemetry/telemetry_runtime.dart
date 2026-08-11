@@ -122,25 +122,47 @@ class OptimisticConnectivity implements TelemetryConnectivity {
 /// Deliberately narrow. Device model, install ID, advertising ID, carrier,
 /// screen metrics and timezone are all rejected by the contract as identifiers
 /// or fingerprinting surfaces, and none of them is collected here.
+///
+/// ### `os_version` is intentionally omitted in telemetry v1.0
+///
+/// The field is **optional** in backend contract v1.0 and the backend schema
+/// still declares it — this is a client-side decision, not a contract change.
+///
+/// Dart's `Platform.operatingSystemVersion` is **not an authoritative product
+/// OS release**. On Android it returns a kernel/uname string
+/// (`Linux localhost 3.18.94+ #17 SMP … aarch64`), and an earlier normaliser
+/// that extracted the leading numeric fragment from it shipped `"64"` from a
+/// device running Android 8.0.0. That value matched the contract's
+/// `\d{1,3}(\.\d{1,3})?` pattern, so the backend accepted it with a 202 and
+/// no validation could have caught it — a silently wrong value is worse than
+/// an absent optional one, because it corrupts cohorting invisibly.
+///
+/// No proxy is substituted. Kernel version, API level, architecture, user
+/// agent and build fingerprint are all *correlates* of the OS release, not the
+/// OS release, and guessing from them reintroduces exactly the defect above.
+///
+/// Restoring the field is a future backward-compatible enhancement: it needs
+/// an authoritative platform adapter plus real-device validation on both
+/// platforms before it can be trusted. Adding it back requires no backend
+/// change, since the contract already allows it.
 class TelemetryAppContext {
   const TelemetryAppContext({
     required this.platform,
     required this.appVersion,
     required this.appBuild,
-    this.osVersion,
   });
 
   /// `ios` or `android`.
   final String platform;
   final String appVersion;
   final String appBuild;
-  final String? osVersion;
 
+  /// Emits exactly three keys. `os_version` is not among them, and there is no
+  /// field to populate it from — see the class comment.
   Map<String, Object?> toJson() => {
     'platform': platform,
     'app_version': appVersion,
     'app_build': appBuild,
-    if (osVersion != null) 'os_version': osVersion,
   };
 
   /// Builds the context from compile-time defines, falling back to the
@@ -150,10 +172,7 @@ class TelemetryAppContext {
   /// so a release build stamps its real values without a new dependency;
   /// `package_info_plus` would have done this too but is a new package and
   /// needs approval.
-  static TelemetryAppContext fromPlatform({
-    String? platformOverride,
-    String? rawOsVersion,
-  }) {
+  static TelemetryAppContext fromPlatform({String? platformOverride}) {
     const definedVersion = String.fromEnvironment(
       'APP_VERSION',
       defaultValue: '1.0.0',
@@ -163,25 +182,7 @@ class TelemetryAppContext {
       platform: platformOverride ?? (Platform.isIOS ? 'ios' : 'android'),
       appVersion: definedVersion,
       appBuild: definedBuild,
-      osVersion: normaliseOsVersion(
-        rawOsVersion ?? Platform.operatingSystemVersion,
-      ),
     );
-  }
-
-  /// Reduces a platform OS string to `major[.minor]`.
-  ///
-  /// The contract rejects full build strings — `17.4.1 (21E236)` must be sent
-  /// as `17.4` — because the build suffix narrows the device population enough
-  /// to be a fingerprinting signal. Returns null when nothing usable can be
-  /// extracted, and `os_version` is then simply omitted; it is optional.
-  static String? normaliseOsVersion(String raw) {
-    final match = RegExp(r'(\d{1,3})(?:\.(\d{1,3}))?').firstMatch(raw);
-    if (match == null) return null;
-    final major = match.group(1)!;
-    final minor = match.group(2);
-    final value = minor == null ? major : '$major.$minor';
-    return value.length <= 8 ? value : major;
   }
 }
 
