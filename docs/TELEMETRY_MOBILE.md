@@ -38,7 +38,7 @@ which can be overridden at build time by a `--dart-define` of the same name.
 
 | Variable                        | Default | Meaning                                                          |
 | ------------------------------- | ------- | ---------------------------------------------------------------- |
-| `TELEMETRY_ENABLED`             | `false` | Master gate. Only the exact string `true` enables it.            |
+| `TELEMETRY_ENABLED`             | `false` | Master gate. Only `true` enables it — case-insensitive, trimmed. `1`/`yes`/`on` do **not**. |
 | `TELEMETRY_BASE_URL`            | unset   | Base URL. Falls back to `API_BASE_URL`. Path is never hard-coded. |
 | `APP_ENV`                       | staging | `production`/`prod` forces telemetry **off**.                    |
 | `TELEMETRY_PRODUCTION_APPROVED` | `false` | The only key that can lift the production block.                 |
