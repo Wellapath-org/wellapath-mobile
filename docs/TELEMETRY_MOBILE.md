@@ -360,7 +360,7 @@ The host figures above predict no measurable difference; that prediction has
    behaviour but blocks the two staging integration tests that need a 202:
 
    ```sh
-   RUN_STAGING_TELEMETRY_TESTS=1 flutter test \
+   RUN_STAGING_TELEMETRY_TESTS=true flutter test \
      test/telemetry/staging_integration_test.dart
    ```
 

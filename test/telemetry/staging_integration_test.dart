@@ -1,10 +1,10 @@
 /// Integration tests against the **deployed staging backend**.
 ///
-/// Network-dependent, so skipped unless `RUN_STAGING_TELEMETRY_TESTS=1` is
-/// set. Run them with:
+/// Network-dependent, so skipped unless `RUN_STAGING_TELEMETRY_TESTS` is set
+/// to `1`, `true` or `yes`. Run them with:
 ///
 /// ```sh
-/// RUN_STAGING_TELEMETRY_TESTS=1 flutter test \
+/// RUN_STAGING_TELEMETRY_TESTS=true flutter test \
 ///   test/telemetry/staging_integration_test.dart
 /// ```
 ///
@@ -27,10 +27,20 @@ import 'support/fixtures.dart';
 const String stagingBaseUrl = 'https://wellapath-backend-staging.onrender.com';
 
 void main() {
-  final shouldRun = Platform.environment['RUN_STAGING_TELEMETRY_TESTS'] == '1';
+  /// Accepts `1`, `true` or `yes`, case-insensitively.
+  ///
+  /// This originally compared against `'1'` alone. A gate that silently skips
+  /// on `RUN_STAGING_TELEMETRY_TESTS=true` — the spelling anyone reaches for
+  /// first — still prints "All tests passed" while verifying nothing against
+  /// the real server, which is the worst failure mode a release gate can have.
+  /// Accepting the obvious spellings removes the trap.
+  final gate = (Platform.environment['RUN_STAGING_TELEMETRY_TESTS'] ?? '')
+      .trim()
+      .toLowerCase();
+  final shouldRun = gate == '1' || gate == 'true' || gate == 'yes';
   final skipReason = shouldRun
       ? null
-      : 'Set RUN_STAGING_TELEMETRY_TESTS=1 to run against deployed staging.';
+      : 'Set RUN_STAGING_TELEMETRY_TESTS=true to run against deployed staging.';
 
   late Dio dio;
 
@@ -46,6 +56,15 @@ void main() {
       ),
     );
   });
+
+  /// A unique `event_id` for this run.
+  ///
+  /// The server remembers event IDs for an hour, so a replayed ID comes back
+  /// as `duplicate` rather than `accepted` — which would fail the batch
+  /// assertion for entirely the wrong reason.
+  var idCounter = 0;
+  String freshEventId(String label) =>
+      'evt_${label}_${DateTime.now().microsecondsSinceEpoch}_${idCounter++}';
 
   Map<String, Object?> envelope(List<Map<String, Object?>> events) => {
     'contract_version': TelemetryContract.version,
@@ -69,6 +88,7 @@ void main() {
         envelope([
           serialiseEvent(
             allEventFixtures().first,
+            eventId: freshEventId('smoke'),
             clientTs: DateTime.now().toUtc(),
           ),
         ]),
@@ -87,10 +107,15 @@ void main() {
           for (var i = 0; i < 3; i++)
             serialiseEvent(
               allEventFixtures()[i],
-              eventId: 'evt_it${DateTime.now().microsecondsSinceEpoch}$i',
+              eventId: freshEventId('valid$i'),
               clientTs: now,
             ),
         ];
+        expect(
+          events.map((e) => e['event_id']).toSet(),
+          hasLength(3),
+          reason: 'the three event IDs must be distinct',
+        );
         final response = await post(envelope(events));
 
         if (response.statusCode == 503) {
@@ -111,7 +136,25 @@ void main() {
         expect(body['contract_version'], '1.0');
         expect(body['received'], 3);
         expect(body['accepted'], 3, reason: 'body=$body');
-        expect(body['rejected'], 0);
+        expect(body['rejected'], 0, reason: 'body=$body');
+        expect(
+          body['duplicates'],
+          0,
+          reason: 'fresh IDs must not hit the dedupe window: body=$body',
+        );
+        final results = body['results']! as List;
+        expect(results, hasLength(3));
+        expect(results.map((r) => (r as Map)['status']).toSet(), {
+          'accepted',
+        }, reason: 'body=$body');
+        // A 202 is `accepted` for the client: remove the batch, never retry.
+        expect(
+          DioTelemetryTransport.classify(
+            statusCode: response.statusCode,
+            body: response.data,
+          ).disposition,
+          TelemetryDisposition.accepted,
+        );
       },
     );
 
@@ -139,7 +182,7 @@ void main() {
           envelope([
             {
               'event_name': 'assessment_step_view',
-              'event_id': 'evt_it${DateTime.now().microsecondsSinceEpoch}',
+              'event_id': freshEventId('prohibited'),
               'client_ts': DefaultTelemetryService.isoUtc(DateTime.now()),
               'assessment_session_id': 'ses_00000000000000000001',
               'step_index': 1,
@@ -153,11 +196,85 @@ void main() {
         }
         expect(response.statusCode, 202);
         final body = response.data! as Map;
-        expect(body['accepted'], 0);
-        expect(body['rejected'], 1);
+        expect(body['accepted'], 0, reason: 'body=$body');
+        expect(body['rejected'], 1, reason: 'body=$body');
+
+        // Fail-closed and event-level, with a contract reason code — not a
+        // silent drop, and not an envelope-wide failure.
+        final result = (body['results']! as List).single as Map;
+        expect(result['status'], 'rejected');
+        expect(
+          TelemetryContract.rejectionReasonCodes,
+          contains(result['reason']),
+          reason: 'unexpected reason code: body=$body',
+        );
+
+        // Neither the prohibited value nor its key is echoed back.
         expect(jsonEncode(body), isNot(contains('q_017')));
+        expect(jsonEncode(body), isNot(contains('question_id')));
+
+        // The client does not retry: the envelope validated, so the batch is
+        // removed rather than re-sent.
+        expect(
+          DioTelemetryTransport.classify(
+            statusCode: response.statusCode,
+            body: response.data,
+          ).disposition,
+          TelemetryDisposition.accepted,
+        );
       },
     );
+
+    test('a non-retryable response is sent exactly once', () async {
+      // Counts real HTTP attempts through the production transport against
+      // the live server. The unit suite proves the retry budget with a fake;
+      // this proves the wiring end to end, with a single request rather than
+      // deliberate retry load.
+      var attempts = 0;
+      final countingDio =
+          Dio(
+              BaseOptions(
+                connectTimeout: const Duration(seconds: 90),
+                receiveTimeout: const Duration(seconds: 90),
+                headers: {'Content-Type': 'application/json'},
+                validateStatus: (_) => true,
+              ),
+            )
+            ..interceptors.add(
+              InterceptorsWrapper(
+                onRequest: (options, handler) {
+                  attempts++;
+                  handler.next(options);
+                },
+              ),
+            );
+
+      final transport = DioTelemetryTransport(
+        endpoint: '$stagingBaseUrl${TelemetryContract.endpointPath}',
+        dio: countingDio,
+      );
+
+      // An envelope-level prohibited field: a 400 the client must never retry.
+      final result = await transport.send({
+        'contract_version': '1.0',
+        'sent_at': DefaultTelemetryService.isoUtc(DateTime.now()),
+        'app': testAppContext.toJson(),
+        'patient_name': 'refused at the envelope',
+        'events': [
+          serialiseEvent(
+            allEventFixtures().first,
+            eventId: freshEventId('noretry'),
+            clientTs: DateTime.now().toUtc(),
+          ),
+        ],
+      });
+
+      expect(attempts, 1, reason: 'a non-retryable status must not be retried');
+      expect(result.statusCode, anyOf(400, 503));
+      if (result.statusCode == 400) {
+        expect(result.disposition, TelemetryDisposition.nonRetryable);
+      }
+    });
 
     test('a wrong content type is rejected with 415', () async {
       final response = await post(
