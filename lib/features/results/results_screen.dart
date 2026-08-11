@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
+import '../../core/telemetry/contract/telemetry_event.dart';
+import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../locator/locator_screen.dart';
@@ -53,11 +55,26 @@ class ResultsScreen extends StatelessWidget {
   };
 
   Future<void> _callEmergency() async {
+    // Action type only. No session ID (the contract rejects one here), no
+    // urgency, no red flag, no condition, no triggering symptom.
+    Telemetry.capture(
+      const EmergencyActionEvent(
+        actionType: EmergencyActionType.callEmergencyNumber,
+      ),
+    );
     final Uri emergencyUri = Uri(scheme: 'tel', path: '112');
     await launchUrl(emergencyUri);
   }
 
   void _showFindCareSheet(BuildContext context) {
+    // `open_nearest_facility` is an emergency-surface action in the contract's
+    // vocabulary. `engineOutput.urgency` drives which facility types the
+    // locator returns and is deliberately not recorded.
+    Telemetry.capture(
+      const EmergencyActionEvent(
+        actionType: EmergencyActionType.openNearestFacility,
+      ),
+    );
     Navigator.push(
       context,
       MaterialPageRoute<void>(

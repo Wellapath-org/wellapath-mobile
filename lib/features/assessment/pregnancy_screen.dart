@@ -37,6 +37,7 @@ class _PregnancyScreenState extends State<PregnancyScreen> {
   }
 
   void _onNext(BuildContext context) {
+    widget.assessmentController.telemetrySession.recordStepView();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => BodyAreaScreen(

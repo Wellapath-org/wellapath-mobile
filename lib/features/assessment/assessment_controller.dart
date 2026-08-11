@@ -1,7 +1,21 @@
 import 'package:flutter/foundation.dart';
+import '../../core/telemetry/assessment_telemetry_session.dart';
 import 'models/assessment_input.dart';
 
 class AssessmentController extends ChangeNotifier {
+  /// Telemetry correlation for this assessment attempt.
+  ///
+  /// One controller is constructed per assessment (see
+  /// `HomeScreen._goToIntro`), so the session ID is created here and is never
+  /// reused by a later assessment. It holds an opaque random ID and three
+  /// counters; it reads nothing from this controller's clinical state, and no
+  /// method on it is given access to one.
+  ///
+  /// Telemetry is a no-op unless explicitly enabled by configuration, so this
+  /// costs one random string per assessment in every other build.
+  final AssessmentTelemetrySession telemetrySession =
+      AssessmentTelemetrySession();
+
   String? _sex;
   String? _ageToken;
   final List<String> _demographicTokens = [];

@@ -14,6 +14,21 @@ class SexScreen extends StatelessWidget {
 
   static const Color _primary = Color(0xFF6B4EFF);
 
+  /// Advances to the next step, recording that it was displayed. The recorded
+  /// value is a depth counter only — it does not identify this screen or the
+  /// answer given on it.
+  void _goToNextStep(BuildContext context) {
+    assessmentController.telemetrySession.recordStepView();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AgeScreen(
+          assessmentController: assessmentController,
+          onCancel: onCancel,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -192,16 +207,7 @@ class SexScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: isEnabled
-                  ? () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => AgeScreen(
-                          assessmentController: assessmentController,
-                          onCancel: onCancel,
-                        ),
-                      ),
-                    )
-                  : null,
+              onPressed: isEnabled ? () => _goToNextStep(context) : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _primary,
                 foregroundColor: Colors.white,

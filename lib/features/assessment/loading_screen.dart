@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/engine/engine_controller.dart';
 import '../../core/engine/models/engine_output.dart';
 import '../../core/network/staged_artifact_loader.dart';
+import '../../core/perf/perf_trace.dart';
 import '../../core/storage/storage_service.dart';
+import '../../core/telemetry/contract/telemetry_event.dart';
 import '../boot/boot_controller.dart';
 import '../results/red_flag_interrupt_screen.dart';
 import '../results/results_screen.dart';
@@ -68,6 +70,12 @@ class _LoadingScreenState extends State<LoadingScreen> {
     // before the engine, not the only gate.
     if (widget.assessmentController.symptomTokens.isEmpty) {
       debugPrint('Assessment blocked — no symptoms selected');
+      // `interrupted` is a technical disposition, not a clinical one: the
+      // engine never ran. It is emitted for every non-clinical failure below
+      // too, so the status can never be read as a result.
+      widget.assessmentController.telemetrySession.recordComplete(
+        CompletionStatus.interrupted,
+      );
       if (!mounted) return;
       setState(() => _noSymptomsSelected = true);
       return;
@@ -152,7 +160,13 @@ class _LoadingScreenState extends State<LoadingScreen> {
               knowledgeBase: coreArtifacts.conditions,
             );
 
-            output = engine.run(engineInput);
+            // Timed, not changed. `PerfRecorder.time` returns the callee's
+            // value and rethrows its errors; with recording disabled — the
+            // default in every build — it calls straight through.
+            output = PerfRecorder.time(
+              PerfOperation.scoring,
+              () => engine.run(engineInput),
+            );
             // PHI rule: never log the urgency level or any other part of the
             // assessment result — this is a completion marker only.
             debugPrint('Assessment complete');
@@ -167,12 +181,18 @@ class _LoadingScreenState extends State<LoadingScreen> {
       }
     } on FirstLaunchOfflineException {
       debugPrint('First-launch offline — no cached artifacts and no network');
+      widget.assessmentController.telemetrySession.recordComplete(
+        CompletionStatus.interrupted,
+      );
       if (!mounted) return;
       setState(() => _isFirstLaunchOffline = true);
       return;
     } catch (_) {
       // Generic log only — never log artifact content or symptom tokens
       debugPrint('Engine run failed — assessment incomplete');
+      widget.assessmentController.telemetrySession.recordComplete(
+        CompletionStatus.interrupted,
+      );
       if (!mounted) return;
       setState(() => _hasError = true);
       return;
@@ -186,6 +206,26 @@ class _LoadingScreenState extends State<LoadingScreen> {
     if (!mounted) return;
 
     final resolvedOutput = output;
+
+    // The completion status distinguishes only *whether the engine produced an
+    // output*, never *what it produced*. The red-flag path below reports
+    // `completed`, exactly like the ordinary results path — reporting anything
+    // else there would turn this field into a red-flag detector, and a
+    // red-flag match is clinical data.
+    widget.assessmentController.telemetrySession.recordComplete(
+      resolvedOutput == null
+          ? CompletionStatus.interrupted
+          : CompletionStatus.completed,
+    );
+
+    if (resolvedOutput != null) {
+      // Emitted here, once, for *both* destinations below. Emitting it from
+      // the results screen only would make the event's absence a red-flag
+      // signal when joined to `assessment_complete`. It carries the
+      // presentation contract version and nothing about the result.
+      widget.assessmentController.telemetrySession.recordResultView();
+    }
+
     if (resolvedOutput == null) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(

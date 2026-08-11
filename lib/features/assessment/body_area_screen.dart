@@ -36,6 +36,8 @@ class BodyAreaScreen extends StatelessWidget {
 
   void _onAreaSelected(BuildContext context, String area) {
     assessmentController.setBodyArea(area);
+    // The selected area is not recorded — only that a step was displayed.
+    assessmentController.telemetrySession.recordStepView();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: kSymptomSelectionRouteName),
@@ -49,6 +51,7 @@ class BodyAreaScreen extends StatelessWidget {
   }
 
   void _onNext(BuildContext context) {
+    assessmentController.telemetrySession.recordStepView();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: kSymptomSelectionRouteName),

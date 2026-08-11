@@ -14,6 +14,24 @@ class IntroScreen extends StatelessWidget {
 
   static const Color _primary = Color(0xFF6B4EFF);
 
+  /// Advances to the next step, recording that it was displayed.
+  ///
+  /// The step view is recorded at the transition rather than in the next
+  /// screen's `initState` so that the stateless step screens stay stateless —
+  /// converting them purely to host an analytics call would be a structural
+  /// change for no product reason. The boundary is identical either way.
+  void _goToNextStep(BuildContext context) {
+    assessmentController.telemetrySession.recordStepView();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SexScreen(
+          assessmentController: assessmentController,
+          onCancel: onCancel,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,14 +118,7 @@ class IntroScreen extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => SexScreen(
-                assessmentController: assessmentController,
-                onCancel: onCancel,
-              ),
-            ),
-          ),
+          onPressed: () => _goToNextStep(context),
           style: ElevatedButton.styleFrom(
             backgroundColor: _primary,
             foregroundColor: Colors.white,

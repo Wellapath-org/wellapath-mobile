@@ -60,6 +60,9 @@ class _SymptomSelectionScreenState extends State<SymptomSelectionScreen> {
   }
 
   void _onNext(BuildContext context) {
+    // Records the step only. The selected symptom tokens, and how many were
+    // selected, are never part of any telemetry event.
+    widget.assessmentController.telemetrySession.recordStepView();
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => FollowupScreen(

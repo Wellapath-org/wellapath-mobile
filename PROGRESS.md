@@ -3079,3 +3079,172 @@ pass, not yet filed.
 Full suite **244 passing, 6 skipped** (the case bank validation tests, which
 skip when no bank is present at the default path). `flutter analyze` zero
 errors. `dart format` clean.
+
+---
+
+# Phase I1 / W1 — Privacy-Safe Mobile Telemetry (Step 1B)
+
+**Phase:** I1 — Observability & Baseline
+**Workstream:** W1 — Privacy-Safe Product Analytics (mobile instrumentation and delivery)
+**Branch:** `feat/i1-telemetry-mobile`
+**Contract:** backend telemetry v1.0, `wellapath-backend` @ `5e13379f19c53ec90cee7958dc029d908c342dcd` (PR #29, merged 2026-08-11)
+**Last Updated:** 2026-08-11
+
+---
+
+## CURRENT STATUS: implemented and tested — **disabled in every build by default**
+
+Mobile emits 10 of the contract's 12 allowlisted events, queues them offline
+(500 cap, drop-oldest), and delivers them in batches of 1–20 with the contract's
+exact retry rules. Operations, verification and rollback are documented in
+`docs/TELEMETRY_MOBILE.md`.
+
+Nothing clinical changed. Scoring is still on-device, red-flag precedence is
+untouched, offline assessment is untouched, and no artifact was modified. The
+existing 244-test suite passes unchanged.
+
+---
+
+## What was built
+
+| Area | File |
+|---|---|
+| Contract mirror (hand-written, parity-tested) | `lib/core/telemetry/contract/telemetry_contract.dart` |
+| Sealed typed events | `lib/core/telemetry/contract/telemetry_event.dart` |
+| Second-layer privacy guard | `lib/core/telemetry/privacy_guard.dart` |
+| Service (capture, flush, retry, disablement) | `lib/core/telemetry/telemetry_service.dart` |
+| Hive-backed offline queue | `lib/core/telemetry/telemetry_queue.dart` |
+| Transport + response classification | `lib/core/telemetry/telemetry_transport.dart` |
+| Environment gates | `lib/core/telemetry/telemetry_config.dart` |
+| Injectable clock/IDs/jitter/connectivity/diagnostics | `lib/core/telemetry/telemetry_runtime.dart` |
+| Per-assessment correlation | `lib/core/telemetry/assessment_telemetry_session.dart` |
+| Crash boundary + sanitiser (no provider added) | `lib/core/crash/crash_reporter.dart` |
+| Duration-only performance tracing | `lib/core/perf/perf_trace.dart` |
+
+**No new package dependencies.** The queue reuses Hive, the transport reuses
+Dio, the first-launch flag reuses `shared_preferences`.
+
+---
+
+## Two privacy decisions worth reading
+
+**1. The red-flag path is deliberately indistinguishable from the ordinary
+results path.** Both emit `result_view`, and both report
+`assessment_complete{completed}`. Reporting `interrupted` on the red-flag path,
+or omitting `result_view` there, would have made either field a red-flag
+detector — and a red-flag match is clinical data. Pinned by a test that asserts
+the two event sequences differ only by session ID.
+
+**2. `step_count` is not sent on `assessment_step_view`.** It is optional in the
+contract, and the only value this app could put there is the flow total — which
+`QuestionEngine.generateQuestions()` derives from the user's selected symptom
+tokens. Sending it would leak an answer-derived quantity on every step.
+`step_count` **is** sent on `assessment_complete`, where it means "steps the
+user actually reached", an effort measure. `step_index` is a depth counter, not
+a screen identifier, so the conditional pregnancy step cannot be inferred from
+an index gap.
+
+---
+
+## Events not instrumented
+
+| Event | Why |
+|---|---|
+| `library_article_view` | No Health Library exists in the MVP and no article identifiers exist. Building one is explicitly out of scope for I1. The typed event and its serialisation are implemented and tested so the mirror stays complete. |
+| `feedback_submit` | No feedback UI exists. Same treatment. If a feedback UI is built with a comment box, that free text needs its own reviewed intake path — it must never be routed through this endpoint. |
+
+`search_mode: name` is implemented but never emitted: the locator offers nearby
+(GPS) and manual state/area dropdowns only, no name search.
+
+`admin_area_code` is never sent — the facilities-artifact → ISO 3166-2:NG
+mapping is unconfirmed (contract §8) and the field is optional.
+
+---
+
+## Two bugs the tests found in the code under test
+
+Both were found by adversarial tests, not by inspection, and both are fixed:
+
+1. **`android_id` slipped the key denylist.** The matcher split keys on
+   separators, so `android_id` became `android` + `id` — neither denylisted, and
+   `id` is far too generic to denylist. Now the collapsed form (`androidid`) is
+   checked as well.
+2. **`severe_headache` survived crash-message sanitisation.** The sanitiser used
+   `\b`-anchored vocabulary, and `_` is a regex word character, so
+   `\bheadache\b` never matched inside `severe_headache`. Replaced with a
+   snake_case-identifier shape rule that catches the whole family — symptom
+   tokens, `rf_*` rule IDs, `q_*` question IDs, duration tokens, urgency values.
+
+---
+
+## Verification
+
+**Full suite: 512 passing, 12 skipped.** Baseline before this work was 244
+passing / 6 skipped, so 268 tests were added and no existing test changed
+behaviour. `flutter analyze` zero issues. `dart format` clean.
+
+Test coverage by area:
+
+| Suite | Tests | What it pins |
+|---|---|---|
+| `contract_parity_test.dart` | 11 | The Dart mirror vs the vendored backend allowlist, both directions. **Fails CI on contract drift.** |
+| `schema_conformance_test.dart` | 19 | Serialised fixtures validated against the backend's own `telemetry.v1.schema.json`, using a strict subset validator that errors on any keyword it does not implement. |
+| `privacy_adversarial_test.dart` | 84 | ~60 prohibited-data injection attempts, plus proof that rejected values reach neither the queue nor the transport nor the diagnostics. |
+| `service_test.dart` | 40 | Batching 1–20, size limits, retry classification, deterministic backoff, stable event IDs across retries, `telemetry_disabled`, offline, restart, concurrent flush, containment. |
+| `queue_test.dart` | 19 | 500 capacity, drop-oldest, 30-day expiry, corruption recovery, schema migration. |
+| `transport_classification_test.dart` | 31 | The §5 response table, status by status. |
+| `session_and_config_test.dart` | 21 | Session ID generation/lifecycle, environment gating, production block. |
+| `crash_sanitiser_test.dart` | 21 | Exception messages containing representative sensitive strings. |
+| `clinical_regression_test.dart` | 10 | Telemetry active and still unable to observe, alter or delay clinical state. |
+| `performance_baseline_test.dart` | 11 | The I1 baseline table, plus scoring determinism against pinned artifacts. |
+| `staging_integration_test.dart` | 7 | The deployed staging endpoint. |
+
+---
+
+## Staging integration — partially blocked
+
+Run against the deployed service with:
+`RUN_STAGING_TELEMETRY_TESTS=1 flutter test test/telemetry/staging_integration_test.dart`
+
+**Result: 5 passing, 2 skipped.** The route is deployed and speaking contract
+v1.0; the 400 (invalid envelope), 415 (wrong content type), 413 (over-large
+body) and 503 classification paths were all confirmed against the real server.
+
+The two skipped tests are the ones that need a **202** — a valid batch accepted,
+and a prohibited field rejected per-event. Staging currently returns
+`503 telemetry_disabled` because `TELEMETRY_ENABLED` is not set on the staging
+service. **This is the one thing blocked on Backend Engineering.**
+
+---
+
+## Performance baseline (host VM, pinned artifacts)
+
+| Operation | Count | Mean (ms) | p95 (ms) | Max (ms) |
+|---|---|---|---|---|
+| `scoring` | 200 | 0.102 | 0.234 | 2.166 |
+| `artifact_load` (parse + sha256) | 5 | 3.933 | 11.994 | 11.994 |
+| `telemetry_queue_write` | 1000 | 0.040 | 0.069 | 1.005 |
+| `telemetry_batch_serialise` (20 events) | 500 | 0.024 | 0.033 | 0.228 |
+| `telemetry_flush` (500 events, 25 batches) | 1 | 7.9 | 7.9 | 7.9 |
+
+A queue write is ~0.4% of a 16.7 ms frame. A disabled build absorbs 100 000
+captures in under 200 ms.
+
+**Device measurement is outstanding.** Cold/warm start, question transitions,
+result rendering, locator startup and memory are frame-scheduling bound and need
+the E9 low-end profile (`wellapath_lowend`, 720x1280 @ density 320). Procedure
+is in `docs/TELEMETRY_MOBILE.md` §11.
+
+---
+
+## Unresolved decisions carried out of I1/W1
+
+| # | Decision | Owner |
+|---|---|---|
+| 1 | **Analytics consent.** No consent flow or privacy preference exists in the app. None was invented. Needed before external beta. | Product / Privacy |
+| 2 | **Crash provider.** None exists; none was added. The boundary, sanitiser and sink interface are built and tested, collecting nothing. | Founder + engineering lead |
+| 3 | **`TELEMETRY_ENABLED` on staging.** Blocks two integration tests. | Backend Engineering |
+| 4 | **`admin_area_code` mapping.** Facilities artifact carries free-text `state`; needs a confirmed ISO 3166-2:NG mapping before the optional field can be populated. | Facilities/data owner |
+| 5 | **Device performance pass** with telemetry on vs off. | Mobile |
+| 6 | **`flow_version` / `presentation_contract_version`** are declared `1.0` here; neither was versioned before. Bump when the step sequence or the results presentation changes. | Mobile |
+

@@ -7,6 +7,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/network/staged_artifact_loader.dart';
+import '../../core/telemetry/contract/telemetry_event.dart';
+import '../../core/telemetry/telemetry.dart';
 import '../../core/storage/storage_service.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
@@ -243,6 +245,16 @@ class _LocatorScreenState extends State<LocatorScreen> {
       // Out of coverage: show the region message instead of a map full of
       // facilities the user cannot reach.
       if (!isWithinNigeria(position.latitude, position.longitude)) {
+        // A zero-result search is the coverage signal this event exists for.
+        // The coordinates that produced it are not recorded, and neither is
+        // the fact that they were out of country — only that a nearby search
+        // returned nothing.
+        Telemetry.capture(
+          const FacilitySearchEvent(
+            searchMode: FacilitySearchMode.nearby,
+            resultCount: 0,
+          ),
+        );
         if (!mounted) return;
         setState(() {
           _outsideCoverage = true;
@@ -257,6 +269,16 @@ class _LocatorScreenState extends State<LocatorScreen> {
         userLat: position.latitude,
         userLon: position.longitude,
         urgency: widget.urgency,
+      );
+      // Mode and count only. `position` never leaves this method, and
+      // `admin_area_code` is not sent: the contract records the facilities
+      // artifact -> ISO 3166-2:NG mapping as unconfirmed, and the field is
+      // optional, so a wrong-but-valid code is worse than none.
+      Telemetry.capture(
+        FacilitySearchEvent(
+          searchMode: FacilitySearchMode.nearby,
+          resultCount: results.length.clamp(0, 500),
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -338,29 +360,80 @@ class _LocatorScreenState extends State<LocatorScreen> {
       cityArea: _selectedCityArea ?? '',
       urgency: widget.urgency,
     );
+    // The selected state and city/area are not recorded. They are chosen from
+    // dropdowns rather than typed, so there is no free text either way, but
+    // city/area is finer than the state-level ceiling the contract sets.
+    Telemetry.capture(
+      FacilitySearchEvent(
+        searchMode: FacilitySearchMode.manualArea,
+        resultCount: results.length.clamp(0, 500),
+      ),
+    );
     setState(() {
       _manualResults = results;
       _manualSearched = true;
     });
   }
 
-  Future<void> _openDirections(Map<String, dynamic> facility) async {
+  Future<void> _openDirections(
+    Map<String, dynamic> facility, {
+    required FacilityActionSource source,
+  }) async {
     final lat = (facility['latitude'] as num?)?.toDouble();
     final lon = (facility['longitude'] as num?)?.toDouble();
     if (lat == null || lon == null) return;
+    // The artifact's own `facility_id`, never the name, address, phone number
+    // or the coordinates being handed to the maps app on the next line.
+    _captureFacilityId(
+      facility,
+      (id) => DirectionsOpenEvent(facilityId: id, source: source),
+    );
     final uri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=$lat,$lon',
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _callFacility(String phone) async {
+  /// Takes the facility rather than the bare phone string so the event can
+  /// carry the artifact ID. The phone number itself is used only to build the
+  /// `tel:` URI and is never recorded — the contract rejects it, and it is
+  /// already published in the facilities artifact anyway.
+  Future<void> _callFacility(
+    Map<String, dynamic> facility, {
+    required FacilityActionSource source,
+  }) async {
+    final phone = facility['phone'] as String?;
+    if (phone == null) return;
+    _captureFacilityId(
+      facility,
+      (id) => FacilityCallEvent(facilityId: id, source: source),
+    );
     final uri = Uri(scheme: 'tel', path: phone);
     await launchUrl(uri);
   }
 
   void _selectFacility(Map<String, dynamic> facility) {
+    _captureFacilityId(
+      facility,
+      (id) => FacilityViewEvent(facilityId: id, source: FacilityViewSource.map),
+    );
     setState(() => _selectedFacility = facility);
+  }
+
+  /// Reads `facility_id` from the artifact record and emits [build]'s event.
+  ///
+  /// If the record has no usable `facility_id`, **nothing is emitted**. There
+  /// is deliberately no fallback to the name, the coordinates or a synthesised
+  /// key: a missing ID is a data problem in the facilities artifact, and
+  /// substituting an identifying value to keep a metric populated is exactly
+  /// the trade this contract exists to prevent.
+  void _captureFacilityId(
+    Map<String, dynamic> facility,
+    TelemetryEvent Function(String facilityId) build,
+  ) {
+    final id = facility['facility_id'];
+    if (id is! String || id.isEmpty) return;
+    Telemetry.capture(build(id));
   }
 
   void _dismissSelectedFacility() {
@@ -742,9 +815,15 @@ class _LocatorScreenState extends State<LocatorScreen> {
             bottom: 16,
             child: FacilityCard(
               facility: _selectedFacility!,
-              onDirectionsTap: () => _openDirections(_selectedFacility!),
+              onDirectionsTap: () => _openDirections(
+                _selectedFacility!,
+                source: FacilityActionSource.facilityDetail,
+              ),
               onCallTap: (_selectedFacility!['phone'] as String?) != null
-                  ? () => _callFacility(_selectedFacility!['phone'] as String)
+                  ? () => _callFacility(
+                      _selectedFacility!,
+                      source: FacilityActionSource.facilityDetail,
+                    )
                   : null,
             ),
           ),
@@ -912,8 +991,16 @@ class _LocatorScreenState extends State<LocatorScreen> {
         final phone = facility['phone'] as String?;
         return FacilityCard(
           facility: facility,
-          onDirectionsTap: () => _openDirections(facility),
-          onCallTap: phone != null ? () => _callFacility(phone) : null,
+          onDirectionsTap: () => _openDirections(
+            facility,
+            source: FacilityActionSource.searchResults,
+          ),
+          onCallTap: phone != null
+              ? () => _callFacility(
+                  facility,
+                  source: FacilityActionSource.searchResults,
+                )
+              : null,
         );
       },
     );
@@ -994,9 +1081,15 @@ class _LocatorScreenState extends State<LocatorScreen> {
                   for (final facility in _manualResults) ...[
                     FacilityCard(
                       facility: facility,
-                      onDirectionsTap: () => _openDirections(facility),
+                      onDirectionsTap: () => _openDirections(
+                        facility,
+                        source: FacilityActionSource.searchResults,
+                      ),
                       onCallTap: (facility['phone'] as String?) != null
-                          ? () => _callFacility(facility['phone'] as String)
+                          ? () => _callFacility(
+                              facility,
+                              source: FacilityActionSource.searchResults,
+                            )
                           : null,
                     ),
                     const SizedBox(height: 12),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/engine/models/engine_output.dart';
+import '../../core/telemetry/contract/telemetry_event.dart';
+import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../locator/locator_screen.dart';
@@ -45,11 +47,26 @@ class _RedFlagInterruptScreenState extends State<RedFlagInterruptScreen> {
   }
 
   Future<void> _callEmergency() async {
+    // Captured on the red-flag screen, and indistinguishable from the same
+    // action taken on the home screen: identical event, identical single
+    // property, no session ID. Nothing about this event reveals that a red
+    // flag was matched — which is exactly why the contract refuses a session
+    // ID on it.
+    Telemetry.capture(
+      const EmergencyActionEvent(
+        actionType: EmergencyActionType.callEmergencyNumber,
+      ),
+    );
     final Uri emergencyUri = Uri(scheme: 'tel', path: '112');
     await launchUrl(emergencyUri);
   }
 
   void _showFindCareSheet() {
+    Telemetry.capture(
+      const EmergencyActionEvent(
+        actionType: EmergencyActionType.openNearestFacility,
+      ),
+    );
     Navigator.push(
       context,
       MaterialPageRoute<void>(
