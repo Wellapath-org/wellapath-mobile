@@ -114,7 +114,6 @@ const TelemetryAppContext testAppContext = TelemetryAppContext(
   platform: 'android',
   appVersion: '1.4.2',
   appBuild: '204',
-  osVersion: '14',
 );
 
 /// Records the delays a flush asked for, and returns instantly.

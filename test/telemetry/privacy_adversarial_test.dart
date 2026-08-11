@@ -408,16 +408,16 @@ void main() {
       expect(verdict.isValid, isFalse);
     });
 
-    test('normaliseOsVersion reduces a build string to major.minor', () {
+    test('the emitted context has no os_version at all', () {
+      // The normaliser that used to produce this field has been retired: on
+      // Android it read a kernel string and shipped "64" from a device running
+      // Android 8.0.0. See os_version_omission_test.dart for the full guard.
+      expect(testAppContext.toJson().containsKey('os_version'), isFalse);
       expect(
-        TelemetryAppContext.normaliseOsVersion('Version 17.4.1 (Build 21E236)'),
-        '17.4',
+        PrivacyGuard.validateAppContext(testAppContext.toJson()).isValid,
+        isTrue,
+        reason: 'os_version is optional, so omitting it must still validate',
       );
-      expect(
-        TelemetryAppContext.normaliseOsVersion('Android 14 (SDK 34)'),
-        '14',
-      );
-      expect(TelemetryAppContext.normaliseOsVersion('nonsense'), isNull);
     });
   });
 
