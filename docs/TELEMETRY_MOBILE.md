@@ -33,7 +33,8 @@ counter against a fixed reason code, and drops the event.
 
 ## 2. Enabling telemetry in staging
 
-Telemetry reads four environment variables through `flutter_dotenv`.
+Telemetry reads four environment variables through `flutter_dotenv`, each of
+which can be overridden at build time by a `--dart-define` of the same name.
 
 | Variable                        | Default | Meaning                                                          |
 | ------------------------------- | ------- | ---------------------------------------------------------------- |
@@ -42,18 +43,28 @@ Telemetry reads four environment variables through `flutter_dotenv`.
 | `APP_ENV`                       | staging | `production`/`prod` forces telemetry **off**.                    |
 | `TELEMETRY_PRODUCTION_APPROVED` | `false` | The only key that can lift the production block.                 |
 
-To enable for an internal-testing build, in `.env.local` (gitignored):
-
-```
-TELEMETRY_ENABLED=true
-TELEMETRY_BASE_URL=https://wellapath-backend-staging.onrender.com
-```
-
-Then:
+All three telemetry keys can also be supplied as a `--dart-define`, which
+**takes precedence over the bundled `.env`**. That is the supported way to
+produce an internal-testing build:
 
 ```sh
-flutter run --dart-define=APP_VERSION=0.2.0 --dart-define=APP_BUILD=204
+flutter run \
+  --dart-define=TELEMETRY_ENABLED=true \
+  --dart-define=TELEMETRY_BASE_URL=https://wellapath-backend-staging.onrender.com \
+  --dart-define=APP_VERSION=0.2.0 \
+  --dart-define=APP_BUILD=204
 ```
+
+Use the define rather than editing `.env`. **`.env` is a tracked file**, so an
+edit there is one `git add` away from shipping `TELEMETRY_ENABLED=true` to
+everyone.
+
+> **`.env.local` does not work for this, despite the name.** `flutter_dotenv`
+> reads through the Flutter asset bundle, so any file it loads must be declared
+> in `pubspec.yaml` — and declaring a gitignored file that usually does not
+> exist fails the build. An earlier revision of this document told you to put
+> the flag in `.env.local`; that silently produced a **telemetry-off** build
+> while looking like it had worked. Use `--dart-define`.
 
 `APP_VERSION` and `APP_BUILD` populate the `app` context block. Without them the
 context defaults to `1.0.0`/`1`, which is valid but useless for cohorting. No
@@ -346,7 +357,15 @@ adb shell am start-activity -W -n org.wellapath.wellapath_mobile/.MainActivity
 adb shell dumpsys meminfo org.wellapath.wellapath_mobile | head -20
 ```
 
-Run each once with `TELEMETRY_ENABLED=false` and once with `true`, and compare.
+Build the two APKs with the define, never by editing `.env`:
+
+```sh
+flutter build apk --release --dart-define=TELEMETRY_ENABLED=false   # baseline
+flutter build apk --release --dart-define=TELEMETRY_ENABLED=true \
+  --dart-define=TELEMETRY_BASE_URL=https://wellapath-backend-staging.onrender.com
+```
+
+Run each and compare.
 The host figures above predict no measurable difference; that prediction has
 **not yet been confirmed on a device** — see the completion report's open items.
 

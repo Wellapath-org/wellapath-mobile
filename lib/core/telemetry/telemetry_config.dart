@@ -59,8 +59,51 @@ class TelemetryConfig {
   /// to stay off until sign-off, so `APP_ENV=production` overrides
   /// `TELEMETRY_ENABLED` unless a second, separate key is also set. Flipping
   /// one flag by accident cannot turn on production collection.
-  factory TelemetryConfig.fromEnvironment({Map<String, String>? env}) {
-    final source = env ?? dotenv.env;
+  ///
+  /// ### Build-time overrides
+  ///
+  /// Any of the three telemetry keys may also be supplied as a `--dart-define`,
+  /// which **takes precedence over the bundled `.env`**:
+  ///
+  /// ```sh
+  /// flutter build apk --release --dart-define=TELEMETRY_ENABLED=true
+  /// ```
+  ///
+  /// This exists so a developer can produce an internal-testing build without
+  /// editing `.env` — which is a *tracked* file, making an edit one `git add`
+  /// away from shipping `TELEMETRY_ENABLED=true` to everyone.
+  ///
+  /// A `.env.local` overlay was the original intent and is not implementable:
+  /// `flutter_dotenv` reads through the asset bundle, so the file would have to
+  /// be declared in `pubspec.yaml`, and declaring a gitignored file that
+  /// usually does not exist fails the build. `--dart-define` is the idiomatic
+  /// Flutter mechanism for exactly this, and `TelemetryAppContext` already uses
+  /// it for `APP_VERSION`/`APP_BUILD`.
+  ///
+  /// The production block still applies: a define cannot enable production
+  /// collection on its own, because `TELEMETRY_PRODUCTION_APPROVED` is checked
+  /// separately and defaults to off.
+  factory TelemetryConfig.fromEnvironment({
+    Map<String, String>? env,
+    Map<String, String>? defines,
+  }) {
+    final resolvedDefines = defines ?? _dartDefines;
+    final dotEnv = env ?? dotenv.env;
+
+    /// A define wins when it is present and non-empty; otherwise `.env`.
+    String? read(String key) {
+      final define = resolvedDefines[key];
+      if (define != null && define.trim().isNotEmpty) return define;
+      return dotEnv[key];
+    }
+
+    final source = <String, String?>{
+      'TELEMETRY_ENABLED': read('TELEMETRY_ENABLED'),
+      'TELEMETRY_BASE_URL': read('TELEMETRY_BASE_URL'),
+      'TELEMETRY_PRODUCTION_APPROVED': read('TELEMETRY_PRODUCTION_APPROVED'),
+      'APP_ENV': read('APP_ENV'),
+      'API_BASE_URL': read('API_BASE_URL'),
+    };
 
     final enabledFlag = _isTrue(source['TELEMETRY_ENABLED']);
     if (!enabledFlag) return disabled;
@@ -88,4 +131,20 @@ class TelemetryConfig {
   }
 
   static bool _isTrue(String? raw) => raw?.trim().toLowerCase() == 'true';
+
+  /// The `--dart-define` values, read at compile time.
+  ///
+  /// `String.fromEnvironment` must be `const` to be resolved by the compiler,
+  /// so each key is spelled out rather than looked up dynamically. An absent
+  /// define yields the empty string, which [TelemetryConfig.fromEnvironment]
+  /// treats as "not supplied" and falls back to `.env`.
+  static const Map<String, String> _dartDefines = {
+    'TELEMETRY_ENABLED': String.fromEnvironment('TELEMETRY_ENABLED'),
+    'TELEMETRY_BASE_URL': String.fromEnvironment('TELEMETRY_BASE_URL'),
+    'TELEMETRY_PRODUCTION_APPROVED': String.fromEnvironment(
+      'TELEMETRY_PRODUCTION_APPROVED',
+    ),
+    'APP_ENV': String.fromEnvironment('APP_ENV'),
+    'API_BASE_URL': String.fromEnvironment('API_BASE_URL'),
+  };
 }

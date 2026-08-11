@@ -299,6 +299,105 @@ void main() {
       expect(config.enabled, isFalse);
     });
 
+    test('a dart-define enables telemetry over a disabled .env', () {
+      // The internal-testing path: .env ships TELEMETRY_ENABLED=false and is a
+      // tracked file, so a build-time define is how a developer turns it on
+      // without risking a commit that enables it for everyone.
+      final config = TelemetryConfig.fromEnvironment(
+        env: {
+          'TELEMETRY_ENABLED': 'false',
+          'API_BASE_URL': 'https://api.example',
+          'APP_ENV': 'staging',
+        },
+        defines: {'TELEMETRY_ENABLED': 'true'},
+      );
+      expect(config.enabled, isTrue);
+      expect(config.endpoint, 'https://api.example/v1/telemetry/events');
+    });
+
+    test('a dart-define can also disable telemetry over an enabled .env', () {
+      final config = TelemetryConfig.fromEnvironment(
+        env: {
+          'TELEMETRY_ENABLED': 'true',
+          'API_BASE_URL': 'https://api.example',
+        },
+        defines: {'TELEMETRY_ENABLED': 'false'},
+      );
+      expect(config.enabled, isFalse);
+    });
+
+    test('an absent or empty define falls back to .env', () {
+      for (final defines in [
+        <String, String>{},
+        {'TELEMETRY_ENABLED': ''},
+      ]) {
+        final config = TelemetryConfig.fromEnvironment(
+          env: {
+            'TELEMETRY_ENABLED': 'true',
+            'API_BASE_URL': 'https://api.example',
+          },
+          defines: defines,
+        );
+        expect(
+          config.enabled,
+          isTrue,
+          reason: 'an unsupplied define must not mask .env: $defines',
+        );
+      }
+    });
+
+    test('a base URL define overrides .env', () {
+      final config = TelemetryConfig.fromEnvironment(
+        env: {
+          'TELEMETRY_ENABLED': 'true',
+          'TELEMETRY_BASE_URL': 'https://from-dotenv.example',
+        },
+        defines: {'TELEMETRY_BASE_URL': 'https://from-define.example'},
+      );
+      expect(
+        config.endpoint,
+        'https://from-define.example/v1/telemetry/events',
+      );
+    });
+
+    test('a define alone cannot enable production collection', () {
+      // The production block is the one thing a build-time flag must not be
+      // able to lift on its own.
+      final config = TelemetryConfig.fromEnvironment(
+        env: {'APP_ENV': 'production', 'API_BASE_URL': 'https://api.example'},
+        defines: {'TELEMETRY_ENABLED': 'true'},
+      );
+      expect(config.enabled, isFalse);
+    });
+
+    test('production needs both defines, matching the .env rule', () {
+      final config = TelemetryConfig.fromEnvironment(
+        env: {'APP_ENV': 'production', 'API_BASE_URL': 'https://api.example'},
+        defines: {
+          'TELEMETRY_ENABLED': 'true',
+          'TELEMETRY_PRODUCTION_APPROVED': 'true',
+        },
+      );
+      expect(config.enabled, isTrue);
+    });
+
+    test('a define cannot conjure a base URL out of nothing', () {
+      final config = TelemetryConfig.fromEnvironment(
+        env: <String, String>{},
+        defines: {'TELEMETRY_ENABLED': 'true'},
+      );
+      expect(config.enabled, isFalse, reason: 'must fail closed');
+    });
+
+    test('the real build reads defines with no arguments', () {
+      // Guards the wiring: with no --dart-define supplied, the compile-time
+      // constants are empty and this must not throw or enable anything.
+      final config = TelemetryConfig.fromEnvironment(
+        env: {'TELEMETRY_ENABLED': 'false'},
+      );
+      expect(config.enabled, isFalse);
+    });
+
     test('the endpoint path is never hard-coded at a call site', () {
       // Application code composes base URL + contract path; this asserts the
       // path constant is the single source.
