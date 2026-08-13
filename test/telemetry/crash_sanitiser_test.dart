@@ -158,7 +158,7 @@ void main() {
   });
 }
 
-class _ThrowingSink implements CrashSink {
+class _ThrowingSink extends CrashSink {
   @override
   void report(SanitisedCrashReport report) => throw StateError('sink failed');
 }
