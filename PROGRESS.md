@@ -3248,3 +3248,105 @@ is in `docs/TELEMETRY_MOBILE.md` §11.
 | 5 | **Device performance pass** with telemetry on vs off. | Mobile |
 | 6 | **`flow_version` / `presentation_contract_version`** are declared `1.0` here; neither was versioned before. Bump when the step sequence or the results presentation changes. | Mobile |
 
+
+---
+
+# Phase I1 / W1 — Low-End Android Validation Gate
+
+**Phase:** I1 — Observability & Baseline
+**Workstream:** W1 — Privacy-Safe Product Analytics
+**Source commit:** `8ac29ad735c105cc55c489678acf4dfe0faf3ac6`
+**Full report:** `docs/I1_TELEMETRY_LOW_END_VALIDATION.md`
+**Last Updated:** 2026-08-13
+
+---
+
+## GATE RESULT: **PASS** on the low-end Android emulator
+
+Telemetry OFF vs ON validated on `wellapath_lowend` (Pixel, Android 8.0.0 /
+API 26, arm64-v8a, 4 cores, 2 GB, 720x1280 @ density 320, software rendering).
+
+**I1 is NOT complete.** The crash-monitoring provider decision remains a separate
+open I1 gate. Physical low-end handset validation is carried forward as a
+pre-external-beta gate.
+
+---
+
+## Merges covered by this gate
+
+| PR | Merge commit | What |
+|---|---|---|
+| #61 | `e853125b65dde333c0454654e0f8d5b7b2266f46` | Privacy-safe mobile telemetry, contract v1.0 |
+| #62 | `e48655ce1e181df5155f8c3b0ddd8edf1a6cbe47` | `--dart-define` enablement override |
+| #63 | `8ac29ad735c105cc55c489678acf4dfe0faf3ac6` | Omit `os_version` |
+
+---
+
+## Gate results
+
+| Gate | Result |
+|---|---|
+| Startup, 20 obs/mode/kind, interleaved | PASS — cold −4.2%, warm +7.9% mean / −15.4% median, both 0.09 pooled sd, Welch t ≈ 0.3 |
+| Equivalent-state memory (home, assessment, result, locator) | PASS — deltas both directions |
+| Repeated after-flush memory, 3 controlled pairs | PASS — median +0.11%, mean −0.27%, paired deltas change sign |
+| Scoring equivalence | PASS — identical URGENT / Malaria, Pneumonia (Children), Dysentery |
+| Red-flag precedence and immediacy | PASS — identical presentation, 3.3 s both modes |
+| Red-flag telemetry indistinguishability | PASS — same sequence, `completed`, `result_view` present |
+| Offline assessment | PASS — completed on-device, identical result, 0 events delivered |
+| Queue persistence across restart while offline | PASS — 11 events survived force-stop |
+| Reconnection and bounded flush | PASS — 11-event / 2,328-byte batch, `client_ts` preserved ~6 min |
+| Queue capacity 500, drop-oldest, concurrency, interruption | PASS — existing telemetry test support |
+| Populated-queue clinical responsiveness | PASS — red flag still 3.2 s |
+| Locator behaviour and privacy | PASS |
+| Captured-payload privacy | PASS — no prohibited data, no `os_version` |
+| Automated regression | PASS — 577/13, 584/6 gated |
+
+Crashes, fatal exceptions, ANRs, memory-pressure terminations, queue corruption
+and unexpected retries: **zero**, in either mode, across every run.
+
+---
+
+## Two defects this gate caught
+
+**1. `os_version` was semantically wrong** — a device running Android 8.0.0
+transmitted `"os_version":"64"`. Dart's `Platform.operatingSystemVersion` returns
+a kernel uname string on Android and the normaliser took its leading numeric
+fragment. The value was contract-*valid*, so the backend accepted it with a 202
+and no server-side validation could have caught it. Fixed in PR #63 by omitting
+the optional field entirely; no proxy substituted, no dependency added.
+
+**2. The documented enablement path did not work** — `docs/TELEMETRY_MOBILE.md`
+told developers to set `TELEMETRY_ENABLED` in `.env.local`, but `main.dart` loads
+only `.env`. Following the documented procedure produced a telemetry-off build
+that looked enabled, which would have invalidated this entire comparison. Fixed
+in PR #62 via `--dart-define`; `.env.local` cannot work because `flutter_dotenv`
+reads through the asset bundle.
+
+---
+
+## Evidence explicitly excluded
+
+- The fixed-coordinate walkthrough memory series — actions ran behind the UI and
+  a screenshot labelled "result" was the body-area screen. Discarded, never used.
+- Screenshots from that run — incorrectly labelled.
+- Pre-fix `os_version` payloads — retained only as the defect record.
+- The first after-flush memory pair (+13.1%) — a single paired observation with
+  unequal preceding activity; superseded by three controlled pairs.
+
+A harness defect was also found and fixed mid-validation: control resolution
+matched the first substring, so asking for the `Next` button matched the intro
+copy "…your **next** course of action" and tapped a paragraph. It could only
+cause false failures, never false passes, since a mis-tap cannot produce the
+asserted next screen. All recorded results post-date the fix.
+
+---
+
+## Carried forward
+
+| Item | Owner |
+|---|---|
+| **Crash-monitoring provider — open I1 gate** | Founder + engineering lead |
+| Physical low-end handset validation before external beta | Mobile |
+| Analytics consent decision before external beta | Product / Privacy |
+| `admin_area_code` artifact mapping | Facilities/data owner |
+
