@@ -301,7 +301,187 @@ No Sentry account is needed to run any of them, and nothing is transmitted.
 
 ---
 
-## 11. Open items before I1 can close
+## 11. Internal-beta validation — status
+
+### Configuration mapping
+
+The GitHub secret name and the application define name are deliberately
+different. The secret is named for *where it applies*; the define is named for
+*what it controls*. They are joined only in the workflow.
+
+| Layer | Name |
+| --- | --- |
+| GitHub environment | `internal-beta` |
+| GitHub secret | `SENTRY_DSN_INTERNAL_BETA` |
+| Workflow step env var | `SENTRY_DSN` (job-scoped, never echoed) |
+| Build-time define | `--dart-define=SENTRY_DSN=...` |
+| Consumed by | `CrashConfig.fromEnvironment()` → `SENTRY_DSN` |
+| Enable gate | `--dart-define=CRASH_REPORTING_ENABLED=true` |
+| Production gate | `CRASH_REPORTING_PRODUCTION_APPROVED` — **not set**, stays closed |
+| Environment | `--dart-define=APP_ENV=internal-beta` |
+| Release | `wellapath-mobile@<APP_VERSION>+<APP_BUILD>` |
+
+The application-side names were **not** renamed to match the GitHub secret.
+`CrashConfig` reads `SENTRY_DSN`; the secret's name is a deployment concern.
+
+### Workflow
+
+`.github/workflows/internal-beta-validation.yml`:
+
+* **`workflow_dispatch` only** — no `pull_request`, no `pull_request_target`,
+  no `push`. Secrets are never handed to code from a pull request.
+* `environment: internal-beta`, so the DSN can carry protection rules.
+* `permissions: contents: read`.
+* Fails **before** installing Flutter if the secret is absent, rather than
+  quietly producing a monitoring-disabled build that would look like a
+  successful validation.
+* The DSN is passed through a job-scoped env var, never interpolated into a
+  rendered command line; `set -x` is never enabled; only its length is logged.
+* Runs the privacy gate (`test/crash/` and the adversarial suite) **before**
+  the build that could transmit.
+* Verifies the DSN public key is absent from every tracked file.
+* **Does not upload the APK.**
+
+### Why the APK is not uploaded
+
+**This repository is public.** Workflow artifacts on a public repository are
+downloadable, and the APK necessarily embeds the DSN as Sentry's ingestion
+routing identifier — that is true of every Sentry client, including browser
+JavaScript, and no client can conceal it. Publishing the artifact would publish
+the DSN.
+
+Getting a validation build onto a device therefore requires either making the
+repository private, or an engineer building locally with the DSN supplied
+out-of-band:
+
+```sh
+read -rs SENTRY_DSN            # not echoed, not in shell history
+export SENTRY_DSN
+flutter build apk --release \
+  --dart-define=CRASH_REPORTING_ENABLED=true \
+  --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+  --dart-define=CRASH_VALIDATION_ENABLED=true \
+  --dart-define=APP_ENV=internal-beta \
+  --dart-define=APP_VERSION=0.2.0 --dart-define=APP_BUILD=208
+unset SENTRY_DSN
+```
+
+### Pre-transmission gate — PASSED at PR head `87ba20d`
+
+| Suite | Result |
+| --- | --- |
+| Real-SDK transport capture | 9 passing |
+| Envelope privacy (adversarial) | 31 passing |
+| Crash configuration gates | 41 passing |
+| Crash boundary | 15 passing |
+| Telemetry privacy / adversarial | 84 passing |
+| Full suite | 673 passing, 13 skipped |
+
+No prohibited marker reaches an envelope. Transmission was therefore permitted
+to proceed as far as the environment allows.
+
+### Symbolication assessment — no auth token required
+
+| Question | Answer |
+| --- | --- |
+| Does the release build use `--obfuscate`? | **No** — the flag appears nowhere in the repository, CI, or Gradle config |
+| Does it use `--split-debug-info`? | **No** |
+| Is a Sentry Gradle plugin configured? | **No** — nothing uploads symbols automatically |
+| Is Dart debug information needed for useful stacks? | **No.** Without obfuscation, AOT frames retain function and library names |
+| Are native symbols needed? | **No.** Native crash handling is disabled, so no native frames are produced |
+
+**Conclusion: no `SENTRY_AUTH_TOKEN` is required for the scope of this PR.**
+Do not create one.
+
+It would become necessary only if internal-beta later adopts `--obfuscate` or
+`--split-debug-info`, or if native crash handling is enabled. If that happens:
+
+* command: `flutter packages pub run sentry_dart_plugin` (or `sentry-cli debug-files upload`)
+* minimum scope: **`org:ci`** — the scope Sentry documents for CI release and
+  symbol workflows. Nothing broader.
+* secret name: `SENTRY_AUTH_TOKEN_CI`, in the **`internal-beta`** environment
+* consumed by: a dedicated symbol-upload step in
+  `internal-beta-validation.yml`, after the build
+* the token is **never** passed to a `--dart-define` and never enters the APK
+
+### Dashboard receipt — BLOCKED
+
+Not performed. Two independent blockers, neither of which can be resolved from
+this repository:
+
+1. **No Sentry access.** There are no Sentry credentials in this environment,
+   no `sentry-cli`, and no API token — and creating one is explicitly out of
+   scope. Events cannot be read back.
+2. **The GitHub setup does not match the approved design** (see §12), so the
+   validation workflow cannot obtain the secret.
+
+Until a sanitized fatal, asynchronous fatal and non-fatal have been confirmed
+in the dashboard, **PR #65 must not merge**.
+
+### Provider-outage behaviour — verified
+
+Verified on the low-end emulator with crash monitoring **enabled** and the
+provider unreachable:
+
+* startup unaffected; the app reaches home normally;
+* an ordinary offline assessment completes on-device with an identical result;
+* the red-flag case reached the interrupt in **3.3 s**, matching the
+  monitoring-disabled baseline exactly;
+* zero crashes, ANRs, or provider errors surfaced to the application;
+* `Crash monitoring enabled` is logged, and no failure propagates.
+
+---
+
+## 12. Setup discrepancies — action required
+
+The approved design is *"DSN stored in the GitHub `internal-beta` environment
+as `SENTRY_DSN_INTERNAL_BETA`"*. The repository's actual state differs:
+
+| Expected | Actual |
+| --- | --- |
+| Environment named `internal-beta` | Environment named **`SENTRY_DSN_INTERNAL_BETA`** — the secret's name was used as the environment name |
+| Secret scoped to that environment | Secret exists at **repository level**, not environment-scoped |
+| Environment carries protection rules | `protection_rules: []`, `deployment_branch_policy: null` |
+
+**Why this matters.** A repository-level secret is available to any workflow in
+the repository, including a workflow file added on any branch a contributor can
+push. An environment secret can require reviewers and restrict branches. Using
+the repository-level secret would have worked — and would have quietly
+discarded the protection the design called for — so it was not used.
+
+**To resolve:**
+
+1. Create an environment named exactly `internal-beta`.
+2. Add `SENTRY_DSN_INTERNAL_BETA` as a secret **inside** that environment.
+3. Add protection rules: required reviewers, and restrict to the branches that
+   may deploy.
+4. **Delete** the repository-level `SENTRY_DSN_INTERNAL_BETA` secret so the DSN
+   is not repo-wide.
+5. **Delete** the misnamed `SENTRY_DSN_INTERNAL_BETA` environment.
+
+The workflow already targets `environment: internal-beta` and fails safely
+until this exists.
+
+---
+
+## 13. Founder-provided operational facts
+
+| Fact | Status |
+| --- | --- |
+| Data region | **EU** — confirmed |
+| Organization / project | `wellapath-mobile` — confirmed |
+| Intended environment | `internal-beta` — confirmed |
+| Authorized access count and roles | **not provided** |
+| Retention period | **not provided** |
+| Alert recipients | **not provided** |
+| Terms / DPA acceptance | **not confirmed** |
+
+Member email addresses are deliberately not recorded here; a count and role
+list is sufficient.
+
+---
+
+## 14. Open items before I1 can close
 
 | # | Item | Owner |
 | --- | --- | --- |

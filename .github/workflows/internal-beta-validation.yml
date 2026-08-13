@@ -1,0 +1,146 @@
+# Internal-beta crash-monitoring validation build.
+#
+# Builds a release APK with crash monitoring enabled, for the sole purpose of
+# validating that sanitized crash events reach the Sentry EU project.
+#
+# ── Why manual dispatch only ─────────────────────────────────────────────────
+# There is no `pull_request` or `push` trigger, deliberately. A workflow that
+# exposes secrets on a pull_request trigger hands them to whatever code the PR
+# contains, and `pull_request_target` is worse. Manual dispatch means a human
+# with write access chooses the ref every time.
+#
+# ── Why no artifact upload ───────────────────────────────────────────────────
+# **This repository is public.** Workflow artifacts on a public repository are
+# downloadable, and this APK necessarily embeds the Sentry DSN as its ingestion
+# routing identifier. Publishing it would publish the DSN to anyone. The job
+# therefore builds and verifies but does **not** upload the APK.
+#
+# To get a validation build onto a device, an engineer holding the DSN
+# out-of-band builds locally with the same defines. See docs/CRASH_MONITORING.md.
+name: Internal Beta Validation Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: 'App version for the release identifier (e.g. 0.2.0)'
+        required: true
+        default: '0.2.0'
+      app_build:
+        description: 'Build number for the release identifier (e.g. 208)'
+        required: true
+        default: '208'
+
+# Least privilege: this job reads the repository and nothing else.
+permissions:
+  contents: read
+
+jobs:
+  validation-build:
+    name: Internal-beta validation build
+    runs-on: ubuntu-latest
+
+    # Environment-scoped so the DSN is not a repository-wide secret and can
+    # carry protection rules (required reviewers, branch policy).
+    environment: internal-beta
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Fails the job before Flutter is even installed if the secret is absent,
+      # rather than silently producing a build with crash monitoring disabled —
+      # which would look like a successful validation build and prove nothing.
+      - name: Verify the DSN secret is available
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_INTERNAL_BETA }}
+        run: |
+          if [ -z "${SENTRY_DSN}" ]; then
+            echo "::error::SENTRY_DSN_INTERNAL_BETA is not available to this job."
+            echo "Confirm the secret exists in the 'internal-beta' environment."
+            exit 1
+          fi
+          # Length only. The value is never echoed, and GitHub masks it anyway.
+          echo "DSN secret present (length ${#SENTRY_DSN})."
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      # The privacy gate runs before any build that could transmit. If a
+      # prohibited marker can reach an envelope, no validation build exists.
+      - name: Privacy gate — envelope and adversarial suites
+        run: |
+          flutter test test/crash/
+          flutter test test/telemetry/privacy_adversarial_test.dart
+
+      - name: Full test suite
+        run: flutter test
+
+      # The DSN reaches the compiler only through this define. It is passed via
+      # an environment variable so the value never appears in the rendered
+      # command line, and `set -x` is never enabled.
+      #
+      # CRASH_REPORTING_PRODUCTION_APPROVED is deliberately NOT set: the third
+      # production gate stays closed, so this build could not collect from
+      # production even if APP_ENV were changed.
+      - name: Build internal-beta validation APK
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_INTERNAL_BETA }}
+          APP_VERSION: ${{ inputs.app_version }}
+          APP_BUILD: ${{ inputs.app_build }}
+        run: |
+          flutter build apk --release \
+            --dart-define=CRASH_REPORTING_ENABLED=true \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=CRASH_VALIDATION_ENABLED=true \
+            --dart-define=APP_ENV=internal-beta \
+            --dart-define=APP_VERSION="$APP_VERSION" \
+            --dart-define=APP_BUILD="$APP_BUILD"
+
+      # Guards against the DSN reaching a place it should not. The APK itself
+      # necessarily contains it — that is Sentry's public ingestion routing
+      # identifier and cannot be concealed in any client — so the APK is
+      # excluded from this scan and never uploaded.
+      - name: Verify no secret leaked into logs or tracked files
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_INTERNAL_BETA }}
+        run: |
+          key="${SENTRY_DSN#*//}"; key="${key%%@*}"
+          if [ -z "$key" ]; then
+            echo "::error::Could not parse the DSN public key for the leak check."
+            exit 1
+          fi
+          if git grep -qI --no-color -- "$key" -- . 2>/dev/null; then
+            echo "::error::The DSN public key appears in a tracked file."
+            exit 1
+          fi
+          echo "DSN public key is absent from all tracked files."
+
+      - name: Build summary
+        run: |
+          {
+            echo "### Internal-beta validation build"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Release | \`wellapath-mobile@${{ inputs.app_version }}+${{ inputs.app_build }}\` |"
+            echo "| Environment | \`internal-beta\` |"
+            echo "| Crash reporting | enabled |"
+            echo "| Production gate | closed |"
+            echo "| Native crash handling | disabled |"
+            echo "| Session tracking | disabled |"
+            echo "| APK uploaded | no — public repository, see workflow header |"
+          } >> "$GITHUB_STEP_SUMMARY"
