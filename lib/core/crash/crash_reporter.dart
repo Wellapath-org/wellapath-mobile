@@ -19,16 +19,37 @@
 /// safety signal for a vanity number.
 library;
 
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 
 /// Where a sanitised report would go. The default implementation goes nowhere.
 abstract class CrashSink {
+  /// Const so the disabled default sink stays a compile-time constant.
+  const CrashSink();
+
   void report(SanitisedCrashReport report);
+
+  /// Optional richer channel for a provider that can symbolicate.
+  ///
+  /// A provider needs the original error and stack to build structured,
+  /// symbolicated frames — a pre-flattened string cannot be symbolicated. The
+  /// raw objects are handed over here and are sanitised by the provider sink's
+  /// own outbound boundary before anything leaves the device; they are never
+  /// logged and never persisted in raw form.
+  ///
+  /// Sinks that cannot use them ignore them, which is why this defaults to the
+  /// sanitised-only path.
+  void reportDetailed(
+    SanitisedCrashReport sanitised,
+    Object? error,
+    StackTrace? stackTrace,
+  ) => report(sanitised);
 }
 
 /// The shipped sink. Retains the app's existing local behaviour — a single
 /// non-clinical line via `debugPrint` — and transmits nothing.
-class NoOpCrashSink implements CrashSink {
+class NoOpCrashSink extends CrashSink {
   const NoOpCrashSink();
 
   @override
@@ -38,7 +59,7 @@ class NoOpCrashSink implements CrashSink {
 }
 
 /// Collects reports in memory. Test-only.
-class RecordingCrashSink implements CrashSink {
+class RecordingCrashSink extends CrashSink {
   final List<SanitisedCrashReport> reports = [];
 
   @override
@@ -124,6 +145,19 @@ abstract final class CrashSanitiser {
   /// SCREAMING_CASE and bare capitals — how urgency levels are written.
   static final RegExp _screamingCase = RegExp(r'\b[A-Z]{3,}\b');
 
+  /// Long opaque tokens: assessment session IDs, telemetry event IDs, API
+  /// keys. Matches a 16+ character run from the ID alphabet that contains at
+  /// least one digit **and** one letter.
+  ///
+  /// The digit requirement is what keeps ordinary Dart identifiers readable —
+  /// `EngineController` is exactly 16 characters and must survive, while
+  /// `gt9mliaiMVXuZLEJodZxtSw9` must not. Found by the outbound-envelope
+  /// tests: an assessment session ID quoted in an exception message passed
+  /// every other rule.
+  static final RegExp _opaqueToken = RegExp(
+    r'\b(?=[A-Za-z0-9_-]*[0-9])(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{16,}\b',
+  );
+
   /// Bare clinical and identity vocabulary that is neither snake_case nor
   /// capitalised. The list is not exhaustive and is not relied on to be —
   /// it backs up the two shape rules above.
@@ -149,6 +183,7 @@ abstract final class CrashSanitiser {
     text = text.replaceAll(_coordinates, redacted);
     text = text.replaceAll(_email, redacted);
     text = text.replaceAll(_phone, redacted);
+    text = text.replaceAll(_opaqueToken, redacted);
     text = text.replaceAll(_snakeCaseIdentifier, redacted);
     text = text.replaceAll(_screamingCase, redacted);
     text = text.replaceAll(_sensitiveVocabulary, redacted);
@@ -180,47 +215,144 @@ abstract final class CrashReporter {
   /// want — but this app has no approved provider, and until one exists the
   /// safest amount of stack detail to retain is none. When a provider is
   /// approved, the stack becomes the first thing to review for leakage.
+  /// Swaps the destination without touching the installed handlers.
+  ///
+  /// This is how a provider is attached after startup. Calling [install] twice
+  /// would chain the framework handler onto the one this class installed
+  /// first, so the same error would be reported twice — the sink is swapped
+  /// instead.
+  static void setSink(CrashSink sink) => _sink = sink;
+
   static void install({CrashSink? sink}) {
     _sink = sink ?? const NoOpCrashSink();
 
     final previousOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
-      _report(details.exception, origin: 'flutter_framework', isFatal: false);
+      _report(
+        details.exception,
+        stackTrace: details.stack,
+        origin: 'flutter_framework',
+        isFatal: false,
+      );
       // Never suppressed — the framework still presents the error.
       previousOnError?.call(details);
     };
 
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-      _report(error, origin: 'platform_dispatch', isFatal: true);
+      _report(
+        error,
+        stackTrace: stack,
+        origin: 'platform_dispatch',
+        isFatal: true,
+      );
       // false = not handled here, so the zone's default behaviour still runs.
       return false;
     };
+
+    _installIsolateListener();
+  }
+
+  static RawReceivePort? _isolatePort;
+
+  /// Catches errors thrown on this isolate that no zone handler saw.
+  ///
+  /// Registered once; a second `install()` (as tests do) reuses the existing
+  /// port rather than stacking listeners, which would double-report.
+  static void _installIsolateListener() {
+    if (_isolatePort != null) return;
+    try {
+      final port = RawReceivePort((dynamic pair) {
+        if (pair is! List || pair.isEmpty) return;
+        final error = pair.first;
+        final stack = pair.length > 1 && pair[1] is String
+            ? StackTrace.fromString(pair[1] as String)
+            : null;
+        _report(error, stackTrace: stack, origin: 'isolate', isFatal: true);
+      });
+      Isolate.current.addErrorListener(port.sendPort);
+      _isolatePort = port;
+    } catch (_) {
+      // Unsupported on some targets (web). Not a reason to fail startup.
+    }
   }
 
   /// Reports an error caught by application code without changing how that
   /// code handles it.
-  static void reportHandled(Object error, {required String origin}) =>
-      _report(error, origin: origin, isFatal: false);
+  static void reportHandled(
+    Object error, {
+    required String origin,
+    StackTrace? stackTrace,
+  }) => _report(error, stackTrace: stackTrace, origin: origin, isFatal: false);
+
+  /// Reports a fatal error without altering how the caller handles it.
+  ///
+  /// Used only by `CrashValidation`, which needs the fatal severity a real
+  /// framework crash would carry. Product code uses [reportHandled]; there is
+  /// no product call site for this, and its only caller is gated behind
+  /// `kReleaseMode`, the monitoring gates and a validation define.
+  static void reportFatalForValidation(
+    Object error, {
+    required String origin,
+    StackTrace? stackTrace,
+  }) => _report(
+    error,
+    stackTrace: stackTrace ?? StackTrace.current,
+    origin: origin,
+    isFatal: true,
+  );
+
+  /// The last report's identity and time, for de-duplication.
+  ///
+  /// Overlapping handlers can observe the same failure — a framework error
+  /// that also surfaces through the zone, for example. Reporting it twice
+  /// inflates crash counts and splits one issue across two. Identity is the
+  /// *sanitised* classification, origin and message, so de-duplication never
+  /// requires holding a raw value.
+  static String? _lastKey;
+  static DateTime? _lastAt;
+
+  /// Two identical reports inside this window are treated as one event.
+  static const Duration dedupeWindow = Duration(seconds: 2);
+
+  @visibleForTesting
+  static void resetDedupe() {
+    _lastKey = null;
+    _lastAt = null;
+  }
 
   static void _report(
     Object? error, {
     required String origin,
     required bool isFatal,
+    StackTrace? stackTrace,
   }) {
     try {
-      _sink.report(
-        SanitisedCrashReport(
-          classification: CrashSanitiser.classify(error),
-          origin: origin,
-          message: CrashSanitiser.sanitise(error),
-          isFatal: isFatal,
-        ),
+      final report = SanitisedCrashReport(
+        classification: CrashSanitiser.classify(error),
+        origin: origin,
+        message: CrashSanitiser.sanitise(error),
+        isFatal: isFatal,
       );
+
+      final key = '${report.classification}|${report.origin}|${report.message}';
+      final now = DateTime.now();
+      if (_lastKey == key &&
+          _lastAt != null &&
+          now.difference(_lastAt!) < dedupeWindow) {
+        return;
+      }
+      _lastKey = key;
+      _lastAt = now;
+
+      _sink.reportDetailed(report, error, stackTrace);
     } catch (_) {
       // A failing crash reporter must not become the crash.
     }
   }
 
   @visibleForTesting
-  static void resetForTest() => _sink = const NoOpCrashSink();
+  static void resetForTest() {
+    _sink = const NoOpCrashSink();
+    resetDedupe();
+  }
 }
