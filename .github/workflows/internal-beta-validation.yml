@@ -154,6 +154,85 @@ jobs:
       #
       # The DSN is read from the process environment, so its value never enters
       # a command line, a --dart-define, or the test source.
+      #
+      # ── Why the receipt runner lifts the test HTTP override ──────────────
+      #
+      # Run 31788391301 failed here with an all-zero SentryId. The cause was
+      # neither Sentry nor privacy: `TestWidgetsFlutterBinding` installs
+      # `HttpOverrides.global = _MockHttpOverrides()`
+      # (flutter_test/src/_binding_io.dart), whose client answers every request
+      # with 400 and opens no socket. Sentry's `HttpTransport` maps any status
+      # >= 400 to `SentryId.empty()` (sentry/src/transport/http_transport.dart),
+      # which is precisely the observed symptom. On a Linux runner the transport
+      # IS `HttpTransport`: `createBinding` returns the C binding `SentryNative`,
+      # whose `supportsCaptureEnvelope` is false, so no `FileSystemTransport` is
+      # installed and the SDK falls through to HTTP.
+      #
+      # So the receipt runner lifts that override for its own process only, and
+      # restores it in a `finally`. This is the mechanism flutter_test itself
+      # documents as supported: "If another [HttpClient] is provided using
+      # [HttpOverrides.runZoned], that will take precedence over this provider."
+      #
+      # The scope is deliberately narrow. `flutter test` runs each file in its
+      # own process, and this override is applied inside one generated file that
+      # is deleted after the step, so no committed test and no other file is
+      # affected. `Full test suite` above runs first and keeps full isolation.
+      # The isolation guard below asserts that fact rather than assuming it.
+      - name: Write the network-isolation regression guard
+        run: |
+          mkdir -p test/ci_validation
+          cat > test/ci_validation/network_isolation_guard_test.dart <<'DART'
+          /// Regression guard for the failure mode fixed after run 31788391301.
+          ///
+          /// Asserts that an ORDINARY Flutter test still cannot reach the
+          /// network. If a future change ever disabled that isolation globally,
+          /// this fails — the receipt runner must be the only exception, and
+          /// only inside its own process. Needs no DSN and no secret.
+          @Timeout(Duration(minutes: 2))
+          library;
+
+          import 'dart:io';
+
+          import 'package:flutter_test/flutter_test.dart';
+
+          void main() {
+            TestWidgetsFlutterBinding.ensureInitialized();
+
+            test('ordinary Flutter tests cannot open a real socket', () async {
+              // A loopback server is the ground truth: if the fake override is
+              // active the request never arrives, so the counter stays at zero.
+              var hits = 0;
+              final server =
+                  await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+              server.listen((HttpRequest request) async {
+                hits++;
+                request.response.statusCode = 204;
+                await request.response.close();
+              });
+
+              expect(HttpOverrides.current, isNotNull,
+                  reason: 'WP_DIAG=isolation_absent');
+
+              final client = HttpClient();
+              final request = await client
+                  .getUrl(Uri.parse('http://127.0.0.1:${server.port}/probe'));
+              final response = await request.close();
+              await response.drain<void>();
+              client.close();
+
+              expect(response.statusCode, 400,
+                  reason: 'WP_DIAG=isolation_bypassed');
+              expect(hits, 0, reason: 'WP_DIAG=real_socket_opened');
+
+              await server.close(force: true);
+            });
+          }
+          DART
+          echo "Isolation guard written."
+
+      - name: Verify ordinary tests remain network-isolated
+        run: flutter test test/ci_validation/network_isolation_guard_test.dart
+
       - name: Write the receipt-validation harness
         run: |
           mkdir -p test/ci_validation
@@ -162,11 +241,13 @@ jobs:
           ///
           /// Drives the real crash boundary so the three validation events are
           /// produced by the same code path a device would use.
-          @Timeout(Duration(minutes: 3))
+          @Timeout(Duration(minutes: 5))
           library;
 
+          import 'dart:async';
           import 'dart:io';
 
+          import 'package:flutter/foundation.dart';
           import 'package:flutter_test/flutter_test.dart';
           import 'package:sentry_flutter/sentry_flutter.dart';
           import 'package:wellapath_mobile/core/crash/crash_config.dart';
@@ -177,16 +258,17 @@ jobs:
           void main() {
             TestWidgetsFlutterBinding.ensureInitialized();
 
-            test('exactly three sanitized validation events are sent', () async {
+            test('exactly three sanitized events are accepted by Sentry', () async {
               final dsn = Platform.environment['SENTRY_DSN'] ?? '';
               final release = Platform.environment['WP_RELEASE'] ?? '';
               final dist = Platform.environment['WP_VALIDATION_RUN_ID'] ?? '';
 
+              // ── Gate 1: configuration ────────────────────────────────────
               // Fail closed: no DSN, no transmission, no false "validated".
               expect(CrashConfig.isValidDsn(dsn), isTrue,
-                  reason: 'DSN missing or structurally invalid');
-              expect(release, isNotEmpty);
-              expect(dist, isNotEmpty);
+                  reason: 'WP_DIAG=dsn_missing_or_structurally_invalid');
+              expect(release, isNotEmpty, reason: 'WP_DIAG=release_missing');
+              expect(dist, isNotEmpty, reason: 'WP_DIAG=run_id_missing');
 
               final config = CrashConfig(
                 enabled: true,
@@ -196,57 +278,120 @@ jobs:
               );
               await CrashMonitoring.init(config: config);
               expect(CrashMonitoring.config.enabled, isTrue,
-                  reason: 'crash monitoring did not initialise');
+                  reason: 'WP_DIAG=crash_monitoring_disabled');
+
+              // ── Gate 2: network capability ───────────────────────────────
+              // The binding installs a fake HttpClient that answers 400 and
+              // opens no socket; Sentry maps >= 400 to an all-zero SentryId.
+              // Lift it for THIS PROCESS ONLY and restore it in `finally`.
+              // A receipt is only meaningful where the SDK actually speaks
+              // HTTP. On macOS/iOS/Android the envelope is handed to the
+              // native SDK via FileSystemTransport, which returns a non-zero
+              // id without any network call — verified locally to "accept"
+              // three events against an unroutable DSN. Linux has no such
+              // path (`SentryNative.supportsCaptureEnvelope` is false), so the
+              // SDK falls through to HttpTransport and a non-zero id means
+              // Sentry really answered 2xx. Pin that, so changing `runs-on`
+              // cannot silently turn this gate into a false pass.
+              expect(Platform.isLinux, isTrue,
+                  reason: 'WP_DIAG=unsupported_receipt_platform');
+
+              final installed = HttpOverrides.current;
+              expect(installed, isNotNull,
+                  reason: 'WP_DIAG=unexpected_binding_state');
+              HttpOverrides.global = null;
+              expect(HttpOverrides.current, isNull,
+                  reason: 'WP_DIAG=network_interception_still_active');
 
               // Re-init the SDK with the production privacy options, plus a
               // counting wrapper around the real sanitizer so the number of
               // events that survive it can be asserted. The sanitizer itself is
               // unchanged and still decides what leaves.
               var sanitized = 0;
-              await Sentry.close();
-              await SentryFlutter.init((options) {
-                CrashMonitoring.applyPrivacyOptions(options);
-                options.dist = dist;
-                final privacyBoundary = options.beforeSend!;
-                options.beforeSend = (event, hint) {
-                  final result = privacyBoundary(event, hint);
-                  if (result != null) sanitized++;
-                  return result;
-                };
-              });
-              CrashReporter.setSink(SentryCrashSink());
-
-              // Three classifications, three fixed non-clinical markers.
               final ids = <SentryId>[];
-              Future<void> send(String marker, String origin, bool fatal) async {
-                CrashReporter.resetDedupe();
-                final error = CrashValidationError(marker);
-                final id = await Sentry.captureException(
-                  error,
-                  stackTrace: StackTrace.current,
-                  withScope: (scope) {
-                    scope.setTag('crash_source', origin);
-                    scope.setTag('severity', fatal ? 'fatal' : 'non_fatal');
-                  },
-                );
-                ids.add(id);
+              var stage = 'init';
+
+              try {
+                await Sentry.close();
+                await SentryFlutter.init((options) {
+                  CrashMonitoring.applyPrivacyOptions(options);
+                  options.dist = dist;
+                  final privacyBoundary = options.beforeSend!;
+                  options.beforeSend = (event, hint) {
+                    final result = privacyBoundary(event, hint);
+                    if (result != null) sanitized++;
+                    return result;
+                  };
+                });
+                CrashReporter.setSink(SentryCrashSink());
+
+                // Three classifications, three fixed non-clinical markers.
+                stage = 'send';
+                Future<void> send(
+                    String marker, String origin, bool fatal) async {
+                  CrashReporter.resetDedupe();
+                  final error = CrashValidationError(marker);
+                  final id = await Sentry.captureException(
+                    error,
+                    stackTrace: StackTrace.current,
+                    withScope: (scope) {
+                      scope.setTag('crash_source', origin);
+                      scope.setTag('severity', fatal ? 'fatal' : 'non_fatal');
+                    },
+                  );
+                  ids.add(id);
+                }
+
+                await send(
+                    'WELLAPATH_I1_FLUTTER_FATAL', 'flutter_framework', true);
+                await send(
+                    'WELLAPATH_I1_ASYNC_FATAL', 'platform_dispatch', true);
+                await send('WELLAPATH_I1_NON_FATAL', 'handled', false);
+
+                // Bounded flush. close() drains pending envelopes; if it cannot
+                // complete the job fails rather than report a false success.
+                stage = 'flush';
+                await Sentry.close().timeout(const Duration(seconds: 60));
+                stage = 'complete';
+              } on TimeoutException {
+                stage = 'flush_timeout';
+                rethrow;
+              } on HandshakeException {
+                stage = 'tls_failure';
+                rethrow;
+              } on SocketException catch (error) {
+                // Classify by shape only. The exception text carries the
+                // ingest host, so it is never printed or re-raised as a
+                // message — only the category below is emitted.
+                stage = error.message.contains('Failed host lookup')
+                    ? 'dns_failure'
+                    : 'network_unreachable';
+                rethrow;
+              } finally {
+                // Restore isolation for this process no matter the outcome.
+                HttpOverrides.global = installed;
+
+                // Safe diagnostics: fixed categories and counts only. No DSN,
+                // no envelope, no event JSON, no headers, no exception text.
+                final accepted =
+                    ids.where((id) => id != SentryId.empty()).length;
+                debugPrint('WP_DIAG stage=$stage sanitized=$sanitized '
+                    'sends=${ids.length} accepted=$accepted '
+                    'network_lifted=true');
               }
 
-              await send('WELLAPATH_I1_FLUTTER_FATAL', 'flutter_framework', true);
-              await send('WELLAPATH_I1_ASYNC_FATAL', 'platform_dispatch', true);
-              await send('WELLAPATH_I1_NON_FATAL', 'handled', false);
+              expect(identical(HttpOverrides.current, installed), isTrue,
+                  reason: 'WP_DIAG=isolation_not_restored');
 
-              expect(ids, hasLength(3), reason: 'expected exactly three sends');
+              // Ordered so the failure mode is unambiguous: a sanitizer drop is
+              // reported as a sanitizer drop, never as a transport failure.
+              expect(sanitized, 3,
+                  reason: 'WP_DIAG=sanitizer_dropped_an_event');
+              expect(ids, hasLength(3), reason: 'WP_DIAG=send_count_wrong');
               for (final id in ids) {
                 expect(id, isNot(equals(SentryId.empty())),
-                    reason: 'a send was dropped before transport');
+                    reason: 'WP_DIAG=sentry_did_not_accept_event');
               }
-              expect(sanitized, 3,
-                  reason: 'exactly three events must pass the sanitizer');
-
-              // Bounded flush. close() drains pending envelopes; if it cannot
-              // complete the job fails rather than reporting a false success.
-              await Sentry.close().timeout(const Duration(seconds: 60));
             });
           }
           DART
