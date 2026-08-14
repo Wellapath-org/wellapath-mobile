@@ -1,0 +1,181 @@
+# Internal-beta crash-monitoring validation build.
+#
+# Builds a release APK with crash monitoring enabled, solely to validate that
+# sanitized crash events reach the Sentry EU project. This file lives on the
+# default branch because GitHub only registers `workflow_dispatch` for
+# workflows present there — it is the bootstrap for validating PR #65, which
+# remains unmerged.
+#
+# ── Why manual dispatch only ─────────────────────────────────────────────────
+# No `pull_request`, no `pull_request_target`, no `push`. A workflow that
+# exposes secrets on a pull-request trigger hands them to whatever code the PR
+# contains; `pull_request_target` is worse, because it runs with write-scoped
+# context against untrusted code. Manual dispatch means a human with write
+# access chooses when this runs.
+#
+# ── Why the commit is pinned ─────────────────────────────────────────────────
+# The job checks out a commit SHA that must equal the reviewed PR #65 head. It
+# never accepts a branch name, so it cannot be pointed at unreviewed code — from
+# a fork or otherwise — while holding the DSN.
+#
+# ── Why no artifact upload ───────────────────────────────────────────────────
+# **This repository is public.** Workflow artifacts on a public repository are
+# downloadable, and the APK necessarily embeds the Sentry DSN as its ingestion
+# routing identifier — true of every Sentry client, including browser
+# JavaScript, and not concealable. Publishing the artifact would publish the
+# DSN. The build therefore stays on the runner.
+name: Internal Beta Validation Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: 'Reviewed source commit to build (must equal the approved PR #65 head)'
+        required: true
+      app_version:
+        description: 'App version for the release identifier'
+        required: true
+        default: '0.2.0'
+      app_build:
+        description: 'Build number for the release identifier'
+        required: true
+        default: '208'
+
+# Least privilege: read the repository, nothing else. No packages, no
+# deployments, no id-token, no write scope of any kind.
+permissions:
+  contents: read
+
+env:
+  # The only commit this workflow is approved to build. Changing it is a
+  # reviewed change to this file, not a dispatch-time decision.
+  APPROVED_COMMIT: c550ffa9e0521c3fd8508374d9ef2f00c3bc21d1
+
+jobs:
+  validation-build:
+    name: Internal-beta validation build
+    runs-on: ubuntu-latest
+
+    # Binds the job to the environment that owns the DSN, so environment
+    # protection rules (required reviewers, branch policy) gate this run.
+    environment: internal-beta
+
+    steps:
+      # Runs before checkout so unreviewed code cannot execute even once if the
+      # requested commit is not the approved one.
+      - name: Enforce the approved source commit
+        env:
+          REQUESTED: ${{ inputs.source_commit }}
+        run: |
+          if [ "${REQUESTED}" != "${APPROVED_COMMIT}" ]; then
+            echo "::error::Refusing to build '${REQUESTED}'."
+            echo "This workflow only builds the reviewed commit ${APPROVED_COMMIT}."
+            exit 1
+          fi
+          echo "Source commit matches the approved PR #65 head."
+
+      - name: Checkout the approved commit
+        uses: actions/checkout@v4
+        with:
+          # A full SHA, never a branch or tag, so the built tree is exactly the
+          # reviewed one and cannot be moved after approval.
+          ref: ${{ env.APPROVED_COMMIT }}
+          persist-credentials: false
+
+      # Fails before Flutter is installed if the secret is missing, rather than
+      # quietly producing a monitoring-disabled build that would look like a
+      # successful validation and prove nothing.
+      - name: Verify the DSN secret is available
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_INTERNAL_BETA }}
+        run: |
+          if [ -z "${SENTRY_DSN}" ]; then
+            echo "::error::SENTRY_DSN_INTERNAL_BETA is not available to this job."
+            echo "Confirm the secret exists in the 'internal-beta' environment."
+            exit 1
+          fi
+          # Length only. The value is never echoed, and GitHub masks it anyway.
+          echo "DSN secret present (length ${#SENTRY_DSN})."
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      # The privacy gate runs before any build that could transmit. If a
+      # prohibited marker can reach an envelope, no validation build exists.
+      - name: Privacy gate — envelope and adversarial suites
+        run: |
+          flutter test test/crash/
+          flutter test test/telemetry/privacy_adversarial_test.dart
+
+      - name: Full test suite
+        run: flutter test
+
+      # The DSN reaches the compiler only through this define. It is passed via
+      # an environment variable so the value never appears in a rendered command
+      # line, and `set -x` is never enabled.
+      #
+      # CRASH_REPORTING_PRODUCTION_APPROVED is deliberately NOT set: the third
+      # production gate stays closed, so this build could not collect from
+      # production even if APP_ENV were changed.
+      - name: Build internal-beta validation APK
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_INTERNAL_BETA }}
+          APP_VERSION: ${{ inputs.app_version }}
+          APP_BUILD: ${{ inputs.app_build }}
+        run: |
+          flutter build apk --release \
+            --dart-define=CRASH_REPORTING_ENABLED=true \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=CRASH_VALIDATION_ENABLED=true \
+            --dart-define=APP_ENV=internal-beta \
+            --dart-define=APP_VERSION="$APP_VERSION" \
+            --dart-define=APP_BUILD="$APP_BUILD"
+
+      # The APK necessarily contains the DSN — that is Sentry's public
+      # ingestion routing identifier and no client can hide it — so the APK is
+      # excluded from this scan and never leaves the runner. What this checks is
+      # that the key has not leaked into a tracked file.
+      - name: Verify the DSN has not leaked into tracked files
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN_INTERNAL_BETA }}
+        run: |
+          key="${SENTRY_DSN#*//}"; key="${key%%@*}"
+          if [ -z "$key" ]; then
+            echo "::error::Could not parse the DSN public key for the leak check."
+            exit 1
+          fi
+          if git grep -qI --no-color -- "$key" -- . 2>/dev/null; then
+            echo "::error::The DSN public key appears in a tracked file."
+            exit 1
+          fi
+          echo "DSN public key is absent from all tracked files."
+
+      # Deliberately no `actions/upload-artifact` step anywhere in this file.
+      - name: Build summary
+        run: |
+          {
+            echo "### Internal-beta validation build"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Source commit | \`${APPROVED_COMMIT}\` |"
+            echo "| Release | \`wellapath-mobile@${{ inputs.app_version }}+${{ inputs.app_build }}\` |"
+            echo "| Environment | \`internal-beta\` |"
+            echo "| Crash reporting | enabled |"
+            echo "| Production gate | closed |"
+            echo "| Native crash handling | disabled |"
+            echo "| Session tracking | disabled |"
+            echo "| APK uploaded | no — public repository |"
+          } >> "$GITHUB_STEP_SUMMARY"
