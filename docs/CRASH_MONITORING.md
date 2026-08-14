@@ -6,9 +6,13 @@
 **Scope:** approved **internal-beta** builds only
 **Status:** implemented, **disabled by default in every build**
 
-> **I1 is not closed by this document.** Closure additionally requires PR review
-> and merge, provider dashboard verification, internal-beta crash receipt, and
-> access/retention confirmation — see §11.
+> **I1 is not closed by this document.** PR review and merge, provider
+> dashboard verification and the internal-beta crash receipt are now **done**
+> (§11). Closure still requires founder-supplied **access, retention, DPA and
+> alert-recipient** facts — see §13 — plus the carried-forward items in §14.
+>
+> Native crash coverage and true crash-free-session metrics are **not**
+> established by this receipt; see *Validated limitations* in §11.
 
 ---
 
@@ -404,19 +408,70 @@ It would become necessary only if internal-beta later adopts `--obfuscate` or
   `internal-beta-validation.yml`, after the build
 * the token is **never** passed to a `--dart-define` and never enters the APK
 
-### Dashboard receipt — BLOCKED
+### Dashboard receipt — PASSED
 
-Not performed. Two independent blockers, neither of which can be resolved from
-this repository:
+Confirmed by human inspection of the Sentry dashboard following protected
+validation run [`31794343788`][run]. The runner transmits; a person reads the
+dashboard back. **Runner-side success alone is not a receipt** — the runner can
+only prove Sentry answered `2xx`, not what the event contains.
 
-1. **No Sentry access.** There are no Sentry credentials in this environment,
-   no `sentry-cli`, and no API token — and creating one is explicitly out of
-   scope. Events cannot be read back.
-2. **The GitHub setup does not match the approved design** (see §12), so the
-   validation workflow cannot obtain the secret.
+[run]: https://github.com/Wellapath-org/wellapath-mobile/actions/runs/31794343788
 
-Until a sanitized fatal, asynchronous fatal and non-fatal have been confirmed
-in the dashboard, **PR #65 must not merge**.
+#### Sanitized dashboard matrix
+
+| Field | Observed |
+| --- | --- |
+| Project | `wellapath-mobile` |
+| Data region | EU |
+| Environment | `internal-beta` |
+| Release | `wellapath-mobile@0.2.0+208` |
+| Dist | `i1val-31794343788-1` |
+| Events received | 3 |
+| Grouped issues | 1 |
+| Users affected | **0** |
+| Fatal | 2 |
+| Non-fatal | 1 |
+| `crash_source` = `flutter_framework` | 1 |
+| `crash_source` = `platform_dispatch` | 1 |
+| `crash_source` = `handled` | 1 |
+| Exception type | `CrashValidationError` |
+| Exception value | redacted by the sanitizer |
+| Stack trace | present and useful |
+| Duplicates | none |
+| All Tags | only expected safe operational tags |
+| Clinical / assessment / location / identity / telemetry identifiers | **none observed** |
+
+`0 users affected` is the load-bearing number here: it is the dashboard's own
+confirmation that no user identity was attached, cross-checked independently of
+our `sendDefaultPii = false` setting.
+
+The `dist` value is what makes a run findable without a marker string. The
+fixed markers are deliberately redacted by the sanitizer, so search by:
+
+```
+environment:internal-beta release:wellapath-mobile@0.2.0+208 dist:i1val-31794343788-1
+```
+
+#### Validated limitations
+
+Recorded so the receipt is not read as broader than it is:
+
+* **Native SDK initialization remains disabled**, so **native fatal crash
+  collection is unavailable.** A native crash on device is not reported.
+* **Automatic sessions are disabled**, so **true crash-free-session metrics are
+  unavailable.** Any crash-free figure quoted from this configuration would be
+  derived from Dart-side events only and would overstate coverage.
+* **Native coverage and true crash-free sessions are required before external
+  beta / W9.** They are carried forward, not closed.
+* **Disablement currently requires a new build or revoking the DSN key.** There
+  is no runtime remote kill switch; see §9.
+* **No `SENTRY_AUTH_TOKEN` is required** for the current configuration, because
+  Dart stack traces are unobfuscated. A token becomes necessary only if
+  obfuscation or native symbolication is introduced.
+
+This receipt covers the **Flutter/Dart** crash path on an emulator-class
+environment. It is not evidence of native crash capture, and not evidence of
+physical low-end handset behaviour.
 
 ### Provider-outage behaviour — verified
 
@@ -432,7 +487,19 @@ provider unreachable:
 
 ---
 
-## 12. Setup discrepancies — action required
+## 12. Setup discrepancies — RESOLVED
+
+> **Resolved.** The `internal-beta` environment now exists with the secret
+> scoped to it and required reviewers attached; the repository-level copy and
+> the misnamed environment were deleted; and the workflow was landed on the
+> default branch (PR #66) so `workflow_dispatch` registers. Run
+> `31794343788` was approved by a human reviewer through that gate, with no
+> admin bypass. The original findings are kept below as the audit record.
+
+<details>
+<summary>Original findings (historical)</summary>
+
+### Original: setup discrepancies — action required
 
 The approved design is *"DSN stored in the GitHub `internal-beta` environment
 as `SENTRY_DSN_INTERNAL_BETA`"*. The repository's actual state differs:
@@ -479,6 +546,30 @@ Resolving this requires either landing the workflow file on the default branch
 ahead of the rest of PR #65, or performing the validation build locally with
 the DSN supplied out-of-band.
 
+</details>
+
+### A third issue, found by the first dispatch: test-harness network isolation
+
+The first approved dispatch (run `31788391301`) failed closed with an all-zero
+`SentryId`. Not a Sentry, DSN or privacy fault: `TestWidgetsFlutterBinding`
+installs `HttpOverrides.global = _MockHttpOverrides()`, whose client answers
+every request with `400` and opens no socket, and Sentry's `HttpTransport` maps
+any status `>= 400` to `SentryId.empty()`.
+
+Fixed in PR #68 (on `main`) by lifting that override **inside the isolated
+receipt process only** and restoring it in a `finally`. Ordinary test processes
+keep full network isolation, and a secret-free loopback guard asserts both
+states before the real DSN is used. The workflow also now asserts Linux,
+because on macOS/iOS/Android the SDK routes envelopes to the native SDK via
+`FileSystemTransport`, which returns a non-zero id **with no network call at
+all** — a false receipt.
+
+> **Note — `develop` carries a stale copy.** PR #65 brought an earlier version
+> of `internal-beta-validation.yml` into `develop`. The corrected version lives
+> on `main`, which is the only branch `workflow_dispatch` registers from, so
+> the stale copy is inert. It should be reconciled when `develop` next merges
+> to `main`.
+
 ---
 
 ## 13. Founder-provided operational facts
@@ -488,29 +579,31 @@ the DSN supplied out-of-band.
 | Data region | **EU** — confirmed |
 | Organization / project | `wellapath-mobile` — confirmed |
 | Intended environment | `internal-beta` — confirmed |
-| Authorized access count and roles | **not provided** |
-| Retention period | **not provided** |
-| Alert recipients | **not provided** |
-| Terms / DPA acceptance | **not confirmed** |
+| Authorized access count and roles | **not provided — blocks I1 closure** |
+| Active error-event retention | **not provided — blocks I1 closure** |
+| Alert recipients | **not provided — blocks I1 closure** |
+| Terms / DPA acceptance | **not confirmed — blocks I1 closure** |
 
 Member email addresses are deliberately not recorded here; a count and role
-list is sufficient.
+list is sufficient. **These four values are not inferred or assumed** — they
+are governance facts only the founder can state, and the closure document
+cannot be completed without them.
 
 ---
 
 ## 14. Open items before I1 can close
 
-| # | Item | Owner |
-| --- | --- | --- |
-| 1 | Create the Sentry Cloud **EU** organization and `wellapath-mobile` project | Founder |
-| 2 | Accept provider terms and DPA; record retention | Founder |
-| 3 | Restrict project access to authorized team members; set alert recipients | Founder / eng lead |
-| 4 | Provide `SENTRY_DSN` as a protected CI secret | Eng lead |
-| 5 | Provide `SENTRY_AUTH_TOKEN` and wire symbol upload into `ci.yml` | Eng lead |
-| 6 | Verify a sanitized fatal, async fatal and non-fatal appear in the dashboard | Mobile |
-| 7 | Confirm no user, breadcrumbs, screenshots, view hierarchy, replay, request data or prohibited context appears on a real event | Mobile |
-| 8 | Confirm grouping and symbolication are useful for engineering | Mobile |
-| 9 | Decide whether native crash handling is worth a separate native-envelope review | Eng lead |
+| # | Item | Owner | Status |
+| --- | --- | --- | --- |
+| 1 | Create the Sentry Cloud **EU** organization and `wellapath-mobile` project | Founder | **done** |
+| 2 | Accept provider terms and DPA; record retention | Founder | **pending** |
+| 3 | Restrict project access to authorized team members; set alert recipients | Founder / eng lead | **pending** |
+| 4 | Provide `SENTRY_DSN` as a protected CI secret | Eng lead | **done** — environment-scoped, required reviewers |
+| 5 | Provide `SENTRY_AUTH_TOKEN` and wire symbol upload into `ci.yml` | Eng lead | **not required** — Dart traces are unobfuscated (§11) |
+| 6 | Verify a sanitized fatal, async fatal and non-fatal appear in the dashboard | Mobile | **done** — run `31794343788` (§11) |
+| 7 | Confirm no user, breadcrumbs, screenshots, view hierarchy, replay, request data or prohibited context appears on a real event | Mobile | **done** — 0 users, tags clean (§11) |
+| 8 | Confirm grouping and symbolication are useful for engineering | Mobile | **done** — 1 grouped issue, stack traces present |
+| 9 | Decide whether native crash handling is worth a separate native-envelope review | Eng lead | **carried forward to W9 / external beta** |
 
-Items 1–5 are **external setup that cannot be done from this repository**.
-Items 6–8 require them first.
+Remaining blockers for I1 closure are items **2 and 3** — both founder-supplied
+governance facts, neither obtainable from this repository.
