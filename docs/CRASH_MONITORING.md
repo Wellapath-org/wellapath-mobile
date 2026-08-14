@@ -439,15 +439,20 @@ as `SENTRY_DSN_INTERNAL_BETA`"*. The repository's actual state differs:
 
 | Expected | Actual |
 | --- | --- |
-| Environment named `internal-beta` | Environment named **`SENTRY_DSN_INTERNAL_BETA`** — the secret's name was used as the environment name |
-| Secret scoped to that environment | Secret exists at **repository level**, not environment-scoped |
+| Environment named `internal-beta` | Environment named **`SENTRY_DSN_INTERNAL_BETA`** — the secret's name was used as the environment name. No `internal-beta` environment exists. |
+| Secret scoped to that environment | Secret exists **twice**: once inside the misnamed environment, and once at **repository level** |
 | Environment carries protection rules | `protection_rules: []`, `deployment_branch_policy: null` |
 
-**Why this matters.** A repository-level secret is available to any workflow in
-the repository, including a workflow file added on any branch a contributor can
-push. An environment secret can require reviewers and restrict branches. Using
-the repository-level secret would have worked — and would have quietly
-discarded the protection the design called for — so it was not used.
+**Why this matters.** The repository-level copy is the problem. A repo-level
+secret is available to *any* workflow in the repository, including a workflow
+file added on any branch a contributor can push — and because repository
+secrets are visible to a job even when it declares an environment, a job
+targeting `internal-beta` would silently resolve the repo-level copy and
+appear to work while carrying none of the intended protection. The environment
+copy is correctly scoped but attached to the wrong environment name.
+
+Using the repo-level secret would therefore have produced a green run that
+quietly discarded the protection the design called for, so it was not used.
 
 **To resolve:**
 
@@ -461,6 +466,18 @@ discarded the protection the design called for — so it was not used.
 
 The workflow already targets `environment: internal-beta` and fails safely
 until this exists.
+
+### A second, structural blocker: workflow_dispatch needs the default branch
+
+GitHub only offers a `workflow_dispatch` workflow for manual triggering once the
+workflow file exists on the **default branch**. This file is on the PR branch,
+and PR #65 must not merge before dashboard verification — so the workflow
+cannot be dispatched yet. `gh workflow list` confirms only `Mobile CI` is
+currently registered.
+
+Resolving this requires either landing the workflow file on the default branch
+ahead of the rest of PR #65, or performing the validation build locally with
+the DSN supplied out-of-band.
 
 ---
 
