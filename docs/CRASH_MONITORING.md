@@ -6,10 +6,14 @@
 **Scope:** approved **internal-beta** builds only
 **Status:** implemented, **disabled by default in every build**
 
-> **I1 is not closed by this document.** PR review and merge, provider
-> dashboard verification and the internal-beta crash receipt are now **done**
-> (§11). Closure still requires founder-supplied **access, retention, DPA and
-> alert-recipient** facts — see §13 — plus the carried-forward items in §14.
+> **I1 technical work is complete** — PR review and merge, provider dashboard
+> verification and the internal-beta crash receipt are all done (§11), and
+> governance facts are recorded (§13). Formal closure happens when
+> [`docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md`](I1_OBSERVABILITY_BASELINE_CLOSURE.md)
+> is approved and merged.
+>
+> **The DPA is pending**, which blocks distributing Sentry-enabled builds beyond
+> the authorized internal engineering group. It does not block closure or I2.
 >
 > Native crash coverage and true crash-free-session metrics are **not**
 > established by this receipt; see *Validated limitations* in §11.
@@ -579,15 +583,43 @@ all** — a false receipt.
 | Data region | **EU** — confirmed |
 | Organization / project | `wellapath-mobile` — confirmed |
 | Intended environment | `internal-beta` — confirmed |
-| Authorized access count and roles | **not provided — blocks I1 closure** |
-| Active error-event retention | **not provided — blocks I1 closure** |
-| Alert recipients | **not provided — blocks I1 closure** |
-| Terms / DPA acceptance | **not confirmed — blocks I1 closure** |
+| Authorized access count and roles | **2 users** — 1 Team Admin, 1 Contributor |
+| Open Membership | **disabled** |
+| Beta testers with Sentry access | **none** |
+| Current plan | Business Plan **Trial** — temporary |
+| Selected ongoing plan | **Team** |
+| Active error-event retention (Team) | **30 days** |
+| Terms | **version 3.0 accepted** |
+| BAA | **unavailable on Team**; **not relied upon** — PHI is prohibited from Sentry |
+| **DPA** | **PENDING formal electronic acceptance** |
+| Alert recipients | the **2 authorized users** — Team Admin and Contributor |
+| Alert scope | new and regressed issues in `internal-beta` |
+| Forwarding | **none** — no public channel, no beta-tester, no raw-payload, no webhook |
 
 Member email addresses are deliberately not recorded here; a count and role
-list is sufficient. **These four values are not inferred or assumed** — they
-are governance facts only the founder can state, and the closure document
-cannot be completed without them.
+list is sufficient.
+
+**Retention follows the plan.** 30 days is the Team figure. If the plan
+changes — including when the Business trial lapses — the retention value
+**must be reconfirmed** and this table updated.
+
+**On the BAA.** Its unavailability on Team is not a gap being tolerated. The
+approved architecture prohibits PHI from reaching Sentry at all: symptom-level
+data never leaves the device for this provider, and the `beforeSend` boundary
+in §4 rebuilds every event from an allowlist. The BAA is not load-bearing
+because the data it would cover is never sent.
+
+### DPA — pending
+
+The DPA is **not accepted**. Formal electronic acceptance is outstanding.
+
+This gates **distribution of Sentry-enabled builds beyond the currently
+authorized internal engineering group**. It does not gate the I1 technical
+engineering phase, which is complete, and it does not gate I2 development.
+
+Until it is accepted, Sentry-enabled builds stay inside the authorized internal
+engineering group. See
+[`docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md`](I1_OBSERVABILITY_BASELINE_CLOSURE.md) §4.
 
 ---
 
@@ -596,8 +628,8 @@ cannot be completed without them.
 | # | Item | Owner | Status |
 | --- | --- | --- | --- |
 | 1 | Create the Sentry Cloud **EU** organization and `wellapath-mobile` project | Founder | **done** |
-| 2 | Accept provider terms and DPA; record retention | Founder | **pending** |
-| 3 | Restrict project access to authorized team members; set alert recipients | Founder / eng lead | **pending** |
+| 2 | Accept provider terms and DPA; record retention | Founder | Terms v3.0 **accepted**; retention **30 days** recorded; **DPA still pending** (§13) |
+| 3 | Restrict project access to authorized team members; set alert recipients | Founder / eng lead | **done** — 2 authorized users, Open Membership disabled, alerts scoped to `internal-beta` |
 | 4 | Provide `SENTRY_DSN` as a protected CI secret | Eng lead | **done** — environment-scoped, required reviewers |
 | 5 | Provide `SENTRY_AUTH_TOKEN` and wire symbol upload into `ci.yml` | Eng lead | **not required** — Dart traces are unobfuscated (§11) |
 | 6 | Verify a sanitized fatal, async fatal and non-fatal appear in the dashboard | Mobile | **done** — run `31794343788` (§11) |
@@ -605,5 +637,6 @@ cannot be completed without them.
 | 8 | Confirm grouping and symbolication are useful for engineering | Mobile | **done** — 1 grouped issue, stack traces present |
 | 9 | Decide whether native crash handling is worth a separate native-envelope review | Eng lead | **carried forward to W9 / external beta** |
 
-Remaining blockers for I1 closure are items **2 and 3** — both founder-supplied
-governance facts, neither obtainable from this repository.
+No item remains blocking **I1 technical closure**. The outstanding **DPA**
+(item 2) gates *distribution* of Sentry-enabled builds beyond the authorized
+internal engineering group — not closure, and not I2.
