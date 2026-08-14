@@ -3350,3 +3350,80 @@ asserted next screen. All recorded results post-date the fix.
 | Analytics consent decision before external beta | Product / Privacy |
 | `admin_area_code` artifact mapping | Facilities/data owner |
 
+
+---
+
+# Phase I1 — Observability & Baseline: CLOSURE RECORD
+
+Full record: [`docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md`](docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md)
+
+## Status
+
+| Item | State |
+|---|---|
+| **I1 technical implementation and validation** | **COMPLETE** |
+| **I1 closure documentation** | **awaiting PR approval** |
+| **I2** | **must not start** until this closure PR is approved and merged |
+| **External beta** | **NOT AUTHORIZED** |
+| **Sentry-enabled distribution beyond the authorized internal engineering group** | **BLOCKED** pending DPA acceptance |
+
+**The DPA is an operational distribution blocker, not an unfinished code
+implementation.** Every technical I1 deliverable is implemented, tested and
+validated; no engineering work remains in I1 scope.
+
+## What closed
+
+- Backend telemetry contract v1.0, staging acceptance and privacy-log gate,
+  25/25 verification, safe log sink, retention limits, rollback — delivered by
+  the backend workstream.
+- Mobile telemetry: contract parity (both directions, CI-enforced), offline
+  queue, retry/de-duplication, prohibited-data defenses, live staging
+  validation, `os_version` omission fix, low-end performance and memory results.
+- Clinical safety: scoring on-device, red flags override scoring, offline
+  assessment passes, red-flag OFF/ON equivalence, existing behaviour unchanged.
+- Crash monitoring: Sentry EU, Flutter/Dart only, protected run
+  `31794343788` delivering exactly three events, dashboard-confirmed — 3 events,
+  1 grouped issue, 0 users, 2 fatal / 1 non-fatal, redacted exception values,
+  useful stack traces, no prohibited data. Provider-unavailable behaviour
+  verified. Default-disabled and gated for internal beta.
+- Post-merge regression from `develop`: 673 passed / 13 skipped / 0 failed;
+  staging-gated telemetry 340 passed.
+
+## Governance recorded
+
+2 authorized Sentry users (1 Team Admin, 1 Contributor) · Open Membership
+disabled · no beta-tester access · Business trial is temporary, **Team** is the
+selected ongoing plan · **30-day** Team error-event retention, to be
+reconfirmed if the plan changes · Terms **v3.0 accepted** · BAA unavailable on
+Team and not relied upon because PHI is prohibited from Sentry · **DPA pending
+formal electronic acceptance** · alerts to the 2 authorized users for new and
+regressed `internal-beta` issues · no public, beta-tester, raw-payload or
+webhook forwarding.
+
+## Explicitly not claimed
+
+Each line states the actual position, so none can be quoted out of context:
+
+- The **DPA is NOT accepted** — pending formal electronic acceptance.
+- **Native crash coverage is NOT complete** — native capture is disabled.
+- **Physical-device validation is NOT complete** — emulator only.
+- The **Top-50 case bank has NOT been executed** — fixture absent.
+- **External beta is NOT approved.**
+- **Production monitoring is NOT enabled** — the production gate is closed.
+
+## Carried forward out of I1
+
+| Item | Gate | Owner |
+|---|---|---|
+| DPA formal acceptance | before wider Sentry-enabled distribution | Founder |
+| Native crash capture (disabled) | before external beta / W9 | Mobile / eng lead |
+| True crash-free sessions (unavailable) | before external beta / W9 | Mobile / eng lead |
+| Physical low-end handset validation | before external beta | Mobile |
+| Analytics consent decision | before external beta | Product / Privacy |
+| Backend `/internal/metrics` must be protected or disabled | before external beta | Backend |
+| Team retention is 30 days — reconfirm on plan change | ongoing | Founder / eng lead |
+| Crash disablement needs a new build or DSN revocation | ongoing | Eng lead |
+| Corrected `internal-beta-validation.yml` on `main` must replace the older `develop` copy | next controlled branch integration | Eng lead |
+| `admin_area_code` artifact mapping | before the field can be populated | Facilities / data owner |
+| Top-50 case-bank execution — blocked, `case_bank_v1.json` absent | before external beta | Data engineer |
+| Supabase free-tier reliability risk | pre-production gate | Backend / founder |
