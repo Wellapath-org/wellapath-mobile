@@ -16,18 +16,25 @@ import 'case_bank/case_bank_models.dart';
 import 'case_bank/case_bank_runner.dart';
 
 /// E8.1 — runs the delivered case bank through the live engine against the
-/// pinned production artifacts (kb.ng.v2.3, rules.ng.v2.1,
+/// pinned production artifacts (kb.ng.v2.4, rules.ng.v2.2,
 /// token_dictionary.ng.v1.1) and writes `case_bank_results_v1.json`.
 ///
+/// The versions above track the constants in `case_bank/artifact_fixtures.dart`,
+/// which are the ones actually loaded — keep them in step.
+///
 /// The case bank is built by the data engineer and delivered to
-/// `wellapath-knowledge-base/testing/case_bank_v1.json`. Drop it at
-/// `test/fixtures/case_bank_v1.json`, or point CASE_BANK_PATH at it:
+/// `wellapath-knowledge-base/testing/case_bank_v1.json`. It is now vendored at
+/// `test/fixtures/case_bank_v1.json` and hash-pinned by
+/// `case_bank_provenance_test.dart` (see `docs/CASE_BANK_PROVENANCE.md`);
+/// CASE_BANK_PATH still points the run at a different copy:
 ///
 ///   flutter test test/engine/case_bank_validation_test.dart \
 ///     --dart-define=CASE_BANK_PATH=/path/to/case_bank_v1.json
 ///
-/// Until then this file skips rather than fails — the harness's own behaviour
-/// is covered by case_bank_runner_test.dart, which does not need the bank.
+/// The skip below now only fires if the vendored fixture is deleted, and it is
+/// no longer the safety net it once was: `case_bank_provenance_test.dart` fails
+/// outright on a missing bank, so absence turns CI red there rather than
+/// passing quietly here.
 ///
 /// Every case runs once, under [EngineWiring.asShipped] — the production path
 /// through `buildEngineInput`, the same function `loading_screen.dart` calls.
