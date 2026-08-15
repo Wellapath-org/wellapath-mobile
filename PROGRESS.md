@@ -3362,10 +3362,16 @@ Full record: [`docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md`](docs/I1_OBSERVABILITY
 | Item | State |
 |---|---|
 | **I1 technical implementation and validation** | **COMPLETE** |
-| **I1 closure documentation** | **awaiting PR approval** |
-| **I2** | **must not start** until this closure PR is approved and merged |
+| **I1 closure documentation** | **APPROVED AND MERGED** — PR #69, develop `34d4a45` |
+| **I1 phase** | **CLOSED** |
+| **I2** | closure gate **satisfied**; not started in this workstream |
 | **External beta** | **NOT AUTHORIZED** |
 | **Sentry-enabled distribution beyond the authorized internal engineering group** | **BLOCKED** pending DPA acceptance |
+
+I1 closed on 2026-08-14 when PR #69 merged into `develop` as
+`34d4a45d4a8b5007261bd0c7ee45914120086edb`. The merge triggered `Mobile CI`
+only — no deployment, no workflow dispatch, no Sentry event and no
+configuration change. The documentation-only scope was three files.
 
 **The DPA is an operational distribution blocker, not an unfinished code
 implementation.** Every technical I1 deliverable is implemented, tested and
