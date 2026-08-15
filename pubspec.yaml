@@ -46,6 +46,7 @@ dependencies:
   latlong2: ^0.9.0
   crypto: ^3.0.7
   sentry_flutter: ^9.0.0
+  unorm_dart: ^0.3.2
 
 dev_dependencies:
   flutter_test:
