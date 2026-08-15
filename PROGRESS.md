@@ -3666,3 +3666,86 @@ during this step. **No behavioural change; no tie-break to be implemented.**
 - The four unrelated tooling changes remain modified, unstaged and byte-identical
 - PR #71 remains **open and unmerged**
 
+
+---
+
+# I2 / W2 Step 4 — Vocabulary 2.0 Offline Consumer and Search Foundation
+
+**Branch:** `feat/i2-w2-vocabulary-2-consumer` (off `develop` `685d598`)
+**Last Updated:** 2026-08-15
+
+---
+
+## CURRENT STATUS: Consumer built and validated — candidate remains unpublished and inactive
+
+> **Vocabulary 2.0 is unpublished, clinically unreviewed and inactive.** No R2
+> object, no manifest entry, zero approved aliases, zero approved associations,
+> `display_safe: false` on all 295 tokens. The live app still uses token
+> dictionary 1.1 / KB 2.4 / rules 2.2, unchanged. **Not clinical approval, and
+> no real-user search improvement is claimed.**
+
+## What was built
+
+- [x] Vendored 32 contract files byte-for-byte from `wellapath-knowledge-base@dceecde2`
+      into `test/fixtures/vocabulary/`; all 11 handoff hashes matched exactly
+- [x] `vocabulary_normalizer.dart` — the authoritative 6-step pipeline (norm v1.0.0)
+- [x] `vocabulary_v2.dart` — immutable model + `CanonicalTokenId` (private ctor)
+- [x] `vocabulary_v2_loader.dart` — strict offline loader, typed failures, fails closed
+- [x] `vocabulary_search.dart` — offline index + resolver, whole-string equality
+- [x] `canonical_token_boundary.dart` — the only path into assessment state
+- [x] `vocabulary_config.dart` — two-key build gate, default off, production blocked
+- [x] 6 test files, 100 tests; internal evaluation surface as a test harness
+- [x] `docs/VOCABULARY_V2_CONSUMER.md`
+
+**The engine is untouched.** No scoring, ranking, urgency, red-flag, question,
+KB, rules or token-identity change.
+
+## Results
+
+| Fixture set | Cases | Result |
+|---|---|---|
+| `search_cases_v1.json` (real candidate) | 34 | **34/34 pass** |
+| `ambiguity_cases_v1.json` (synthetic) | 11 | **11/11 pass** |
+| `invalid/` defect fixtures | 21 | **21/21 correctly rejected** |
+
+Clinical regression unchanged: **239 executed · 238 passed · 1 known finding ·
+0 unexpected failures**, CB_211 still pinned, 0 safety-critical under-triage,
+red-flag precedence intact, v1.1 reconstructs **byte-identically** from the
+candidate's frozen arrays.
+
+Performance (developer machine): parse+validate 7.3 ms, index build 25 µs, cold
+query 492 µs, warm query 4 µs (p95 6 µs), RSS 2.1 MB for 5 loaded copies.
+**Low-end handset profile not measured.**
+
+## Honest limits
+
+- Alias and ambiguity behaviour is proven **only synthetically** — the real
+  candidate has zero aliases and zero collisions. Aliases were deliberately not
+  added to the candidate to make tests pass.
+- **No real-user hit-rate evidence.** The 20/34 fixture hit rate is asserted in
+  both directions: a *higher* count would be a contract violation, since 14 of
+  the cases must never resolve.
+- **New runtime dependency: `unorm_dart` ^0.3.2** (pure Dart NFKC). Dart has no
+  built-in NFKC and the spec requires it; the alternative was a partial fold
+  that passes the fixtures while silently diverging. **Needs lead sign-off.**
+- `AssessmentController.addSymptomToken(String)` still accepts a string for the
+  live v1.1 picker; the v2 path cannot reach it with anything but a validated
+  canonical id. Tightening it is a separate reviewed change.
+
+## Verification
+
+- `flutter test` — **828 passed, 7 skipped, 0 failed**
+- `flutter analyze` — no issues; `dart format --set-exit-if-changed .` — exit 0
+- Gate proven off by default, off in production, and unaffected by the
+  candidate's presence
+
+## Confirmations
+
+- Vocabulary 2.0 remains **unpublished and inactive**; live manifest untouched
+- No aliases added to the real candidate; `breathlessness` and
+  `shortness_of_breath` remain independent tokens that never reach each other
+- IMCI tier keys untouched; no W3 work; no server-side symptom search
+- No symptom-level data leaves the device; telemetry contract v1.0 and crash
+  monitoring unchanged
+- The four unrelated tooling changes remain modified, unstaged and intact
+
