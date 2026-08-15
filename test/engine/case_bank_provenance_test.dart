@@ -35,6 +35,8 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'case_bank/known_findings_fixture.dart';
+
 const String _fixturePath = 'test/fixtures/case_bank_v1.json';
 
 const String _sourceRepository = 'Wellapath-org/wellapath-knowledge-base';
@@ -213,6 +215,62 @@ void main() {
               '${malformed.join(', ')}',
         );
       });
+    });
+  });
+
+  /// The registry is vendored alongside the bank and pinned the same way. Its
+  /// semantic guards — binding, disposition, staleness, expiry — live in
+  /// `known_findings_guard_test.dart`; what is asserted here is only that the
+  /// bytes on disk are the authoritative ones.
+  group('known findings registry provenance', () {
+    File registry() => File(kKnownFindingsPath);
+
+    test('registry is present', () {
+      expect(
+        registry().existsSync(),
+        isTrue,
+        reason:
+            'Missing $kKnownFindingsPath. Vendor it byte-for-byte from '
+            '$kKnownFindingsSourceRepository at $kKnownFindingsSourceCommit '
+            '($kKnownFindingsSourcePath). An absent registry is never '
+            'permission to ignore a failure.',
+      );
+    });
+
+    test('registry byte count matches the authoritative source', () {
+      expect(registry().readAsBytesSync().length, kKnownFindingsBytes);
+    });
+
+    test('registry sha256 matches the authoritative source', () {
+      expect(
+        sha256.convert(registry().readAsBytesSync()).toString(),
+        kKnownFindingsSha256,
+        reason:
+            'Known-findings registry drifted from '
+            '$kKnownFindingsSourceRepository@$kKnownFindingsSourceCommit. The '
+            'registry is immutable — re-vendor it rather than editing it.',
+      );
+    });
+
+    test('registry declares version 1.0 and schema 1.0', () {
+      final Map<String, dynamic> metadata =
+          (jsonDecode(registry().readAsStringSync())
+                  as Map<String, dynamic>)['_metadata']
+              as Map<String, dynamic>;
+      expect(metadata['version'], kKnownFindingsVersion);
+      expect(metadata['schema_version'], kKnownFindingsSchemaVersion);
+    });
+
+    test('registry is bound to this exact case bank', () {
+      final Map<String, dynamic> fixture =
+          (jsonDecode(registry().readAsStringSync())
+                  as Map<String, dynamic>)['authoritative_fixture']
+              as Map<String, dynamic>;
+
+      expect(fixture['sha256'], _expectedSha256);
+      expect(fixture['sha256'], kCaseBankSha256);
+      expect(fixture['bytes'], _expectedBytes);
+      expect(fixture['total_cases'], _expectedCaseCount);
     });
   });
 }

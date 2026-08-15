@@ -34,6 +34,36 @@ Knowledge Base repository, which is a stronger identity check than the content
 hash alone: it proves the bytes were copied, not re-serialised into something
 that merely hashes the same way.
 
+### Known-findings registry
+
+The registry that carries the Option D disposition is vendored the same way and
+bound cryptographically to the case bank above.
+
+| Field | Value |
+|---|---|
+| Repository | `Wellapath-org/wellapath-knowledge-base` |
+| Merge commit | `550e8f179021139a4c9084ba19d1f80111edbfba` |
+| Source path | `testing/known_findings.json` |
+| Destination path | `test/fixtures/known_findings.json` |
+| Version / schema version | `1.0` / `1.0` |
+| Byte count | 9,730 |
+| SHA256 | `fadaea063303ecd27a90c233dba7782f8840c85aef4e3a7cca61b1e4793537ed` |
+| Git blob SHA | `3d835d40d06acf402f901557231269ccd3b4a42f` |
+| Engineering disposition | `option_d_adopted` |
+| Bound to case bank | `c7bdc434…d998834` — the exact fixture above |
+| Registered findings | 1 (`CB_211`) |
+| Contract | `docs/KNOWN_FINDINGS_CONTRACT.md` — sha256 `81455b4f5995d9ea403dcc174d54329a097a35b4af09332e61f50d53564163e2` |
+| CB_211 decision package | sha256 `fdda2501bbffd4979972ec3d3a0431639eea876a65e8528512e10dde699f9701` |
+
+The binding is computed, not restated: the harness hashes the case-bank bytes it
+actually loaded and refuses the registry unless
+`authoritative_fixture.sha256` matches. A swapped fixture therefore cannot
+inherit an adjudication made against a different one.
+
+**This registry carries engineering authority only.** It cannot record clinical,
+external-beta or production approval, and the consumer rejects any entry that
+claims to.
+
 ### Supported artifact combination
 
 | Artifact | Version | SHA256 |
@@ -93,21 +123,33 @@ the full 239-case regression.
 Run through `EngineWiring.asShipped`, the production path via
 `buildEngineInput()` — the same function `loading_screen.dart` calls.
 
+**Authoritative result:**
+
+> **239 executed · 238 passed · 1 known finding · 0 unexpected failures**
+
+The known finding is **not** included in the 238. It is never counted as passed.
+
 | Metric | Value |
 |---|---|
 | Total cases executed | 239 |
-| Graded | 236 |
-| Observe (ungraded by design) | 3 |
-| Passed | 235 |
-| Failed | 1 |
-| Pass rate (graded) | **99.58%** |
+| **Passed** | **238** |
+| **Known findings (registered, unresolved)** | **1** — CB_211 |
+| **Unexpected failures** | **0** |
 | **Under-triage** | **0** |
-| Over-triage | 1 |
 | Engine errors | 0 |
 | **Safety-critical failures** | **0** |
 | Safety-critical cases exercised | 150 |
 | Global red flag rules exercised | 13/13 |
-| Skipped for a missing fixture | 0 |
+| Skipped for any reason | 0 |
+
+CB_225, CB_232 and CB_233 count toward the 238: each passes the assertions its
+case-bank record actually encodes (an `observe` case asserts only that it runs
+cleanly). They remain separately reported below for human review.
+
+The underlying engine-level view is unchanged from the first run — 236 graded,
+235 graded-passes, 3 observe, 1 graded failure, 1 over-triage — and is still
+written in full to the results file. The classification above is a partition of
+the same run, not a re-scoring of it.
 
 Full per-case output is written to
 `build/e8_case_bank/case_bank_results_v1.json` on every run. `build/` is
@@ -142,18 +184,56 @@ recorded. Nothing regressed between KB 2.3 and KB 2.4.
 
 ---
 
-## Open finding — CB_211 (carried forward, not new)
+## Known finding — CB_211 (Option D adopted, unresolved)
+
+**Option D was adopted at Knowledge Base merge `550e8f17`.** CB_211 is preserved
+byte-for-byte and registered as an explicit, unresolved, fail-closed known
+discrepancy. This is an **engineering disposition, not clinical approval.**
 
 | | |
 |---|---|
 | Case | `CB_211` — "Edge: empty input — engine must not crash, returns safe default" |
-| Input tokens | *(none)* |
-| Expected | `non_urgent`, source `empty_default` |
-| Actual | `urgent`, source `urgency_default`, top condition `malaria` |
-| Direction | **Over-triage** (the safe direction) |
+| Input | `symptom_tokens: []`, `demographic_tokens: []`, `season: null` |
+| Case-bank expectation (unchanged) | `non_urgent`, source `empty_default`, top condition `null` |
+| Pinned observed output | `urgent`, source `urgency_default`, top condition `malaria`, `red_flag_triggered: false` |
+| Direction | **Over-triage**, not under-triage |
 | Safety critical | No |
-| Classification | **Stale expected output requiring clinical review** |
+| Classification | `obsolete_stale_case_bank_expectation` |
+| Decision status | `open_option_d_adopted_awaiting_clinical_product_adjudication` |
+| Must be resolved by | **external beta** |
 | Tracked as | Issue #35 |
+
+### What the registry does and does not do
+
+- CB_211 **executes on every run** — it is never skipped, filtered, or
+  pre-classified.
+- Its actual output is computed normally first, then compared against **both**
+  the unchanged case-bank expectation and the pinned observation.
+- It is **never counted as passed** and is never folded into the pass total.
+- **Any deviation from the pin fails the run — in either direction.** An
+  apparent improvement to `non_urgent`/`empty_default` is *not* an automatic
+  pass: it means the registry's description of reality has become wrong and the
+  entry must be reviewed.
+- Any *unregistered* mismatch fails. The registry cannot absorb a new finding.
+- The registry entry **expires at external beta**; a build at that milestone
+  fails until the deferred decision is made.
+
+**Options B and C remain deferred** for clinical/product adjudication before
+external beta:
+
+- **Option B** — correct the expectation in a new versioned case bank.
+- **Option C** — engine-level empty-input result (issue #35).
+
+### Safety characterisation
+
+- **Over-triage, not under-triage** — the engine reports a higher urgency than
+  the bank expects, which is the safe direction.
+- **It cannot suppress or bypass a red flag.** With an empty token set no
+  red-flag rule can match, so there is no flag to suppress.
+- **It does not affect any non-empty assessment.** The behaviour is a
+  consequence of the empty input alone.
+- **Unreachable through the current product UI, reachable through direct engine
+  invocation.**
 
 With zero symptoms, `RedFlagEvaluator` returns `proceedToScoring: true`,
 `ScoringEngine` scores all 50 conditions on `base_weight` alone, and malaria wins
@@ -170,28 +250,47 @@ Continue while nothing is selected, and `loading_screen.dart` guards
 `test/assessment/empty_input_guard_test.dart`, and the engine's own behaviour is
 deliberately pinned by `test/assessment/engine_wiring_test.dart:218`.
 
-**Needs a ruling, not a code change here.** Either the engine returns a safe
-default on empty input and emits an `empty_default` source, or the bank drops an
-expectation the engine never promised. No fix was attempted in this step.
+**Still needs a ruling, not a code change here.** Either the engine returns a
+safe default on empty input and emits an `empty_default` source (Option C), or
+the bank drops an expectation the engine never promised (Option B). No clinical
+fix has been attempted, and none is authorised by Option D.
+
+**Neither external beta nor production is approved by this result.**
 
 ---
 
-## Observe cases — recorded for human review, not graded
+## Human-review observations — CB_225, CB_232, CB_233
 
 These three carry `expected_urgency_source: "observe"` and null expectations.
-They are excluded from the pass rate entirely: counting them as failures would
-be wrong, and counting them as passes would inflate the rate.
+They count toward the 238 passed — an observe case asserts only that it runs
+cleanly, and it does — but their actual output is recorded separately here,
+because "passed its encoded assertion" is a weaker statement than "produced the
+right answer", and only a human can close that gap.
 
-| Case | Input | Urgency | Top condition | Red flag | vs. KB 2.3 run |
+| Case | Input | Urgency | Red flag | Top condition | vs. KB 2.3 run |
 |---|---|---|---|---|---|
-| CB_225 | `fever` | `urgent` | `malaria` | no | unchanged |
-| CB_232 | `fever, chills, watery_stool, vomiting` | `urgent` | `malaria` | no | unchanged |
-| CB_233 | `chest_pain, dizziness, palpitations` | `urgent` | `cardio_symptoms` | no | unchanged |
+| CB_225 | `fever` | `urgent` | no | `malaria` | unchanged |
+| CB_232 | `fever, chills, watery_stool, vomiting` | `urgent` | no | `malaria` | unchanged |
+| CB_233 | `chest_pain, dizziness, palpitations` | `urgent` | no | `cardio_symptoms` | unchanged |
 
 All three are identical to the KB 2.3 run — no drift across the artifact bump.
 
-CB_232 remains the one worth a clinical eye: on a deliberate malaria/diarrhoea
-overlap the scorer picks malaria, driven by its base weight of 10 (the highest in
-the knowledge base) plus the fever/chills weights. Whether that is the right
-tie-break for a mixed presentation is a clinical question, not an engineering
-one.
+### CB_232 — authoritative adjudication
+
+The malaria/diarrhoea overlap was adjudicated upstream and needs **no behavioural
+change**:
+
+| | |
+|---|---|
+| malaria score | 26 |
+| acute_diarrhoea score | 21 |
+| margin | 5 |
+| Tie | **no** |
+| Tie-break involved | **no** |
+| Iteration-order dependency | **no** |
+| Output between KB 2.3 and KB 2.4 | **unchanged** |
+| Engineering or clinical artifact change authorised | **none** |
+
+The 5-point margin means the result is not a coin-flip resolved by map ordering,
+so there is nothing here for a tie-break to fix — and none is to be implemented.
+The observation is retained for clinical visibility, not as a defect.

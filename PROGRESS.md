@@ -3558,3 +3558,111 @@ picks malaria on base weight 10, the highest in the KB.
 - Scoring and clinical inference remain fully on-device
 - The four unrelated Flutter/Xcode tooling changes remain modified and unstaged
 
+
+---
+
+# I2 / W2 Step 3B — Option D Known-Findings Contract Wired
+
+**Branch:** `test/i2-w2-case-bank-239` (PR #71, still open and unmerged)
+**Last Updated:** 2026-08-15
+
+---
+
+## CURRENT STATUS: 239 executed · 238 passed · 1 known finding · 0 unexpected failures
+
+**Option D was adopted at Knowledge Base merge `550e8f17`.** CB_211 remains
+unchanged and unresolved; it is now registered, executed on every run, pinned
+exactly to its observed output, and never counted as passed.
+
+> **Engineering disposition, not clinical approval.** External beta and
+> production are **not** approved by this result.
+
+## What was done
+
+- [x] Vendored `test/fixtures/known_findings.json` byte-for-byte from
+      `wellapath-knowledge-base@550e8f17` (`testing/known_findings.json`) —
+      9,730 bytes, SHA256 `fadaea06…3537ed`, version/schema 1.0/1.0. Git blob
+      SHA `3d835d40` matches the source blob exactly
+- [x] Added `test/engine/case_bank/known_findings.dart` — the registry consumer.
+      Loads, validates, binds to the case bank, and partitions the run into
+      passed / known findings / unexpected failures
+- [x] Added `test/engine/case_bank/known_findings_fixture.dart` — integrity
+      constants shared by the validation run, the provenance guard and the
+      negative tests, so no hash is checked in only one place
+- [x] Wired the registry into `case_bank_validation_test.dart`: 8 new
+      assertions covering execution completeness, exact pinning, count
+      reconciliation, red-flag precedence and the no-approval claim
+- [x] Added `test/engine/known_findings_guard_test.dart` — 28 negative guards
+- [x] Extended `case_bank_provenance_test.dart` with 5 registry provenance tests
+- [x] Documented in `docs/CASE_BANK_PROVENANCE.md`
+
+**No engine, scoring, rules, red-flag, artifact, case-bank or expected-output
+file was touched.** `case_bank_v1.json` is byte-identical to Step 2.
+
+## The binding is computed, not restated
+
+The harness hashes the case-bank bytes it actually loaded and refuses the
+registry unless `authoritative_fixture.sha256` matches. A swapped fixture cannot
+inherit an adjudication made against a different one.
+
+Nothing in the consumer knows what CB_211 is. There is no case-id branch, no
+filename convention and no test-name filter — adding or removing a finding is a
+registry change reviewed upstream, not a code change in Mobile.
+
+## CB_211 — registered, pinned, never passed
+
+| | |
+|---|---|
+| Input | `symptom_tokens: []`, `demographic_tokens: []`, `season: null` |
+| Case-bank expectation (unchanged) | `non_urgent` / `empty_default` / `null` |
+| Pinned observed | `urgent` / `urgency_default` / `malaria` / `red_flag=false` |
+| Actual this run | **identical to the pin, field for field** |
+| Direction | over-triage, not under-triage |
+| Decision status | `open_option_d_adopted_awaiting_clinical_product_adjudication` |
+| Expires at | **external beta** |
+
+Any deviation fails — **including an apparent improvement.** A move to
+`non_urgent`/`empty_default` is not an automatic pass; it means the registry is
+stale and must be reviewed. Options B and C remain deferred for clinical/product
+adjudication before external beta.
+
+It cannot suppress a red flag (an empty token set matches no rule), does not
+affect non-empty assessments, and is unreachable through the product UI though
+reachable by direct engine invocation.
+
+## Human-review observations — unchanged, no action
+
+| Case | Urgency | Red flag | Top condition |
+|---|---|---|---|
+| CB_225 | urgent | no | malaria |
+| CB_232 | urgent | no | malaria |
+| CB_233 | urgent | no | cardio_symptoms |
+
+**CB_232 adjudication:** malaria 26, acute_diarrhoea 21, margin 5 — no tie, no
+tie-break involved, no iteration-order dependency, unchanged between KB 2.3 and
+KB 2.4, no artifact change authorised. Independently reproduced from the engine
+during this step. **No behavioural change; no tie-break to be implemented.**
+
+## Verification
+
+- `flutter test` — **733 passed, 7 skipped, 0 failed**
+- The 7 skips are opt-in staging-network telemetry tests. **Zero case-bank skips**
+- `flutter analyze` — no issues; `dart format --set-exit-if-changed .` — exit 0
+- 28 negative guards prove every rejection path: missing, malformed, wrong
+  hash/bytes/version/schema, wrong fixture binding, unknown or duplicate case id,
+  non-option_d disposition, closed decision, claimed approval, expired
+  milestone, expectation disagreeing with the bank, drift in each pinned field,
+  apparent improvement, engine throw, unregistered mismatch, dropped case
+- Live induced failures on the real files (registry removed; one byte appended)
+  both turned CI red, then the registry was restored to `fadaea06…3537ed`
+
+## Confirmations
+
+- Vocabulary 2.0 remains unpublished and unused; no aliases added
+- IMCI tier keys untouched; no W3 adaptive-question work
+- Telemetry contract v1.0 and crash monitoring unchanged
+- Scoring and clinical inference remain on-device and deterministic
+- Artifact versions and hashes unchanged (KB 2.4 / rules 2.2 / token dict 1.1)
+- The four unrelated tooling changes remain modified, unstaged and byte-identical
+- PR #71 remains **open and unmerged**
+

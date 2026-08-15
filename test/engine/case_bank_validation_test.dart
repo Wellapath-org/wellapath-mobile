@@ -8,12 +8,15 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'case_bank/artifact_fixtures.dart';
 import 'case_bank/case_bank_coverage.dart';
 import 'case_bank/case_bank_models.dart';
 import 'case_bank/case_bank_runner.dart';
+import 'case_bank/known_findings.dart';
+import 'case_bank/known_findings_fixture.dart';
 
 /// E8.1 — runs the delivered case bank through the live engine against the
 /// pinned production artifacts (kb.ng.v2.4, rules.ng.v2.2,
@@ -47,6 +50,11 @@ const String _caseBankPathOverride = String.fromEnvironment('CASE_BANK_PATH');
 const String _defaultCaseBankPath = 'test/fixtures/case_bank_v1.json';
 const String _outputDir = 'build/e8_case_bank';
 const String _outputFile = '$_outputDir/case_bank_results_v1.json';
+
+/// The immutable known-findings registry. Its integrity constants live in
+/// `known_findings_fixture.dart` so the validation run and the provenance
+/// guard assert the same values.
+const String _registryPath = kKnownFindingsPath;
 
 String get _caseBankPath => _caseBankPathOverride.isNotEmpty
     ? _caseBankPathOverride
@@ -160,6 +168,60 @@ List<String> _sourceMismatchIds(CaseBankReport report) => report
     .map((CaseRunResult r) => r.testCase.caseId)
     .toList();
 
+/// The authoritative result line. Known findings are printed loudly and are
+/// never folded into the pass count.
+void _printClassification(KnownFindingsClassification c) {
+  print('');
+  print('=== AUTHORITATIVE RESULT ===');
+  print('  ${c.headline}');
+  print(
+    '  registry: v${c.registry.version} '
+    '(schema ${c.registry.schemaVersion}), '
+    'disposition ${c.registry.disposition}',
+  );
+  print('  registry bound to case bank: ${c.registry.boundFixtureSha256}');
+  print('  engineering disposition only — NOT clinical approval, NOT external');
+  print('  beta approval, NOT production approval.');
+
+  if (c.knownFindings.isNotEmpty) {
+    print('');
+    print(
+      '*** KNOWN FINDINGS — REGISTERED, UNRESOLVED, NOT COUNTED AS PASSED ***',
+    );
+    for (final ClassifiedCase e in c.knownFindings) {
+      final KnownFinding f = e.finding!;
+      print('');
+      print('  ${e.caseId}  ${f.classification}');
+      print('    decision status : ${f.decisionStatus}');
+      print('    must resolve by : ${f.expiresAtMilestone}');
+      print(
+        '    triage direction: ${f.triageDirection} '
+        '(safety_critical=${f.safetyCritical})',
+      );
+      print(
+        '    case bank expects: ${f.expectedUrgency} / '
+        '${f.expectedUrgencySource} / ${f.expectedTopCondition}',
+      );
+      print(
+        '    pinned observed  : ${e.result.actualUrgency} / '
+        '${e.result.actualUrgencySource} / ${e.result.actualTopCondition} '
+        '/ red_flag=${e.result.redFlagTriggered}',
+      );
+      print('    counted as passed: NO');
+    }
+    print('');
+    print('*** END KNOWN FINDINGS ***');
+  }
+
+  if (c.unexpectedFailures.isNotEmpty) {
+    print('');
+    print('--- UNEXPECTED FAILURES (not registered) ---');
+    for (final ClassifiedCase e in c.unexpectedFailures) {
+      print('  ${e.caseId}: ${e.reason}');
+    }
+  }
+}
+
 void main() {
   final File caseBankFile = File(_caseBankPath);
   final bool caseBankPresent = caseBankFile.existsSync();
@@ -171,10 +233,26 @@ void main() {
       late List<CaseBankCase> cases;
       late CaseBankReport shipped;
       late CaseBankCoverage coverage;
+      late KnownFindingsRegistry registry;
+      late KnownFindingsClassification classified;
 
       setUpAll(() {
         artifacts = loadPinnedArtifacts();
-        cases = parseCaseBank(jsonDecode(caseBankFile.readAsStringSync()));
+        final List<int> caseBankBytes = caseBankFile.readAsBytesSync();
+        cases = parseCaseBank(jsonDecode(utf8.decode(caseBankBytes)));
+
+        // The registry is bound to the exact bytes just loaded, not to a
+        // hash restated from documentation — so a swapped fixture cannot
+        // quietly inherit an adjudication made against a different one.
+        registry = KnownFindingsRegistry.load(
+          path: _registryPath,
+          expectedSha256: kKnownFindingsSha256,
+          expectedBytes: kKnownFindingsBytes,
+          expectedVersion: kKnownFindingsVersion,
+          expectedSchemaVersion: kKnownFindingsSchemaVersion,
+          caseBankSha256: sha256.convert(caseBankBytes).toString(),
+          cases: cases,
+        );
 
         coverage = CaseBankCoverage(
           cases: cases,
@@ -198,8 +276,13 @@ void main() {
         );
 
         shipped = runner.runAll(cases);
+        classified = KnownFindingsClassification(
+          report: shipped,
+          registry: registry,
+        );
 
         _printReport(shipped);
+        _printClassification(classified);
 
         final Map<String, dynamic> payload = <String, dynamic>{
           'run_metadata': <String, dynamic>{
@@ -217,6 +300,7 @@ void main() {
                 'candidate conditions reach the engine',
           },
           'coverage': coverage.toJson(),
+          'classification': classified.toJson(),
           'as_shipped': shipped.toJson(),
         };
 
@@ -272,17 +356,29 @@ void main() {
         );
       });
 
-      test('exit criterion 4b — engine reasoning matches expected source', () {
-        expect(
-          _sourceMismatchIds(shipped),
-          isEmpty,
-          reason:
-              '${shipped.sourceMismatches.length} case(s) where the engine '
-              'reached its answer for a different reason than the bank '
-              'expected, of which ${shipped.rightAnswerWrongReason.length} '
-              'returned the correct urgency anyway. See $_outputFile.',
-        );
-      });
+      test(
+        'exit criterion 4b — every source mismatch is registered or fails',
+        () {
+          // The bank's own expectation is unchanged; what the registry buys is
+          // that an *unregistered* mismatch still fails. CB_211's mismatch is
+          // asserted exactly, in the pin test below.
+          final Set<String> registered = registry.caseIds;
+          final List<String> unregistered = _sourceMismatchIds(
+            shipped,
+          ).where((String id) => !registered.contains(id)).toList();
+
+          expect(
+            unregistered,
+            isEmpty,
+            reason:
+                '${unregistered.length} unregistered case(s) reached their '
+                'answer for a different reason than the bank expected. A new '
+                'mismatch is never absorbed by the registry — it must be '
+                'adjudicated in wellapath-knowledge-base first. '
+                'See $_outputFile.',
+          );
+        },
+      );
 
       test(
         'exit criterion 5 — zero safety-critical under-triage (as shipped)',
@@ -296,6 +392,134 @@ void main() {
           );
         },
       );
+
+      test(
+        'every one of the 239 cases executed — none skipped or filtered',
+        () {
+          expect(shipped.total, cases.length);
+          expect(cases, hasLength(239));
+          expect(
+            classified.executed,
+            239,
+            reason:
+                'Classification must cover every case that ran. A registered '
+                'finding that silently drops out of the run would look like a '
+                'clean sweep.',
+          );
+          expect(
+            classified.registeredButNotExecuted,
+            isEmpty,
+            reason:
+                'Registered case(s) never executed: '
+                '${classified.registeredButNotExecuted.join(', ')}',
+          );
+        },
+      );
+
+      test('no unexpected failures', () {
+        expect(
+          classified.unexpectedFailures
+              .map((ClassifiedCase e) => '${e.caseId}: ${e.reason}')
+              .toList(),
+          isEmpty,
+        );
+      });
+
+      test('counts reconcile exactly — 239 = 238 passed + 1 known finding', () {
+        expect(classified.reconciles, isTrue);
+        expect(classified.passed, hasLength(238));
+        expect(classified.knownFindings, hasLength(1));
+        expect(classified.unexpectedFailures, isEmpty);
+        expect(classified.headline, contains('239 executed'));
+      });
+
+      test('registered findings are never counted as passed', () {
+        final Set<String> passedIds = classified.passed
+            .map((ClassifiedCase e) => e.caseId)
+            .toSet();
+        for (final String id in registry.caseIds) {
+          expect(
+            passedIds,
+            isNot(contains(id)),
+            reason:
+                '$id is registered as a known finding and must never appear '
+                'in the pass total.',
+          );
+        }
+      });
+
+      test('every registered finding is pinned exactly to its observation', () {
+        // Deliberately driven from the registry, not from a hardcoded case id:
+        // adding a finding upstream extends this assertion automatically.
+        expect(classified.knownFindings, isNotEmpty);
+
+        for (final ClassifiedCase e in classified.knownFindings) {
+          final KnownFinding f = e.finding!;
+          final CaseRunResult r = e.result;
+
+          expect(r.error, isNull, reason: '${e.caseId} threw');
+          expect(r.actualUrgency, f.observedUrgency, reason: e.caseId);
+          expect(
+            r.actualUrgencySource,
+            f.observedUrgencySource,
+            reason: e.caseId,
+          );
+          expect(
+            r.actualTopCondition,
+            f.observedTopCondition,
+            reason: e.caseId,
+          );
+          expect(
+            r.redFlagTriggered,
+            f.observedRedFlagTriggered,
+            reason: e.caseId,
+          );
+
+          // Still genuinely mismatching the unchanged bank expectation.
+          expect(
+            r.passed,
+            isFalse,
+            reason:
+                '${e.caseId} now matches its case-bank expectation. That is '
+                'not an automatic pass: the registry has gone stale and the '
+                'entry must be reviewed.',
+          );
+          expect(f.isOpen, isTrue, reason: '${e.caseId} decision is not open');
+        }
+      });
+
+      test('red flag precedence — emergency, and never a ranked cause', () {
+        final List<CaseRunResult> redFlagged = shipped.results
+            .where((CaseRunResult r) => r.redFlagTriggered)
+            .toList();
+
+        expect(redFlagged, isNotEmpty);
+        for (final CaseRunResult r in redFlagged) {
+          expect(
+            r.actualUrgency,
+            'emergency',
+            reason:
+                '${r.testCase.caseId} triggered a red flag but returned '
+                '${r.actualUrgency}',
+          );
+          expect(
+            r.actualTopCondition,
+            isNull,
+            reason:
+                '${r.testCase.caseId} triggered a red flag and still produced '
+                'a ranked cause — scoring must be skipped entirely '
+                '(LOCKED PRINCIPLE #5).',
+          );
+        }
+      });
+
+      test('the registry claims no approval it does not hold', () {
+        final Map<String, dynamic> json = classified.toJson();
+        final Map<String, dynamic> reg =
+            json['registry'] as Map<String, dynamic>;
+        expect(reg['is_clinical_approval'], isFalse);
+        expect(reg['engineering_disposition'], 'option_d_adopted');
+      });
     },
     skip: caseBankPresent
         ? null
