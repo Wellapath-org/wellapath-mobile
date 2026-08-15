@@ -3414,6 +3414,9 @@ Each line states the actual position, so none can be quoted out of context:
 - **Native crash coverage is NOT complete** — native capture is disabled.
 - **Physical-device validation is NOT complete** — emulator only.
 - The **Top-50 case bank has NOT been executed** — fixture absent.
+  *(Superseded 2026-08-15 by I2/W2 Step 2: all 239 cases executed, 0
+  safety-critical under-triage. Still **not** clinical certification — the bank
+  carries no recorded clinical approval.)*
 - **External beta is NOT approved.**
 - **Production monitoring is NOT enabled** — the production gate is closed.
 
@@ -3431,5 +3434,235 @@ Each line states the actual position, so none can be quoted out of context:
 | Crash disablement needs a new build or DSN revocation | ongoing | Eng lead |
 | Corrected `internal-beta-validation.yml` on `main` must replace the older `develop` copy | next controlled branch integration | Eng lead |
 | `admin_area_code` artifact mapping | before the field can be populated | Facilities / data owner |
-| Top-50 case-bank execution — blocked, `case_bank_v1.json` absent | before external beta | Data engineer |
+| ~~Top-50 case-bank execution — blocked, `case_bank_v1.json` absent~~ — executed 2026-08-15, 239/239, see I2/W2 Step 2 | done | Data engineer |
+| CB_211 empty-input expectation (issue #35) — engine emits no `empty_default` source | before external beta | Eng lead / clinical |
+| CB_232 malaria tie-break on mixed presentation — clinical eye wanted | before external beta | Clinical |
+| Case bank has no recorded clinical approval | before any clinical certification claim | Clinical / KB |
 | Supabase free-tier reliability risk | pre-production gate | Backend / founder |
+
+---
+
+# I2 / W2 Step 2 — Top-50 Case-Bank Regression Restored and Executed
+
+**Branch:** `test/i2-w2-case-bank-239` (off `develop`)
+**Base:** `678e300`
+**Last Updated:** 2026-08-15
+
+---
+
+## CURRENT STATUS: 239/239 executed — 0 safety-critical under-triage, 1 carried-forward finding
+
+The Top-50 case-bank harness has existed since E8.1 but every one of its tests
+skipped, because the fixture was never vendored. That skip is now closed: the
+authoritative bank is in the repo, hash-pinned, and all 239 cases execute.
+
+> **Not clinical certification.** The bank is engineering-approved and
+> specification-derived with **no recorded clinical approval**. This run shows
+> the engine still matches the specification — it is not clinical sign-off.
+
+## What was done
+
+- [x] Vendored `test/fixtures/case_bank_v1.json` byte-for-byte from
+      `Wellapath-org/wellapath-knowledge-base@dceecde2` (`testing/case_bank_v1.json`)
+- [x] Verified 138,988 bytes, SHA256 `c7bdc434…d998834`, version 1.0,
+      declared 239 = actual 239, IDs `CB_001`–`CB_239` with no gaps or duplicates
+- [x] Git blob SHA `3b94de68` matches the KB repo blob exactly — proves the bytes
+      were copied, not re-serialised into something that merely hashes alike
+- [x] Added `test/engine/case_bank_provenance_test.dart` (10 tests) — the drift
+      guard. Never skips; a missing fixture fails CI. No network dependency
+- [x] Added `test/engine/case_bank_determinism_test.dart` (4 tests) — two
+      independent engines produce field-identical reports over all 239 cases
+- [x] Documented provenance and results in `docs/CASE_BANK_PROVENANCE.md`
+- [x] Corrected the stale artifact versions in the validation test's docstring
+      (said kb 2.3 / rules 2.1; the harness has pinned 2.4 / 2.2 for some time)
+
+No engine, scoring, rules, red-flag, artifact or expected-output file was
+touched. The harness needed **no** compatibility changes — it ran the delivered
+bank as-is.
+
+## Results — KB 2.4 / rules 2.2 / token dict 1.1
+
+| Metric | Value |
+|---|---|
+| Executed | 239 |
+| Graded | 236 |
+| Observe (ungraded by design) | 3 |
+| Passed | 235 |
+| Failed | 1 |
+| Pass rate (graded) | **99.58%** |
+| **Under-triage** | **0** |
+| Over-triage | 1 |
+| Engine errors | 0 |
+| **Safety-critical failures** | **0** (150 safety-critical cases exercised) |
+| Global red flag rules exercised | 13/13 |
+| Skipped for a missing fixture | 0 |
+
+Red flag precedence intact: 124 cases triggered a red flag, all 124 returned
+`emergency` with empty `topCauses` — scoring skipped entirely, LOCKED PRINCIPLE
+#5 as specified. Priority-4c (CB_229, CB_230) returns `urgent`, not `emergency`
+— Case-04 Option B holds.
+
+## The 51.52% → 99.58% jump is the bank, not the engine
+
+The previous run was 234 cases on KB 2.3 at 51.52%. 111 of that run's 112
+failures were red-flag cases where the bank asserted an `expected_top_condition`
+the engine does not produce by design. **This bank adopts Option A** from that
+open ruling — `expected_top_condition: null` on all 128 red-flag cases. Nothing
+in the engine changed, and nothing regressed between KB 2.3 and KB 2.4.
+
+## The one failure — CB_211, carried forward, needs a ruling
+
+Empty input. Expected `non_urgent` / `empty_default`; actual `urgent` /
+`urgency_default` / top cause `malaria`. **Over-triage, not safety-critical.**
+
+This is the same single failure the 234-case run recorded, already tracked as
+issue #35. `empty_default` is **not a value any engine version emits**. The
+expectation describes behaviour that was never implemented, and it is unreachable
+in product — Continue is disabled with nothing selected, and `loading_screen.dart`
+guards `symptomTokens.isEmpty` before any work (E8 FIX 2).
+
+Classified as **stale expected output requiring clinical review**. No fix
+attempted. Either the engine returns a safe default on empty input and emits an
+`empty_default` source, or the bank drops an expectation the engine never
+promised — that is the lead's call, not this step's.
+
+## Observe cases — CB_225 / CB_232 / CB_233, for human review
+
+| Case | Input | Urgency | Top condition | Red flag | vs. KB 2.3 |
+|---|---|---|---|---|---|
+| CB_225 | `fever` | `urgent` | `malaria` | no | unchanged |
+| CB_232 | `fever, chills, watery_stool, vomiting` | `urgent` | `malaria` | no | unchanged |
+| CB_233 | `chest_pain, dizziness, palpitations` | `urgent` | `cardio_symptoms` | no | unchanged |
+
+All three identical to the KB 2.3 run — no drift across the artifact bump.
+CB_232 still wants a clinical eye: on a malaria/diarrhoea overlap the scorer
+picks malaria on base weight 10, the highest in the KB.
+
+## Verification
+
+- `flutter test` — 692 passed, 7 skipped, 1 failed (CB_211 only)
+- The 7 skips are all opt-in staging-network telemetry tests
+  (`RUN_STAGING_TELEMETRY_TESTS`). **Zero case-bank skips.**
+- `flutter analyze` — no issues found
+- `dart format --output=none --set-exit-if-changed .` — clean, exit 0
+- Drift guard proven in both states: fails with the fixture removed, and fails
+  on a single renumbered case ID; fixture restored to the authoritative hash
+
+## Confirmations
+
+- Vocabulary 2.0 remains unpublished and unused — no candidate token dictionary
+  was copied, wired or referenced
+- No alias work (including `breathlessness` → `shortness_of_breath`)
+- The three IMCI tier-key findings are untouched
+- Telemetry contract v1.0 and crash-monitoring configuration unchanged
+- Scoring and clinical inference remain fully on-device
+- The four unrelated Flutter/Xcode tooling changes remain modified and unstaged
+
+
+---
+
+# I2 / W2 Step 3B — Option D Known-Findings Contract Wired
+
+**Branch:** `test/i2-w2-case-bank-239` (PR #71, still open and unmerged)
+**Last Updated:** 2026-08-15
+
+---
+
+## CURRENT STATUS: 239 executed · 238 passed · 1 known finding · 0 unexpected failures
+
+**Option D was adopted at Knowledge Base merge `550e8f17`.** CB_211 remains
+unchanged and unresolved; it is now registered, executed on every run, pinned
+exactly to its observed output, and never counted as passed.
+
+> **Engineering disposition, not clinical approval.** External beta and
+> production are **not** approved by this result.
+
+## What was done
+
+- [x] Vendored `test/fixtures/known_findings.json` byte-for-byte from
+      `wellapath-knowledge-base@550e8f17` (`testing/known_findings.json`) —
+      9,730 bytes, SHA256 `fadaea06…3537ed`, version/schema 1.0/1.0. Git blob
+      SHA `3d835d40` matches the source blob exactly
+- [x] Added `test/engine/case_bank/known_findings.dart` — the registry consumer.
+      Loads, validates, binds to the case bank, and partitions the run into
+      passed / known findings / unexpected failures
+- [x] Added `test/engine/case_bank/known_findings_fixture.dart` — integrity
+      constants shared by the validation run, the provenance guard and the
+      negative tests, so no hash is checked in only one place
+- [x] Wired the registry into `case_bank_validation_test.dart`: 8 new
+      assertions covering execution completeness, exact pinning, count
+      reconciliation, red-flag precedence and the no-approval claim
+- [x] Added `test/engine/known_findings_guard_test.dart` — 28 negative guards
+- [x] Extended `case_bank_provenance_test.dart` with 5 registry provenance tests
+- [x] Documented in `docs/CASE_BANK_PROVENANCE.md`
+
+**No engine, scoring, rules, red-flag, artifact, case-bank or expected-output
+file was touched.** `case_bank_v1.json` is byte-identical to Step 2.
+
+## The binding is computed, not restated
+
+The harness hashes the case-bank bytes it actually loaded and refuses the
+registry unless `authoritative_fixture.sha256` matches. A swapped fixture cannot
+inherit an adjudication made against a different one.
+
+Nothing in the consumer knows what CB_211 is. There is no case-id branch, no
+filename convention and no test-name filter — adding or removing a finding is a
+registry change reviewed upstream, not a code change in Mobile.
+
+## CB_211 — registered, pinned, never passed
+
+| | |
+|---|---|
+| Input | `symptom_tokens: []`, `demographic_tokens: []`, `season: null` |
+| Case-bank expectation (unchanged) | `non_urgent` / `empty_default` / `null` |
+| Pinned observed | `urgent` / `urgency_default` / `malaria` / `red_flag=false` |
+| Actual this run | **identical to the pin, field for field** |
+| Direction | over-triage, not under-triage |
+| Decision status | `open_option_d_adopted_awaiting_clinical_product_adjudication` |
+| Expires at | **external beta** |
+
+Any deviation fails — **including an apparent improvement.** A move to
+`non_urgent`/`empty_default` is not an automatic pass; it means the registry is
+stale and must be reviewed. Options B and C remain deferred for clinical/product
+adjudication before external beta.
+
+It cannot suppress a red flag (an empty token set matches no rule), does not
+affect non-empty assessments, and is unreachable through the product UI though
+reachable by direct engine invocation.
+
+## Human-review observations — unchanged, no action
+
+| Case | Urgency | Red flag | Top condition |
+|---|---|---|---|
+| CB_225 | urgent | no | malaria |
+| CB_232 | urgent | no | malaria |
+| CB_233 | urgent | no | cardio_symptoms |
+
+**CB_232 adjudication:** malaria 26, acute_diarrhoea 21, margin 5 — no tie, no
+tie-break involved, no iteration-order dependency, unchanged between KB 2.3 and
+KB 2.4, no artifact change authorised. Independently reproduced from the engine
+during this step. **No behavioural change; no tie-break to be implemented.**
+
+## Verification
+
+- `flutter test` — **733 passed, 7 skipped, 0 failed**
+- The 7 skips are opt-in staging-network telemetry tests. **Zero case-bank skips**
+- `flutter analyze` — no issues; `dart format --set-exit-if-changed .` — exit 0
+- 28 negative guards prove every rejection path: missing, malformed, wrong
+  hash/bytes/version/schema, wrong fixture binding, unknown or duplicate case id,
+  non-option_d disposition, closed decision, claimed approval, expired
+  milestone, expectation disagreeing with the bank, drift in each pinned field,
+  apparent improvement, engine throw, unregistered mismatch, dropped case
+- Live induced failures on the real files (registry removed; one byte appended)
+  both turned CI red, then the registry was restored to `fadaea06…3537ed`
+
+## Confirmations
+
+- Vocabulary 2.0 remains unpublished and unused; no aliases added
+- IMCI tier keys untouched; no W3 adaptive-question work
+- Telemetry contract v1.0 and crash monitoring unchanged
+- Scoring and clinical inference remain on-device and deterministic
+- Artifact versions and hashes unchanged (KB 2.4 / rules 2.2 / token dict 1.1)
+- The four unrelated tooling changes remain modified, unstaged and byte-identical
+- PR #71 remains **open and unmerged**
+
