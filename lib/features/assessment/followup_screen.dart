@@ -6,6 +6,21 @@ import 'loading_screen.dart';
 import 'models/followup_question.dart';
 import 'question_engine.dart';
 
+/// QB-002 / IM-002 — a red-flag clarifier is evaluated the moment it is
+/// answered, instead of after the last follow-up question.
+///
+/// **This is unconditional.** There is no flag, no define, no config object and
+/// no build flavour that can disable it. Immediate interruption is required by
+/// the locked architecture, and a safety correction that a build can switch off
+/// is a safety correction that some build will ship without.
+///
+/// Rollback is a code revert and a redeploy of a previous build — not a runtime
+/// toggle. Reverting cannot introduce an under-triage that was not already
+/// present, because the correction only makes evaluation *earlier*.
+///
+/// Authoritative handoff: wellapath-knowledge-base @ aa7a2f13,
+/// `mobile_handoff/question_flow_v1/IM002_SAFETY_FIX.md`
+/// (sha256 6bc1863d…5df9d29c).
 class FollowupScreen extends StatefulWidget {
   final AssessmentController assessmentController;
   final VoidCallback onCancel;
@@ -28,6 +43,16 @@ class _FollowupScreenState extends State<FollowupScreen> {
   late final List<FollowupQuestion> _questions;
   int _currentQuestion = 0;
   final Map<int, dynamic> _answers = {};
+
+  /// Questions whose answer has already been written to the controller, so a
+  /// re-entrant `_onNext` or the final `_commitAnswers()` sweep cannot commit
+  /// the same answer twice.
+  final Set<int> _committed = <int>{};
+
+  /// Set once a transition has been decided and never cleared on the interrupt
+  /// path. A second tap arriving before the first navigation completes finds
+  /// this true and returns, so exactly one transition wins.
+  bool _transitionInProgress = false;
 
   static const Map<String, String> _durationTokens = {
     'Less than 3 days': 'days_1_3',
@@ -67,14 +92,60 @@ class _FollowupScreenState extends State<FollowupScreen> {
   }
 
   void _onNext(BuildContext context) {
+    // One transition wins. A double tap, or a tap arriving while navigation is
+    // already under way, returns here rather than advancing a second time or
+    // slipping past an interrupt.
+    if (_transitionInProgress) return;
+
     if (_currentQuestion < _questions.length - 1) {
+      if (_currentAnswerCanAffectRedFlag()) {
+        _transitionInProgress = true;
+
+        // Order matters, and this is the whole fix:
+        //   1. commit THIS answer  2. evaluate  3. interrupt or advance.
+        // Evaluating against state that does not yet include the answer would
+        // be the same bug in a new place.
+        try {
+          _commitAnswer(_currentQuestion);
+        } on Object catch (e) {
+          // A commit failure must not be read as "no red flag". Fail closed:
+          // hand over to the engine, which evaluates properly and surfaces its
+          // own error state, rather than advancing past a possible danger sign.
+          debugPrint(
+            'Follow-up answer commit failed; failing closed to engine',
+          );
+          assert(() {
+            debugPrint('  cause: ${e.runtimeType}');
+            return true;
+          }());
+          _goToEvaluation(context);
+          return;
+        }
+
+        if (_committedAnswerRaisedRedFlagToken(_currentQuestion)) {
+          // Stop here. No step-view event — the next question is never shown,
+          // so recording a view of it would both be untrue and make telemetry
+          // a red-flag oracle. No setState, so no ordinary frame can appear
+          // between this decision and the emergency presentation. The queued
+          // questions are discarded, not deferred.
+          _goToEvaluation(context);
+          return;
+        }
+
+        // No red flag: fall through to the ordinary advance, unchanged.
+        _transitionInProgress = false;
+      }
+
       // Each follow-up question is a step. The question itself is never
       // recorded — no question ID, no category, no answer. `_questions.length`
       // is derived from the selected symptom tokens, which is exactly why the
-      // step-view event carries no `step_count`.
+      // step-view event carries no `step_count`. An assessment interrupted by
+      // a red flag emits fewer of these, exactly as an abandoned one does —
+      // which is what keeps the two indistinguishable.
       widget.assessmentController.telemetrySession.recordStepView();
       setState(() => _currentQuestion += 1);
     } else {
+      _transitionInProgress = true;
       _commitAnswers();
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -87,27 +158,79 @@ class _FollowupScreenState extends State<FollowupScreen> {
     }
   }
 
+  /// Hands the assessment to the existing engine path.
+  ///
+  /// `LoadingScreen` runs the real `EngineController`, so `RedFlagEvaluator`
+  /// makes the clinical decision and `ScoringEngine` is never reached when a
+  /// red flag fires. No clinical rule is duplicated here, and no new
+  /// presentation is introduced — the interrupt screen this reaches is the
+  /// existing one, with the existing emergency actions.
+  void _goToEvaluation(BuildContext context) {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LoadingScreen(
+          assessmentController: widget.assessmentController,
+          onCancel: widget.onCancel,
+        ),
+      ),
+    );
+  }
+
+  /// True when answering this question could raise a red flag token.
+  ///
+  /// Derived from the question's own declaration rather than a hardcoded list
+  /// of question ids: a clarifier is precisely the question that carries a
+  /// `redFlagToken`, so a new clarifier added to `kRedFlagClarifiers` is
+  /// covered automatically.
+  bool _currentAnswerCanAffectRedFlag() {
+    final question = _questions[_currentQuestion];
+    return question.type == QuestionType.redFlagClarifier &&
+        question.redFlagToken != null;
+  }
+
+  /// Whether the answer just committed for [index] actually put that
+  /// question's red flag token into the assessment.
+  ///
+  /// Reads the committed controller state rather than the widget's answer map,
+  /// so it cannot disagree with what the engine will see.
+  bool _committedAnswerRaisedRedFlagToken(int index) {
+    final token = _questions[index].redFlagToken;
+    if (token == null) return false;
+    return widget.assessmentController.symptomTokens.contains(token);
+  }
+
+  /// Commits exactly one question's answer, at most once.
+  void _commitAnswer(int index) {
+    if (!_committed.add(index)) return;
+    if (!_answers.containsKey(index)) return;
+
+    final question = _questions[index];
+    final value = _answers[index];
+
+    switch (question.type) {
+      case QuestionType.severity:
+        widget.assessmentController.setSeverityToken(
+          _severityToken(value as double),
+        );
+      case QuestionType.duration:
+        widget.assessmentController.setDurationToken(value as String);
+      case QuestionType.additionalSymptoms:
+        for (final token in value as Set<String>) {
+          widget.assessmentController.addSymptomToken(token);
+        }
+      case QuestionType.redFlagClarifier:
+        // Only an explicit yes raises the red flag. "No" leaves the milder
+        // near-miss token as the user reported it.
+        if (value == 'Yes' && question.redFlagToken != null) {
+          widget.assessmentController.addSymptomToken(question.redFlagToken!);
+        }
+    }
+  }
+
   void _commitAnswers() {
-    for (final entry in _answers.entries) {
-      final question = _questions[entry.key];
-      switch (question.type) {
-        case QuestionType.severity:
-          widget.assessmentController.setSeverityToken(
-            _severityToken(entry.value as double),
-          );
-        case QuestionType.duration:
-          widget.assessmentController.setDurationToken(entry.value as String);
-        case QuestionType.additionalSymptoms:
-          for (final token in entry.value as Set<String>) {
-            widget.assessmentController.addSymptomToken(token);
-          }
-        case QuestionType.redFlagClarifier:
-          // Only an explicit yes raises the red flag. "No" leaves the milder
-          // near-miss token as the user reported it.
-          if (entry.value == 'Yes' && question.redFlagToken != null) {
-            widget.assessmentController.addSymptomToken(question.redFlagToken!);
-          }
-      }
+    for (final index in _answers.keys.toList()..sort()) {
+      _commitAnswer(index);
     }
   }
 

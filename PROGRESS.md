@@ -3749,3 +3749,78 @@ query 492 µs, warm query 4 µs (p95 6 µs), RSS 2.1 MB for 5 loaded copies.
   monitoring unchanged
 - The four unrelated tooling changes remain modified, unstaged and intact
 
+
+---
+
+# I2 / W3 Step 2 — QB-002 Immediate Red-Flag Interruption
+
+**Branch:** `fix/i2-w3-im002-immediate-red-flag` (off `develop` `a269168`)
+**Last Updated:** 2026-08-16
+
+---
+
+## CURRENT STATUS: fixed unconditionally — clinical results unchanged
+
+A red-flag clarifier answered "Yes" now interrupts immediately instead of after
+up to four further questions. **Unconditional — there is no feature flag.** Every
+build receives it; no define, environment variable, config object or build
+flavour can disable it. Rollback is a code revert and a redeploy of a previous
+build, not a runtime toggle.
+
+## Root cause
+
+`_commitAnswers()` ran only in the final-question branch of `_onNext`, so every
+answer — including a declared danger sign — sat in widget state until the
+questionnaire ended.
+
+**This was never under-triage.** The engine always handled it correctly (124/124
+red-flag cases emergency, 0 safety-critical under-triage). The harm was delay:
+four more routine questions after a danger sign, with abandonment risk.
+
+## What changed
+
+`lib/features/assessment/followup_screen.dart` — **the only production file
+touched.** The engine, evaluator, scorer, urgency determiner, interrupt screen
+and telemetry are all unchanged.
+
+New order on a red-flag-capable question: commit this answer once → read
+committed state → if the red-flag token is present, stop (no step-view, no
+setState, queued questions discarded) and hand to the existing `LoadingScreen`
+→ `RedFlagEvaluator` → existing `RedFlagInterruptScreen`. Otherwise the
+ordinary advance, unchanged.
+
+No clinical rule is duplicated in UI code; the screen decides only *when to hand
+over*.
+
+## Evidence
+
+- **Reproduction proved failing first:** disabling only the interception branch
+  made 4 tests fail. Assertions were not weakened.
+- 27 new tests, run with no build defines — an ordinary build's configuration.
+- Clinical regression unchanged: **239 executed · 238 passed · 1 known finding ·
+  0 unexpected failures**, CB_211 pinned, 0 safety-critical under-triage.
+- Full suite green with no defines.
+- Timing: added work not measurable above jitter; all cases far inside one
+  60 fps frame budget. No clinical latency threshold invented.
+- Android debug and release built; iOS build validated.
+
+## Honest gaps
+
+- **No step-verified human walkthrough** and **no low-end emulator profile** —
+  neither was available here. Widget coverage plus a real launch stand in.
+- **Handoff cases 7 and 8 are not reachable**: the MVP does not persist an
+  in-flight assessment and has no answer editing, so restoration and
+  re-evaluation-after-edit do not apply. **IM-004 was therefore not
+  implemented.**
+- The handoff's worst-case example uses per-symptom follow-ups from the W3
+  candidate flow; the live engine de-duplicates, so the live worst case needs a
+  second clarifier. **Same count (four), same defect.**
+
+## Confirmations
+
+IM-001 and IM-003 not implemented · question ordering, wording, answer meanings,
+token effects and the path limit of 5 unchanged · telemetry contract v1.0
+untouched and red-flag paths remain indistinguishable from abandonment · the W3
+question candidate and Vocabulary 2.0 remain unpublished and inactive · Backend
+and Knowledge Base not modified · the four unrelated tooling changes remain
+modified, unstaged and intact.
