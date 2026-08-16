@@ -3,9 +3,15 @@
 A red-flag clarifier answered "Yes" now interrupts the assessment at once,
 instead of after up to four further questions.
 
-> **Behind a default-off flag.** `--dart-define=W3_IMMEDIATE_RED_FLAG=true`.
-> With the flag unset — every ordinary build, every test run, every release
-> today — `_onNext` takes exactly the path it took before. That is the rollback.
+> **Unconditional. There is no feature flag.** Every build receives this
+> correction — debug, profile, release, internal and production alike. No
+> define, environment variable, config object, remote setting or build flavour
+> can disable it, because none exists on the path.
+>
+> An earlier revision of this patch gated the fix behind a default-off define.
+> **That gate has been removed** on the engineering lead's ruling: QB-002 is an
+> existing safety defect in the live MVP, and a safety correction that a build
+> can switch off is one that some build will eventually ship without.
 
 **Authoritative handoff:** `wellapath-knowledge-base` @
 `aa7a2f13c577ea23f78235d9d8585416bd07f9de`,
@@ -69,7 +75,7 @@ recordStepView()  ->  setState(advance)  ->  ...  ->  last question
                                             ->  _commitAnswers()  ->  engine
 ```
 
-**After**, with the flag on and the current question able to affect a red flag:
+**After** (always, when the current question can affect a red flag):
 
 ```
 commit THIS answer (exactly once)
@@ -178,13 +184,14 @@ model does, and are recorded here as deferred rather than silently skipped.
 
 ### Reproduction proved failing before the fix
 
-Disabling only the interception branch (`if (false && …)`) with the flag on made
-**4 tests fail**. The assertions are real, not weakened to pass.
+Disabling only the interception branch (`if (false && …)`) — a controlled
+mutation, reverted before committing — makes the immediate-interrupt tests
+fail. The assertions are real, not weakened to pass.
 
 ### Regression
 
-22 tests in `test/assessment/qb002_immediate_red_flag_test.dart`, green in
-**both** flag states.
+26 tests in `test/assessment/qb002_immediate_red_flag_test.dart`, run with no
+build defines — the configuration an ordinary build ships with.
 
 | Handoff case | Covered |
 |---|---|
@@ -205,25 +212,32 @@ Disabling only the interception branch (`if (false && …)`) with the flag on ma
 
 **239 executed · 238 passed · 1 known finding · 0 unexpected failures**, CB_211
 still pinned, **0 safety-critical under-triage**, 124/124 red-flag cases
-emergency with empty ranked causes. Identical in both flag states.
+emergency with empty ranked causes. **No clinical content, rule, token, weight,
+urgency or question changed** — only the moment at which an existing evaluation
+happens.
 
 ### Timing
 
-| Answer kind | Flag OFF | Flag ON |
-|---|---|---|
-| Affirmative red-flag clarifier | 1,183 µs | 1,303 µs |
-| Negative clarifier | 1,616 µs | 1,243 µs |
-| Ordinary question | 1,058 µs | 1,516 µs |
+Measured on the default (and only) build configuration:
 
-The added work is **not measurable above run-to-run jitter** — flag-on is faster
-than flag-off in one of the three. All well inside one 60 fps frame budget
-(16,667 µs), which is the only threshold asserted. **No clinical latency
-threshold was invented.**
+| Answer kind | Added synchronous work |
+|---|---|
+| Affirmative red-flag clarifier | ~1.3 ms |
+| Negative clarifier | ~1.2 ms |
+| Ordinary question | ~1.5 ms |
+
+When the correction was still gated, gated-off and gated-on measurements were
+within run-to-run jitter of each other — in one of three cases the *enabled*
+path measured faster. The added work is one map write and one list membership
+check; it is not measurable above noise. All cases sit far inside one 60 fps
+frame budget (16,667 µs), which is the only threshold asserted. **No clinical
+latency threshold was invented.**
 
 ### Runtime verification
 
-Android release built in both flag states; iOS simulator build installed,
-launched and rendering with `W3_IMMEDIATE_RED_FLAG=true`.
+Android release built; iOS simulator build installed,
+launched and rendering. No safety define is passed to any build, because none
+exists.
 
 **A step-verified human walkthrough was NOT performed** — no Android emulator or
 low-end device profile was available in this environment, and driving the full
@@ -237,13 +251,16 @@ covered and is reported as a gap.**
 
 ## 8. Rollback
 
-Unset the flag. Behaviour returns to today's exactly — the flag guards the whole
-early-commit block, and nothing else in `_onNext` changed.
+**Rollback is a code revert and a redeploy of a previous build — not a runtime
+toggle.** There is deliberately no switch: reverting requires a reviewed commit
+and a release, which is the correct amount of friction for removing a safety
+correction.
 
-Nothing is persisted, no artifact is published, no `/config` entry exists.
-A revert is a single-commit revert. Because the fix only makes evaluation
-**earlier**, rolling back cannot introduce an under-triage that was not already
-present.
+The revert is a single-commit revert of this patch. Nothing is persisted, no
+artifact is published, and no `/config` entry exists. Because the correction
+only makes evaluation **earlier**, rolling it back cannot introduce an
+under-triage that was not already present — it restores the delay, not a wrong
+answer.
 
 ---
 
@@ -253,6 +270,8 @@ present.
 - **IM-003** (dynamic re-branching) — not implemented; it changes scoring inputs.
 - **IM-004** (ID-keyed answers) — not implemented; only required by restoration,
   which the live app does not have. Answers remain index-keyed.
+- **Restoration and answer editing** remain outside the current MVP and are not
+  added by this patch.
 - The adaptive question engine, the declarative condition evaluator, the graph
   engine and loading the question candidate — all later W3 tasks.
 - Question ordering, wording, answer meanings, token effects, the path limit of

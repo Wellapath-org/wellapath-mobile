@@ -6,23 +6,21 @@ import 'loading_screen.dart';
 import 'models/followup_question.dart';
 import 'question_engine.dart';
 
-/// QB-002 / IM-002 — evaluate a red-flag clarifier the moment it is answered
-/// instead of after the last follow-up question.
+/// QB-002 / IM-002 — a red-flag clarifier is evaluated the moment it is
+/// answered, instead of after the last follow-up question.
 ///
-/// Default off. Enable with `--dart-define=W3_IMMEDIATE_RED_FLAG=true`.
+/// **This is unconditional.** There is no flag, no define, no config object and
+/// no build flavour that can disable it. Immediate interruption is required by
+/// the locked architecture, and a safety correction that a build can switch off
+/// is a safety correction that some build will ship without.
 ///
-/// With the flag off `_onNext` takes exactly the path it took before, which is
-/// the rollback: nothing is persisted, no artifact is published, and reverting
-/// cannot introduce an under-triage that was not already present — the fix only
-/// makes evaluation *earlier*.
+/// Rollback is a code revert and a redeploy of a previous build — not a runtime
+/// toggle. Reverting cannot introduce an under-triage that was not already
+/// present, because the correction only makes evaluation *earlier*.
 ///
 /// Authoritative handoff: wellapath-knowledge-base @ aa7a2f13,
 /// `mobile_handoff/question_flow_v1/IM002_SAFETY_FIX.md`
 /// (sha256 6bc1863d…5df9d29c).
-const bool kImmediateRedFlagEnabled = bool.fromEnvironment(
-  'W3_IMMEDIATE_RED_FLAG',
-);
-
 class FollowupScreen extends StatefulWidget {
   final AssessmentController assessmentController;
   final VoidCallback onCancel;
@@ -100,7 +98,7 @@ class _FollowupScreenState extends State<FollowupScreen> {
     if (_transitionInProgress) return;
 
     if (_currentQuestion < _questions.length - 1) {
-      if (kImmediateRedFlagEnabled && _currentAnswerCanAffectRedFlag()) {
+      if (_currentAnswerCanAffectRedFlag()) {
         _transitionInProgress = true;
 
         // Order matters, and this is the whole fix:

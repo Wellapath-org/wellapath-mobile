@@ -3759,11 +3759,13 @@ query 492 µs, warm query 4 µs (p95 6 µs), RSS 2.1 MB for 5 loaded copies.
 
 ---
 
-## CURRENT STATUS: fixed behind a default-off flag — clinical results unchanged
+## CURRENT STATUS: fixed unconditionally — clinical results unchanged
 
 A red-flag clarifier answered "Yes" now interrupts immediately instead of after
-up to four further questions. Behind `--dart-define=W3_IMMEDIATE_RED_FLAG=true`;
-**flag off is byte-identical to today**, which is the rollback.
+up to four further questions. **Unconditional — there is no feature flag.** Every
+build receives it; no define, environment variable, config object or build
+flavour can disable it. Rollback is a code revert and a redeploy of a previous
+build, not a runtime toggle.
 
 ## Root cause
 
@@ -3794,14 +3796,13 @@ over*.
 
 - **Reproduction proved failing first:** disabling only the interception branch
   made 4 tests fail. Assertions were not weakened.
-- 22 new tests, green in **both** flag states.
+- 27 new tests, run with no build defines — an ordinary build's configuration.
 - Clinical regression unchanged: **239 executed · 238 passed · 1 known finding ·
   0 unexpected failures**, CB_211 pinned, 0 safety-critical under-triage.
-- Full suite **879 passed, 7 skipped, 0 failed** in both flag states.
+- Full suite green with no defines.
 - Timing: added work not measurable above jitter; all cases far inside one
   60 fps frame budget. No clinical latency threshold invented.
-- Android release built both ways; iOS simulator build launched and rendering
-  with the flag on.
+- Android debug and release built; iOS build validated.
 
 ## Honest gaps
 

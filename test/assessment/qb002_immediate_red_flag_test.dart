@@ -16,9 +16,12 @@
 /// sign is asked up to four more routine questions before being told to seek
 /// emergency care, and may abandon first — receiving nothing.
 ///
-/// The fix is behind `--dart-define=W3_IMMEDIATE_RED_FLAG=true`. With the flag
-/// off, behaviour is byte-identical to before, which is the rollback.
+/// The correction is **unconditional** — no flag, no define, no build flavour
+/// can disable it. These tests therefore need no configuration to exercise it;
+/// they assert the behaviour of an ordinary build.
 library;
+
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,42 +121,6 @@ void main() {
       );
       print('');
     });
-
-    testWidgets(
-      'PRE-FIX BEHAVIOUR: with the flag off, "Yes" advances instead of interrupting',
-      (WidgetTester tester) async {
-        // This is the defect, pinned. It is also the rollback contract: with
-        // W3_IMMEDIATE_RED_FLAG unset, behaviour must be exactly this.
-        final AssessmentController controller = controllerFor(kWorstCaseTokens);
-        await pumpFollowup(tester, controller);
-
-        expect(
-          find.text(kRedFlagClarifiers.first.questionText),
-          findsOneWidget,
-        );
-
-        await answerClarifierYesAndAdvance(tester);
-
-        if (kImmediateRedFlagEnabled) {
-          // The suite is running with the fix enabled; this pin does not apply.
-          return;
-        }
-
-        expect(
-          controller.symptomTokens,
-          isNot(contains('breathlessness_at_rest')),
-          reason:
-              'PRE-FIX: the clarifier answer is held in widget state and is not '
-              'committed until the final question, so the red flag token is '
-              'not present yet.',
-        );
-        expect(
-          find.text(kRedFlagClarifiers.first.questionText),
-          findsNothing,
-          reason: 'PRE-FIX: the screen advanced past the clarifier.',
-        );
-      },
-    );
   });
 
   group('QB-002 fix — immediate interruption', () {
@@ -163,8 +130,6 @@ void main() {
       final AssessmentController controller = controllerFor(kWorstCaseTokens);
       await pumpFollowup(tester, controller);
       await answerClarifierYesAndAdvance(tester);
-
-      if (!kImmediateRedFlagEnabled) return;
 
       expect(
         controller.symptomTokens,
@@ -187,8 +152,6 @@ void main() {
       await pumpFollowup(tester, controller);
       await answerClarifierYesAndAdvance(tester);
 
-      if (!kImmediateRedFlagEnabled) return;
-
       // None of the four queued questions may appear.
       for (int i = 1; i < questions.length; i++) {
         expect(
@@ -207,8 +170,6 @@ void main() {
       final AssessmentController controller = controllerFor(kWorstCaseTokens);
       await pumpFollowup(tester, controller);
       await answerClarifierYesAndAdvance(tester);
-
-      if (!kImmediateRedFlagEnabled) return;
 
       // The follow-up screen is gone; evaluation has taken over.
       expect(find.byType(FollowupScreen), findsNothing);
@@ -274,8 +235,6 @@ void main() {
       await pumpFollowup(tester, controller);
       await answerClarifierYesAndAdvance(tester);
 
-      if (!kImmediateRedFlagEnabled) return;
-
       expect(controller.symptomTokens, contains('inability_to_drink'));
       expect(find.byType(FollowupScreen), findsNothing);
     });
@@ -294,8 +253,6 @@ void main() {
       await tester.tap(next);
       await tester.tap(next, warnIfMissed: false);
       await tester.pumpAndSettle();
-
-      if (!kImmediateRedFlagEnabled) return;
 
       expect(
         controller.symptomTokens.where(
@@ -353,8 +310,6 @@ void main() {
       await answerClarifierYesAndAdvance(tester);
       final int after = controller.telemetrySession.stepsViewed;
 
-      if (!kImmediateRedFlagEnabled) return;
-
       expect(
         after,
         before,
@@ -398,8 +353,6 @@ void main() {
         await pumpFollowup(tester, abandoned);
         // Same point in the flow, user simply stops.
 
-        if (!kImmediateRedFlagEnabled) return;
-
         expect(
           redFlag.telemetrySession.stepsViewed,
           abandoned.telemetrySession.stepsViewed,
@@ -417,8 +370,6 @@ void main() {
       final AssessmentController controller = controllerFor(kWorstCaseTokens);
       await pumpFollowup(tester, controller);
       await answerClarifierYesAndAdvance(tester);
-
-      if (!kImmediateRedFlagEnabled) return;
 
       // buildInput() is exactly what LoadingScreen hands to the engine.
       expect(
@@ -460,8 +411,6 @@ void main() {
       final AssessmentController controller = controllerFor(kWorstCaseTokens);
       await pumpFollowup(tester, controller);
       await answerClarifierYesAndAdvance(tester);
-
-      if (!kImmediateRedFlagEnabled) return;
 
       expect(controller.symptomTokens, contains('breathlessness_at_rest'));
       expect(
@@ -523,7 +472,6 @@ void main() {
       await answerClarifierYesAndAdvance(tester);
 
       expect(tester.takeException(), isNull);
-      if (!kImmediateRedFlagEnabled) return;
       expect(controller.symptomTokens, contains('breathlessness_at_rest'));
     });
   });
@@ -545,8 +493,7 @@ void main() {
 
     void report(String label, int micros) {
       print(
-        '  [flag ${kImmediateRedFlagEnabled ? "ON " : "OFF"}] '
-        '${label.padRight(34)} $micros us  '
+        '  ${label.padRight(34)} $micros us  '
         '(frame budget $frameBudgetMicros us)',
       );
       expect(micros, lessThan(frameBudgetMicros));
@@ -579,6 +526,169 @@ void main() {
         await tester.pumpAndSettle();
       }
       report('ordinary non-clarifier question', await measureNext(tester));
+    });
+  });
+
+  group('QB-002 — the correction is unconditional', () {
+    testWidgets('it is active with no dart-defines at all', (
+      WidgetTester tester,
+    ) async {
+      // This suite is run by CI with no --dart-define. If the correction were
+      // still gated, this would advance to the next question instead of
+      // interrupting.
+      final AssessmentController controller = controllerFor(kWorstCaseTokens);
+      await pumpFollowup(tester, controller);
+      await answerClarifierYesAndAdvance(tester);
+
+      expect(controller.symptomTokens, contains('breathlessness_at_rest'));
+      expect(find.byType(FollowupScreen), findsNothing);
+    });
+
+    test('no production source references the obsolete flag', () {
+      // Production code is where a parser, constant or conditional could
+      // reinstate a disable. Nothing under lib/ may name it.
+      final List<String> offenders = <String>[];
+      for (final FileSystemEntity e in Directory(
+        'lib',
+      ).listSync(recursive: true)) {
+        if (e is! File || !e.path.endsWith('.dart')) continue;
+        final String src = e.readAsStringSync();
+        if (src.contains('W3_IMMEDIATE_RED_FLAG') ||
+            src.contains('kImmediateRedFlagEnabled')) {
+          offenders.add(e.path);
+        }
+      }
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'A reference to the removed safety flag survives in production '
+            'code: ${offenders.join(', ')}. No parser, constant or '
+            'conditional for it may remain.',
+      );
+    });
+
+    test('nothing instructs anyone to set the removed define', () {
+      // Documentation may record that the flag was removed; it may not tell a
+      // reader to pass it. This catches a stale build instruction surviving a
+      // doc edit.
+      final List<String> offenders = <String>[];
+      for (final String dir in <String>['docs', 'lib', '.github']) {
+        final Directory d = Directory(dir);
+        if (!d.existsSync()) continue;
+        for (final FileSystemEntity e in d.listSync(recursive: true)) {
+          if (e is! File) continue;
+          final String src = e.readAsStringSync();
+          if (src.contains('--dart-define=W3_IMMEDIATE_RED_FLAG')) {
+            offenders.add(e.path);
+          }
+        }
+      }
+      expect(
+        offenders,
+        isEmpty,
+        reason:
+            'These still instruct passing the removed define: '
+            '${offenders.join(', ')}',
+      );
+    });
+
+    test('pubspec and CI declare no safety define', () {
+      final String pubspec = File('pubspec.yaml').readAsStringSync();
+      expect(pubspec.contains('W3_IMMEDIATE_RED_FLAG'), isFalse);
+
+      final Directory workflows = Directory('.github/workflows');
+      if (workflows.existsSync()) {
+        for (final FileSystemEntity e in workflows.listSync()) {
+          if (e is! File) continue;
+          expect(
+            e.readAsStringSync().contains('W3_IMMEDIATE_RED_FLAG'),
+            isFalse,
+            reason: '${e.path} sets the removed safety flag',
+          );
+        }
+      }
+    });
+
+    testWidgets('there is no configuration surface that could disable it', (
+      WidgetTester tester,
+    ) async {
+      // The interception branch in `_onNext` is guarded only by whether the
+      // question can affect a red flag. There is no environment read, no
+      // config object and no injectable switch on the path, so "production
+      // cannot disable it" and "an obsolete define cannot disable it" are the
+      // same statement: there is nothing to set.
+      final String source = File(
+        'lib/features/assessment/followup_screen.dart',
+      ).readAsStringSync();
+
+      for (final String forbidden in const <String>[
+        'fromEnvironment',
+        'Platform.environment',
+        'kReleaseMode',
+        'kProfileMode',
+        'kDebugMode',
+      ]) {
+        expect(
+          source.contains(forbidden),
+          isFalse,
+          reason:
+              'followup_screen.dart reads "$forbidden" — the safety path must '
+              'not vary by build configuration or build mode.',
+        );
+      }
+
+      // And it behaves the same when exercised directly.
+      final AssessmentController controller = controllerFor(kWorstCaseTokens);
+      await pumpFollowup(tester, controller);
+      await answerClarifierYesAndAdvance(tester);
+      expect(find.byType(FollowupScreen), findsNothing);
+    });
+
+    test('the screen does not duplicate the clinical red-flag rule table', () {
+      // It may read question metadata and committed state; it must not carry a
+      // second hardcoded set of red-flag tokens or conditions. The clinical
+      // decision stays in RedFlagEvaluator, reached via the existing engine.
+      final String source = File(
+        'lib/features/assessment/followup_screen.dart',
+      ).readAsStringSync();
+
+      for (final String token in const <String>[
+        'breathlessness_at_rest',
+        'inability_to_drink',
+        'abnormal_bleeding',
+        'seizures',
+        'severe_dehydration',
+      ]) {
+        expect(
+          source.contains(token),
+          isFalse,
+          reason:
+              'followup_screen.dart hardcodes the red-flag token "$token". '
+              'Red-flag tokens must come from question metadata, and the '
+              'clinical decision from RedFlagEvaluator.',
+        );
+      }
+
+      // Nor may it import the engine, the evaluator or the rules artifact.
+      // (Their names appear in an explanatory doc comment, which is fine —
+      // what matters is that no code path here reaches them.)
+      final List<String> imports = source
+          .split('\n')
+          .where((String l) => l.trimLeft().startsWith('import '))
+          .toList();
+      for (final String forbidden in const <String>[
+        'red_flag_evaluator',
+        'scoring_engine',
+        'engine_controller',
+        'staged_artifact_loader',
+      ]) {
+        expect(
+          imports.any((String l) => l.contains(forbidden)),
+          isFalse,
+          reason: 'followup_screen.dart imports $forbidden',
+        );
+      }
     });
   });
 }
