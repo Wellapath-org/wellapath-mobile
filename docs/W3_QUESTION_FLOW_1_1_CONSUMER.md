@@ -10,7 +10,9 @@ stronger evidence than the knowledge base could.
 > continues to use its compiled Dart question flow, unchanged.
 >
 > **IM-003 dynamic re-branching is not implemented.**
-> **IM-001 is not activation-ready** — 135 Product wording decisions are open.
+> **IM-001 is not activation-ready** — **1,038** decisions are open: 135 wording
+> and 903 option-order. See §3a–3b and
+> `docs/evidence/im001_option_instability_addendum_v1.json`.
 
 **Contract:** `wellapath-knowledge-base` @
 `cffbe8a673c7a5be5dfb882cea77c1705c7515c3` (PR #29, reviewed head `2defee9f`).
@@ -83,6 +85,76 @@ and how their options are arranged.
 
 On reversed paths the candidate changes: question set **0**, option set **0**,
 token effects **0**, red-flag effects **0**, truncation set **0**.
+
+### 3a. "The option list differs" was not one finding — it was three
+
+Order, membership and token mapping have different reviewers, and collapsing
+them would let a scoring-input change be signed off as a wording tweak. Every
+dimension is measured separately in
+`test/question_flow_v1_1/reversed_classification_test.dart`.
+
+**Overlapping dimension counts, all 2,300 reversed comparisons:**
+
+| Dimension | Differs on |
+|---|---|
+| option ID **sequence** · label sequence · token-mapping sequence | **1,872** |
+| wording | **1,680** |
+| option ID **set** (membership) | **0** |
+| option **label set** | **0** |
+| option-to-token **mapping set** | **0** |
+| **reachable token set** | **0** |
+| **scoring-affecting** reachable tokens | **0** |
+| **red-flag-affecting** reachable tokens | **0** |
+| question identity sequence · role sequence | **0** |
+| truncation set | **0** |
+| required/skip semantics | **0** |
+
+**Mutually exclusive primary classification — reconciles to 2,300:**
+
+| Bucket | Paths |
+|---|---|
+| wording **and** option order | 1,665 |
+| identical | 413 |
+| option order only | 207 |
+| wording only | 15 |
+| **Total** | **2,300** |
+
+Every one of the 1,872 option differences is **display order only**. The live
+engine unions additional-symptom options over the triggered tokens, and a union
+is a set operation: reversing the visit order changes the order options are
+appended in and nothing else.
+
+**No token is reachable in one selection order and not another.** With the
+reachable token set unchanged, the scoring input is unchanged — so ranked
+conditions, top condition, urgency, red-flag interruption, path length and
+completion cannot change either. That is **measured**, not inferred from
+question-role stability.
+
+### 3b. Decision groups and who signs them off
+
+| | Groups | Reviewer |
+|---|---|---|
+| wording only | **135** | Product |
+| option order only | **903** | Product |
+| option membership | **0** | *(would be Product + clinical)* |
+| token reachability | **0** | *(would be Product + clinical)* |
+| red-flag reachability | **0** | *(would be a safety blocker)* |
+| **Total** | **1,038** | |
+
+The **135** wording groups reproduce the knowledge base's 135 wording decisions
+exactly, from an independent computation — which is corroboration that the KB's
+grouping is right for wording.
+
+The **903** option-order groups are **absent from the knowledge base artifact
+entirely**. That silence is what let "the option list differs" read as an open
+clinical question.
+
+They are 903 instances of **one** decision — *in what order are merged options
+presented?* — which candidate 1.1 already answers with
+`option_order = source_order_then_declared_order`. Product confirms the rule,
+not 903 orderings. The instances are listed so the rule can be seen applied to
+real paths, and so a future artifact that introduces a membership difference
+cannot hide inside a summary.
 
 ---
 
@@ -296,9 +368,20 @@ these numbers.
 
 ## 12. Remaining activation blockers
 
-1. **IM-001 — 135 Product wording decisions, all `PENDING`.** Path content no
-   longer changes, but which of two existing wordings is shown can differ from a
-   given tap order. Every wording involved already exists in the live app.
+1. **IM-001 — 1,038 decisions, all `PENDING`: 135 wording + 903 option-order.**
+   Path content no longer changes, but which of two existing wordings is shown,
+   and in what order merged options appear, can differ from a given tap order.
+   Every wording and every option involved already exists in the live app.
+
+   **Product review alone is sufficient for the differences measured**, and only
+   because every clinically meaningful dimension — option membership,
+   token mapping, reachable token set, question set, roles, truncation, skip
+   semantics — was **measured identical**, not assumed so. Had any of them
+   differed, the rule would be Product **+ clinical**, and a red-flag
+   reachability difference would have been a safety blocker.
+
+   This is not a statement that IM-001 is ready. The decisions are open, and
+   blockers 2–4 below are separate.
 2. Question content unapproved (`content_approved: false` throughout).
 3. No clinical review of the candidate (`not_reviewed`).
 4. Unpublished — no R2 object, no `/config` entry, no manifest.
