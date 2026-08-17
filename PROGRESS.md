@@ -3824,3 +3824,89 @@ untouched and red-flag paths remain indistinguishable from abandonment · the W3
 question candidate and Vocabulary 2.0 remain unpublished and inactive · Backend
 and Knowledge Base not modified · the four unrelated tooling changes remain
 modified, unstaged and intact.
+
+---
+
+# I2 / W3 Step 3 — Offline Question-Flow Consumer and Deterministic Planner
+
+**Branch:** `feat/i2-w3-question-flow-consumer` (off `develop` `5ecd18c`)
+**Last Updated:** 2026-08-16
+
+---
+
+## CURRENT STATUS: consumer built and validated — candidate inactive, IM-001 activation BLOCKED
+
+## The headline finding
+
+**IM-001 deterministic ordering is not activation-safe as it stands.** Across all
+2,325 bounded paths: 395 identical, **1,930 differing — and 0 of those are
+order-only.** Every difference is a question-set change, and **1,192 have
+truncation selecting a different set**, so a user would be asked about different
+symptoms.
+
+The cause is structural: the live `QuestionEngine` de-duplicates to one severity,
+one duration and one merged additional-symptoms question; the candidate models
+one question per token per role. For `[headache, fever]` live asks 3, the
+candidate plans 5 — and the limit is 5.
+
+Classified as a **path/content exposure change**; activation stays blocked
+pending product and clinical review. The defect IM-001 addresses is real, though:
+the live engine *is* order-dependent, confirmed by reversing token order.
+
+## What was built
+
+`lib/core/question_flow/` — models, strict offline loader, 13-operator condition
+evaluator, deterministic ordering, initial-only planner, ID-keyed answer state.
+34 contract files vendored byte-for-byte from `wellapath-knowledge-base@aa7a2f13`,
+every hash verified.
+
+**The live path is untouched:** `git diff` over `lib/features/assessment/`,
+`lib/core/engine/` and `lib/core/telemetry/` is **0 files**.
+
+## Results
+
+| Suite | Result |
+|---|---|
+| Contract / publication / isolation guards | 24/24 |
+| Loader + all 23 invalid fixtures | 25/25 |
+| 13 condition operators | 19/19 |
+| Ordering, planner, red-flag, IM-003, state | 31/31 |
+| 18 authoritative path fixtures | **18/18 exact** |
+| IM-001 evidence + performance | 7/7 |
+
+Full suite **993 passed, 7 skipped, 0 failed**. Clinical regression unchanged:
+**239 executed · 238 passed · 1 known finding · 0 unexpected failures**, CB_211
+pinned, 0 safety-critical under-triage, 124/124 red-flag cases emergency with
+empty ranked causes. QB-002 still unconditional (27/27).
+
+Performance (harness only): parse+validate 1.5 ms, ordering 29 µs, condition
+evaluation <1 µs, planning 30 µs, 10.8 MB for 5 flows. **No user pays it** — the
+candidate is not an asset and the consumer is never initialised.
+
+## Honest limits
+
+- **7 of 13 operators are unverified against real data** — the candidate uses
+  only `all`, `any`, `always`, `sex`, `token_present`, `token_absent`.
+- **IM-003 is absent by construction** — the planner has no method that accepts
+  an answer, so nothing can re-branch. Proven by test.
+- **IM-004 restoration is not implemented**; the MVP persists no in-flight
+  assessment. The 3 authoritative `edit_cases` are vendored but not executed as
+  behaviour, because the behaviour does not exist.
+- The 2,325-path bound is the knowledge base's own — a coverage limit over token
+  subsets up to size 3, not a soundness claim.
+
+Six loader checks were missing on the first pass (branch references, branch
+cycles, unreachable and contradictory triggers, red-flag effect/hook agreement,
+red-flag ordering) and were added from the invalid fixtures' own defects. An
+early enum guess also wrongly rejected the real candidate; the shipped enums are
+taken from the schema.
+
+## Confirmations
+
+IM-001 implemented for the candidate only — live ordering unchanged · IM-003 not
+implemented · no restoration, editing, skips or graph-driven flow · question and
+vocabulary candidates remain unpublished and inactive · no question, wording,
+answer meaning, token effect, red-flag rule, scoring, urgency or ranking change ·
+path limit still 5 · telemetry contract v1.0 untouched · Backend and Knowledge
+Base not modified · the four unrelated tooling changes remain modified, unstaged
+and intact.
