@@ -4011,3 +4011,63 @@ unrelated tooling changes remain modified, unstaged and byte-identical.
 Clinical regression unchanged: **239 executed · 238 passed · 1 known finding · 0
 unexpected failures · 0 skips**, **124/124** red-flag cases emergency with no
 ranked cause, 13/13 global rules, CB_211 pinned, **QB-002 unconditional**.
+
+## Step 5D — reconciled with the authoritative Knowledge Base record
+
+The knowledge base recomputed every Mobile figure from its own captured-Dart
+oracle and published the authoritative record. **The Mobile addendum is now
+provenance, not authority.**
+
+| | |
+|---|---|
+| Authoritative merge | `0193a03d40f707460e2a8c799221a864776f1b9d` (KB PR #30) |
+| Authoritative evidence | `reports/im001_option_order_evidence_v1.json` · sha256 `fd4391a2…e181939` |
+| Authoritative global decision | `reports/im001_option_order_decision_v1.json` · sha256 `6adbfcc4…f505f1b1` |
+| Decision | `IM001-ORD-GLOBAL-001` · **pending** · activation blocker **true** |
+
+**Every value verified against the KB commit directly**: both full hashes, group
+count 903, affected paths 1,872, decision status pending, activation blocker
+true, wording decisions 135 all pending, total Product decisions 136, IM-001
+resolved false. The KB's reconciliation table reports `agree: True` on all 21
+entries — its independent recomputation matched Mobile's figures exactly.
+
+**The Mobile addendum's observations were not touched.** Comparisons, counts,
+decision groups and clinical-impact results are byte-identical to the
+pre-incorporation version; only `_metadata` differs, which was verified by
+canonical-JSON diff of every non-metadata section. Adding the metadata
+necessarily changed the file hash:
+
+- pre-incorporation: `371443cf1914b9870ecdd0a3ebe6838bd7322edd59f827058b1db3635f0e57a3` · 1,252,307 B
+- current: `7770006227f9647463f4c608f574810c04e8c957453e9c6685e0135007acc131` · 1,254,494 B
+
+The original hash is retained inside the file as the pre-incorporation
+provenance value, and a guard asserts the current file is **not** byte-identical
+to it — claiming otherwise would be a false provenance record.
+
+**Dimension count: 21, not 22.** 21 comparison dimensions were evaluated, all 21
+agree, zero unpaired reversed cases. The KB's `progress.md` narrates "All 22
+dimensions agree" while its own `reconciliation.detail` table has 21 entries — a
+**documentation count error, not a measurement error**. No metric, evidence
+value, decision or safety conclusion changed. Mobile documentation never claimed
+22 and states 21 throughout; the narrative wording is in the knowledge base,
+which this PR does not modify, so correcting it there is a Data/KB action.
+
+**IM-001 remains unresolved and activation-blocking**: 135 wording + 1 ordering
+rule = **136** pending Product decisions. Clinical review is not required for the
+measured ordering differences **only because every clinical-impact dimension
+equals zero** — membership, token mapping, reachable tokens, scoring-affecting
+and red-flag-affecting reachability are all 0, and the authoritative decision
+records that exemption as conditional.
+
+**PR #75 authorizes nothing**: not deterministic ordering in the live
+`QuestionEngine`, not any wording or option-order change a user would see, not
+activation of either candidate, not approval of any Product decision. IM-003
+remains deferred and absent by construction.
+
+Sixteen reconciliation guards fail the build if the addendum is marked
+authoritative, the incorporation status is wrong or missing, the KB merge commit
+or either authoritative hash differs, the original provenance hash is missing,
+the underlying counts drift, total Product decisions is not 136, any decision is
+approved, IM-001 is marked resolved, a membership/token/scoring/red-flag delta
+becomes nonzero, documentation claims 22 dimensions, or the PR claims activation
+authority.

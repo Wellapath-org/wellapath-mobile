@@ -5,8 +5,46 @@
     "generated_by": "wellapath-mobile",
     "generator": "test/question_flow_v1_1/reversed_classification_test.dart",
     "authoritative": false,
-    "status": "pending_knowledge_base_incorporation",
-    "note": "Mobile-generated evidence. NOT authoritative: the knowledge base owns the IM-001 decision record. This addendum decomposes the live option-list instability that reports/im001_product_review_v1_1.json does not yet classify, and must be incorporated there before it carries any weight. No vendored knowledge-base artifact was edited to produce it.",
+    "status": "incorporated_superseded_by_knowledge_base",
+    "note": "Mobile-generated evidence, now INCORPORATED and SUPERSEDED. The knowledge base recomputed every figure here from its own captured-Dart oracle and published the authoritative evidence and the single global ordering decision named below. This file is retained as PROVENANCE — the record of what Mobile measured and who superseded it — and carries no authority. The observations are unchanged from the pre-incorporation version; only this metadata block differs. No vendored knowledge-base artifact was edited.",
+    "incorporation": {
+      "incorporated": true,
+      "incorporation_date": "2026-08-17",
+      "authoritative_repository": "Wellapath-org/wellapath-knowledge-base",
+      "authoritative_merge_commit": "0193a03d40f707460e2a8c799221a864776f1b9d",
+      "authoritative_evidence": {
+        "path": "reports/im001_option_order_evidence_v1.json",
+        "sha256": "fd4391a21c5db85c4881c2b5d238f968def58b999d6caa28580d28830e181939"
+      },
+      "authoritative_global_decision": {
+        "path": "reports/im001_option_order_decision_v1.json",
+        "sha256": "6adbfcc4e2a6983b4a07ff6e04298444061c9343e8da9a86b433b6e6f505f1b1",
+        "decision_id": "IM001-ORD-GLOBAL-001",
+        "status": "pending",
+        "activation_blocker": true
+      },
+      "pre_incorporation_provenance": {
+        "sha256": "371443cf1914b9870ecdd0a3ebe6838bd7322edd59f827058b1db3635f0e57a3",
+        "bytes": 1252307,
+        "note": "The hash and size of this file BEFORE the incorporation metadata was added. Adding metadata necessarily changes the hash, so the current file is NOT byte-identical to the original and is not claimed to be."
+      },
+      "im_001_gate": {
+        "wording_decisions_pending": 135,
+        "ordering_rule_decisions_pending": 1,
+        "total_product_decisions_required": 136,
+        "im_001_resolved": false
+      },
+      "reconciliation_dimensions": 21,
+      "reconciliation_dimensions_note": "21 dimensions were compared and all 21 agree, with zero unpaired reversed cases. The knowledge base narrative says \"22\"; its reconciliation table has 21 entries. A documentation count error only — no metric, evidence value, decision or safety conclusion changed.",
+      "this_pr_authorizes": [],
+      "this_pr_does_not_authorize": [
+        "deterministic option ordering in the live QuestionEngine",
+        "any question wording change",
+        "any option-order change visible to a user",
+        "activation of either candidate",
+        "approval of any Product decision"
+      ]
+    },
     "evidence_class": "CAPTURED_DART",
     "oracle_source_commit": "657739cc1745104dd1194a57ef14cc9793c9b98e",
     "knowledge_base_commit": "cffbe8a673c7a5be5dfb882cea77c1705c7515c3",

@@ -10,9 +10,13 @@ stronger evidence than the knowledge base could.
 > continues to use its compiled Dart question flow, unchanged.
 >
 > **IM-003 dynamic re-branching is not implemented.**
-> **IM-001 is not activation-ready** — **1,038** decisions are open: 135 wording
-> and 903 option-order. See §3a–3b and
-> `docs/evidence/im001_option_instability_addendum_v1.json`.
+> **IM-001 is unresolved and activation-blocking** — **136** Product decisions
+> are pending: 135 wording selections plus one global ordering rule
+> (`IM001-ORD-GLOBAL-001`). See §3a–3c.
+>
+> **This PR authorizes nothing.** Not deterministic ordering in the live engine,
+> not any wording or option-order change a user would see, not activation of
+> either candidate, not approval of any decision.
 
 **Contract:** `wellapath-knowledge-base` @
 `cffbe8a673c7a5be5dfb882cea77c1705c7515c3` (PR #29, reviewed head `2defee9f`).
@@ -155,6 +159,56 @@ presented?* — which candidate 1.1 already answers with
 not 903 orderings. The instances are listed so the rule can be seen applied to
 real paths, and so a future artifact that introduces a membership difference
 cannot hide inside a summary.
+
+### 3c. Incorporated into the knowledge base, and superseded by it
+
+The knowledge base recomputed every figure above from its own captured-Dart
+oracle and published the authoritative record. **The Mobile addendum is now
+provenance, not authority.**
+
+| | |
+|---|---|
+| Authoritative merge | `0193a03d40f707460e2a8c799221a864776f1b9d` (KB PR #30) |
+| Authoritative evidence | `reports/im001_option_order_evidence_v1.json`<br>sha256 `fd4391a21c5db85c4881c2b5d238f968def58b999d6caa28580d28830e181939` |
+| Authoritative global decision | `reports/im001_option_order_decision_v1.json`<br>sha256 `6adbfcc4e2a6983b4a07ff6e04298444061c9343e8da9a86b433b6e6f505f1b1` |
+| Decision | `IM001-ORD-GLOBAL-001` · **pending** · activation blocker **true** |
+| Mobile addendum, pre-incorporation | sha256 `371443cf…5f0e57a3` · 1,252,307 B |
+| Mobile addendum, current | sha256 `7770006227f9647463f4c608f574810c04e8c957453e9c6685e0135007acc131` · 1,254,494 B |
+
+Adding the incorporation metadata necessarily changed the addendum's hash. The
+current file is **not** byte-identical to the original and is not claimed to be;
+the original hash is retained inside it as the pre-incorporation provenance
+value. Every observation — comparisons, counts, decision groups, clinical-impact
+results — is **byte-identical** to the pre-incorporation version. Only the
+metadata block differs.
+
+**The IM-001 gate:**
+
+| | |
+|---|---|
+| Wording decisions pending | **135** |
+| Ordering-rule decisions pending | **1** |
+| **Total Product decisions required** | **136** |
+| IM-001 resolved | **false** |
+
+**Clinical review is not required for the measured ordering differences — and
+only because every clinical-impact dimension equals zero.** Option membership,
+option-to-token mapping, reachable tokens, scoring-affecting reachability and
+red-flag-affecting reachability are all **0**. The authoritative decision records
+that exemption as *conditional*: were any of them nonzero, clinical review would
+be required.
+
+### 3d. Dimension count: 21, not 22
+
+**21 comparison dimensions were evaluated, and all 21 agree, with zero unpaired
+reversed cases.** The knowledge base's `progress.md` narrates "All 22 dimensions
+agree"; its own `reconciliation.detail` table has **21** entries.
+
+That is a **documentation count error, not a measurement error**. No metric, no
+evidence value, no decision and no safety conclusion changed. Mobile
+documentation has never claimed 22 and states 21 throughout; the narrative
+wording sits in the knowledge base, which this PR does not modify, so correcting
+it there is a Data/KB action.
 
 ---
 
@@ -368,17 +422,23 @@ these numbers.
 
 ## 12. Remaining activation blockers
 
-1. **IM-001 — 1,038 decisions, all `PENDING`: 135 wording + 903 option-order.**
-   Path content no longer changes, but which of two existing wordings is shown,
-   and in what order merged options appear, can differ from a given tap order.
-   Every wording and every option involved already exists in the live app.
+1. **IM-001 — unresolved. 136 Product decisions pending: 135 wording selections
+   plus `IM001-ORD-GLOBAL-001`, the global ordering rule.** Path content no
+   longer changes, but which of two existing wordings is shown, and in what order
+   merged options appear, can differ from a given tap order. Every wording and
+   every option involved already exists in the live app.
+
+   Authoritative record: `wellapath-knowledge-base` @ `0193a03d`. The 903
+   option-order contests are evidence behind the one ordering decision, not 903
+   decisions.
 
    **Product review alone is sufficient for the differences measured**, and only
    because every clinically meaningful dimension — option membership,
    token mapping, reachable token set, question set, roles, truncation, skip
    semantics — was **measured identical**, not assumed so. Had any of them
    differed, the rule would be Product **+ clinical**, and a red-flag
-   reachability difference would have been a safety blocker.
+   reachability difference would have been a safety blocker. The authoritative
+   decision records that exemption as conditional.
 
    This is not a statement that IM-001 is ready. The decisions are open, and
    blockers 2–4 below are separate.

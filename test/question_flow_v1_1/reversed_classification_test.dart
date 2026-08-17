@@ -29,6 +29,54 @@ import 'reversed_classification.dart';
 const String kAddendumPath =
     'docs/evidence/im001_option_instability_addendum_v1.json';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Incorporation into the knowledge base (Step 5D)
+//
+// The knowledge base recomputed every figure below from its own captured-Dart
+// oracle and published the authoritative evidence and the single global
+// ordering decision. This addendum is now PROVENANCE, not authority: it records
+// what Mobile measured and who superseded it.
+//
+// The observations themselves are untouched. Only the metadata says so.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const String kAuthoritativeRepository =
+    'Wellapath-org/wellapath-knowledge-base';
+const String kAuthoritativeMergeCommit =
+    '0193a03d40f707460e2a8c799221a864776f1b9d';
+const String kAuthoritativeEvidencePath =
+    'reports/im001_option_order_evidence_v1.json';
+const String kAuthoritativeEvidenceSha =
+    'fd4391a21c5db85c4881c2b5d238f968def58b999d6caa28580d28830e181939';
+const String kAuthoritativeDecisionPath =
+    'reports/im001_option_order_decision_v1.json';
+const String kAuthoritativeDecisionSha =
+    '6adbfcc4e2a6983b4a07ff6e04298444061c9343e8da9a86b433b6e6f505f1b1';
+const String kAuthoritativeDecisionId = 'IM001-ORD-GLOBAL-001';
+const String kIncorporationDate = '2026-08-17';
+
+/// The addendum's hash BEFORE the incorporation metadata was added.
+///
+/// Retained because the metadata change necessarily changes the file hash. The
+/// post-update file is NOT byte-identical to the original and is not claimed to
+/// be; this is the pre-incorporation provenance value.
+const String kAddendumOriginalSha =
+    '371443cf1914b9870ecdd0a3ebe6838bd7322edd59f827058b1db3635f0e57a3';
+const int kAddendumOriginalBytes = 1252307;
+
+/// Product decisions IM-001 requires: 135 wording + 1 global ordering rule.
+const int kWordingDecisionsPending = 135;
+const int kOrderingDecisionsPending = 1;
+const int kTotalProductDecisions = 136;
+
+/// Entries in the knowledge base's reconciliation table.
+///
+/// 21, not 22. The knowledge base's own `progress.md` narrates "All 22
+/// dimensions agree"; its `reconciliation.detail` table has 21 entries. A
+/// documentation count error, not a measurement error — every value in it
+/// agrees, and no metric, decision or safety conclusion depends on the count.
+const int kReconciliationDimensions = 21;
+
 /// The reversed-comparison total everything must reconcile to.
 const int kReversedComparisons = 2300;
 
@@ -563,19 +611,18 @@ void main() {
       );
     });
 
-    test(
-      'is marked non-authoritative pending knowledge-base incorporation',
-      () {
+    test('is marked non-authoritative, incorporated and superseded', () {
+      {
         final Map<String, dynamic> doc =
             jsonDecode(File(kAddendumPath).readAsStringSync())
                 as Map<String, dynamic>;
         final Map<String, dynamic> meta =
             doc['_metadata'] as Map<String, dynamic>;
         expect(meta['authoritative'], isFalse);
-        expect(meta['status'], 'pending_knowledge_base_incorporation');
+        expect(meta['status'], 'incorporated_superseded_by_knowledge_base');
         expect(meta['generated_by'], 'wellapath-mobile');
-      },
-    );
+      }
+    });
 
     test('reports option dimensions, not only wording', () {
       // The specific way this evidence could understate the blocker: describe
@@ -629,6 +676,221 @@ void main() {
       for (final Object? g in doc['decision_groups'] as List<dynamic>) {
         expect((g as Map<String, dynamic>)['status'], 'PENDING');
       }
+    });
+  });
+
+  group('incorporation into the knowledge base', () {
+    late Map<String, dynamic> incorporation;
+
+    setUpAll(() {
+      final Map<String, dynamic> doc =
+          jsonDecode(File(kAddendumPath).readAsStringSync())
+              as Map<String, dynamic>;
+      incorporation =
+          (doc['_metadata'] as Map<String, dynamic>)['incorporation']
+              as Map<String, dynamic>;
+    });
+
+    test('the addendum is never marked authoritative', () {
+      final Map<String, dynamic> doc =
+          jsonDecode(File(kAddendumPath).readAsStringSync())
+              as Map<String, dynamic>;
+      expect(
+        (doc['_metadata'] as Map<String, dynamic>)['authoritative'],
+        isFalse,
+      );
+      expect(incorporation['incorporated'], isTrue);
+    });
+
+    test('the authoritative knowledge-base merge commit is exact', () {
+      expect(
+        incorporation['authoritative_merge_commit'],
+        kAuthoritativeMergeCommit,
+      );
+      expect(
+        incorporation['authoritative_repository'],
+        kAuthoritativeRepository,
+      );
+    });
+
+    test('the authoritative evidence path and full hash are exact', () {
+      final Map<String, dynamic> evidence =
+          incorporation['authoritative_evidence'] as Map<String, dynamic>;
+      expect(evidence['path'], kAuthoritativeEvidencePath);
+      expect(evidence['sha256'], kAuthoritativeEvidenceSha);
+      expect(
+        evidence['sha256'],
+        matches(RegExp(r'^[0-9a-f]{64}$')),
+        reason: 'an abbreviated hash is not a provenance record',
+      );
+    });
+
+    test('the authoritative global decision is exact and still pending', () {
+      final Map<String, dynamic> decision =
+          incorporation['authoritative_global_decision']
+              as Map<String, dynamic>;
+      expect(decision['path'], kAuthoritativeDecisionPath);
+      expect(decision['sha256'], kAuthoritativeDecisionSha);
+      expect(decision['decision_id'], kAuthoritativeDecisionId);
+      expect(decision['status'], 'pending');
+      expect(decision['activation_blocker'], isTrue);
+    });
+
+    test('the pre-incorporation provenance hash is retained', () {
+      final Map<String, dynamic> provenance =
+          incorporation['pre_incorporation_provenance'] as Map<String, dynamic>;
+      expect(provenance['sha256'], kAddendumOriginalSha);
+      expect(provenance['bytes'], kAddendumOriginalBytes);
+      // The current file must NOT be byte-identical to the original: metadata
+      // was added. Claiming otherwise would be a false provenance record.
+      final String current = sha256
+          .convert(File(kAddendumPath).readAsBytesSync())
+          .toString();
+      expect(current, isNot(kAddendumOriginalSha));
+      expect(File(kAddendumPath).lengthSync(), isNot(kAddendumOriginalBytes));
+    });
+
+    test('the underlying Mobile observations have not drifted', () {
+      final Map<String, dynamic> doc =
+          jsonDecode(File(kAddendumPath).readAsStringSync())
+              as Map<String, dynamic>;
+      final Map<String, dynamic> scope = doc['scope'] as Map<String, dynamic>;
+      expect(scope['reversed_comparisons'], kReversedComparisons);
+      expect(scope['identical'], 413);
+
+      final Map<String, dynamic> primary =
+          doc['primary_classification_mutually_exclusive']
+              as Map<String, dynamic>;
+      expect(primary['wording_and_option_order_difference'], 1665);
+      expect(primary['option_order_only_difference'], 207);
+      expect(primary['wording_only_difference'], 15);
+
+      final Map<String, dynamic> dims =
+          doc['dimension_counts_overlapping'] as Map<String, dynamic>;
+      expect(dims['wording'], kLiveWordingDifferences);
+      expect(dims['optionIdSequence'], kLiveOptionSequenceDifferences);
+
+      final Map<String, dynamic> counts =
+          doc['corrected_decision_counts'] as Map<String, dynamic>;
+      expect(counts['wording_only_product'], kWordingDecisionsPending);
+      expect(counts['option_order_product'], 903);
+      expect(counts['total_decision_groups'], 1038);
+    });
+
+    test('option membership, token, scoring and red-flag deltas stay zero', () {
+      final Map<String, dynamic> doc =
+          jsonDecode(File(kAddendumPath).readAsStringSync())
+              as Map<String, dynamic>;
+      final Map<String, dynamic> impact =
+          doc['clinical_impact'] as Map<String, dynamic>;
+      for (final String key in <String>[
+        'option_membership_differences',
+        'token_mapping_differences',
+        'reachable_token_set_differences',
+        'scoring_affecting_differences',
+        'red_flag_affecting_differences',
+      ]) {
+        expect(impact[key], 0, reason: '$key became nonzero');
+      }
+      expect(impact['tokens_reachable_in_one_order_only'], isEmpty);
+    });
+
+    test('IM-001 needs 136 Product decisions and is not resolved', () {
+      final Map<String, dynamic> gate =
+          incorporation['im_001_gate'] as Map<String, dynamic>;
+      expect(gate['wording_decisions_pending'], kWordingDecisionsPending);
+      expect(
+        gate['ordering_rule_decisions_pending'],
+        kOrderingDecisionsPending,
+      );
+      expect(gate['total_product_decisions_required'], kTotalProductDecisions);
+      expect(gate['im_001_resolved'], isFalse);
+      expect(
+        kWordingDecisionsPending + kOrderingDecisionsPending,
+        kTotalProductDecisions,
+      );
+    });
+
+    test('21 reconciliation dimensions, not 22', () {
+      expect(
+        incorporation['reconciliation_dimensions'],
+        kReconciliationDimensions,
+      );
+      expect(kReconciliationDimensions, 21);
+      expect(
+        incorporation['reconciliation_dimensions_note'],
+        contains('documentation count error'),
+      );
+    });
+
+    test('no documentation claims 22 dimensions as its own count', () {
+      // Precise on purpose. The docs QUOTE the knowledge base's "All 22
+      // dimensions agree" while correcting it, and a blunt substring check
+      // flagged that quotation — this guard caught its own author. So an
+      // occurrence is permitted only where the same document also names it as
+      // an error and states the real count.
+      for (final String path in <String>[
+        'docs/W3_QUESTION_FLOW_1_1_CONSUMER.md',
+        'PROGRESS.md',
+        kAddendumPath,
+      ]) {
+        final String text = File(path).readAsStringSync();
+        if (!text.contains('22 dimensions')) continue;
+        expect(
+          text.contains('documentation count error'),
+          isTrue,
+          reason: '$path mentions 22 dimensions without naming it an error',
+        );
+        expect(
+          text.contains('21'),
+          isTrue,
+          reason: '$path corrects nothing: it never states the real count',
+        );
+        // And it must never be asserted in the affirmative.
+        expect(
+          text.contains('all 22 dimensions agree') ||
+              text.contains('All 22 comparison dimensions'),
+          isFalse,
+          reason: '$path asserts 22 dimensions as its own count',
+        );
+      }
+    });
+
+    test('this PR claims no activation authority', () {
+      expect(incorporation['this_pr_authorizes'], isEmpty);
+      final List<dynamic> denied =
+          incorporation['this_pr_does_not_authorize'] as List<dynamic>;
+      expect(denied, isNotEmpty);
+      for (final String needle in <String>[
+        'deterministic option ordering in the live QuestionEngine',
+        'any question wording change',
+        'activation of either candidate',
+        'approval of any Product decision',
+      ]) {
+        expect(denied, contains(needle));
+      }
+    });
+
+    test('no decision anywhere is approved', () {
+      // Mobile decision groups...
+      final Map<String, dynamic> doc =
+          jsonDecode(File(kAddendumPath).readAsStringSync())
+              as Map<String, dynamic>;
+      for (final Object? g in doc['decision_groups'] as List<dynamic>) {
+        expect((g as Map<String, dynamic>)['status'], 'PENDING');
+      }
+      // ...the vendored knowledge-base wording decisions...
+      final Map<String, dynamic> kbReport =
+          jsonDecode(File(kIm001ReviewReportPath).readAsStringSync())
+              as Map<String, dynamic>;
+      for (final Object? d in kbReport['decisions'] as List<dynamic>) {
+        expect((d as Map<String, dynamic>)['product_verdict'], 'PENDING');
+      }
+      // ...and the authoritative global ordering decision.
+      final Map<String, dynamic> decision =
+          incorporation['authoritative_global_decision']
+              as Map<String, dynamic>;
+      expect(decision['status'], 'pending');
     });
   });
 
@@ -718,14 +980,63 @@ Map<String, Object?> _buildAddendum({
       'generated_by': 'wellapath-mobile',
       'generator': 'test/question_flow_v1_1/reversed_classification_test.dart',
       'authoritative': false,
-      'status': 'pending_knowledge_base_incorporation',
+      'status': 'incorporated_superseded_by_knowledge_base',
       'note':
-          'Mobile-generated evidence. NOT authoritative: the knowledge base '
-          'owns the IM-001 decision record. This addendum decomposes the live '
-          'option-list instability that reports/im001_product_review_v1_1.json '
-          'does not yet classify, and must be incorporated there before it '
-          'carries any weight. No vendored knowledge-base artifact was edited '
-          'to produce it.',
+          'Mobile-generated evidence, now INCORPORATED and SUPERSEDED. The '
+          'knowledge base recomputed every figure here from its own '
+          'captured-Dart oracle and published the authoritative evidence and '
+          'the single global ordering decision named below. This file is '
+          'retained as PROVENANCE — the record of what Mobile measured and who '
+          'superseded it — and carries no authority. The observations are '
+          'unchanged from the pre-incorporation version; only this metadata '
+          'block differs. No vendored knowledge-base artifact was edited.',
+      'incorporation': <String, Object?>{
+        'incorporated': true,
+        'incorporation_date': kIncorporationDate,
+        'authoritative_repository': kAuthoritativeRepository,
+        'authoritative_merge_commit': kAuthoritativeMergeCommit,
+        'authoritative_evidence': <String, Object?>{
+          'path': kAuthoritativeEvidencePath,
+          'sha256': kAuthoritativeEvidenceSha,
+        },
+        'authoritative_global_decision': <String, Object?>{
+          'path': kAuthoritativeDecisionPath,
+          'sha256': kAuthoritativeDecisionSha,
+          'decision_id': kAuthoritativeDecisionId,
+          'status': 'pending',
+          'activation_blocker': true,
+        },
+        'pre_incorporation_provenance': <String, Object?>{
+          'sha256': kAddendumOriginalSha,
+          'bytes': kAddendumOriginalBytes,
+          'note':
+              'The hash and size of this file BEFORE the incorporation '
+              'metadata was added. Adding metadata necessarily changes the '
+              'hash, so the current file is NOT byte-identical to the original '
+              'and is not claimed to be.',
+        },
+        'im_001_gate': <String, Object?>{
+          'wording_decisions_pending': kWordingDecisionsPending,
+          'ordering_rule_decisions_pending': kOrderingDecisionsPending,
+          'total_product_decisions_required': kTotalProductDecisions,
+          'im_001_resolved': false,
+        },
+        'reconciliation_dimensions': kReconciliationDimensions,
+        'reconciliation_dimensions_note':
+            '21 dimensions were compared and all 21 agree, with zero unpaired '
+            'reversed cases. The knowledge base narrative says "22"; its '
+            'reconciliation table has 21 entries. A documentation count error '
+            'only — no metric, evidence value, decision or safety conclusion '
+            'changed.',
+        'this_pr_authorizes': <String>[],
+        'this_pr_does_not_authorize': <String>[
+          'deterministic option ordering in the live QuestionEngine',
+          'any question wording change',
+          'any option-order change visible to a user',
+          'activation of either candidate',
+          'approval of any Product decision',
+        ],
+      },
       'evidence_class': 'CAPTURED_DART',
       'oracle_source_commit': kOracleMobileSourceCommit,
       'knowledge_base_commit': kGroupingSourceCommit,
