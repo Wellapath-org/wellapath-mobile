@@ -4071,3 +4071,76 @@ the underlying counts drift, total Product decisions is not 136, any decision is
 approved, IM-001 is marked resolved, a membership/token/scoring/red-flag delta
 becomes nonzero, documentation claims 22 dimensions, or the PR claims activation
 authority.
+
+## I2 / W3 Step 7 — IM-003 scoring impact, measured with the shipped engine
+
+**IM-003 is not implemented and no decision is approved. D004 remains pending.**
+
+**Headline finding: additive re-branching de-escalated urgency from `emergency`
+to `urgent` on one measured path.** `S10_path_limit_pressure`: `lassa_fever`
+(score 26, `urgency_default: emergency`) leads `malaria` (25) by one point; the
+closure adds 10 tokens, `malaria` reaches 52, and urgency comes from malaria's
+default instead. **No red flag fired on either side.** Recorded as
+`IM003-SB-001`, a potential safety blocker, open for clinical review. This
+report does not judge whether it is acceptable.
+
+**Why the knowledge base could not have found it.** Its conclusion that no newly
+reachable token touches any red-flag pathway is correct and is reproduced here —
+0 red-flag changes across 63 scenarios. But urgency also comes from the
+`urgency_default` of whichever condition ranks first, so added scoring tokens can
+lift a lower-urgency condition above a higher-urgency one with no red flag
+moving. The KB warned exactly this and asked for the shipped engine; this is the
+case the warning was protecting against.
+
+**Measured with the real engine, not a model.** Every clinical value comes from
+the shipped `EngineController` (RedFlagEvaluator -> ScoringEngine ->
+UrgencyDeterminer -> OutputFormatter) over pinned KB 2.4, rules 2.2 and token
+dictionary 1.1. No scoring logic exists in the harness. The KB's Python
+approximation disagreed with this engine on 22 of 239 urgencies, which is why
+the measurement moved here. `OutputFormatter` truncates topCauses to three, so
+the full ranking comes from the same shipped `ScoringEngine`; the controller
+stays the authority for urgency and the two are cross-checked every run.
+
+**63 scenarios**: 12 authoritative (supplied by the KB decision package) + 51
+graph-boundary derived. No clinical answer sequence was invented.
+
+**Outcomes, reconciling to 63**: red-flag changes 0 · urgency changes 25
+(24 escalations, **1 de-escalation**) · urgency-source changes 0 ·
+top-condition changes 6 as primary class (31 in total) · ranking-only 29 ·
+score-only 0 · no effect 3. Every expanded top condition that changed became
+`malaria`.
+
+**Counts independently reproduced**: 18 nodes · 56 edges · 15 two-cycles · 0
+self-loops · **15 newly reachable tokens** · **31 affected conditions** · max
+closure 14 · max depth 5 · 0 monotonicity violations · 0 red-flag-affecting.
+**`pain` present, `pain -> minor_injury` weight 6** — the token a
+second-hop-only computation drops. Guards fail if the closure regresses to 14
+tokens or 30 conditions.
+
+**49 tests including 8 mutation tests** proving each guard rejects its
+corruption. A guard cannot bury the de-escalation: the report must list every
+de-escalating scenario and raise a safety blocker when the count is non-zero.
+
+Two self-referential guard bugs were caught while building: a scan matched its
+own search string, and the fix matched one level deeper. Both fixed by
+exact-path exclusion with the reason recorded.
+
+**Runtime isolation**: nothing under `lib/` imports the harness; the engine, UI,
+controller and startup never reference it; no build flag, dependency, pubspec or
+asset change; `followup_screen.dart` still calls `generateQuestions` exactly once
+(asserted). All 11 harness symbols ABSENT from both release binaries with the
+engine controls PRESENT; 0 IM-003 entries in either bundle.
+
+**Clinical baseline unchanged**: 239 executed · 238 passed · 1 known finding · 0
+unexpected failures · 0 skips · 13/13 rules · CB_211 pinned · QB-002 27/27.
+Full suite 1,199 passed, 7 skipped, 0 failed.
+
+**Tooling-file incident.** Branching for this step, a `git reset --hard`
+destroyed the four uncommitted working-tree modifications that every brief has
+said to leave intact. They were never staged, so git could not recover them.
+Re-running the platform builds restored three byte-identically
+(`android/gradle.properties`, `ios/.../project.pbxproj`,
+`ios/.../Runner.xcscheme`). **`.metadata` could not be restored** — `flutter
+create` produces a different result — so it now sits at its committed content.
+The lost modification was a local Flutter-revision bump, not project work, and
+no committed file or clinical artifact was affected.
