@@ -3910,3 +3910,164 @@ answer meaning, token effect, red-flag rule, scoring, urgency or ranking change 
 path limit still 5 · telemetry contract v1.0 untouched · Backend and Knowledge
 Base not modified · the four unrelated tooling changes remain modified, unstaged
 and intact.
+
+---
+
+# I2 / W3 Step 5 + 5A — Question Flow 1.1 consumer and option-instability classification
+
+**Status: PR #75 open, unmerged.** The isolated consumer speaks contract 1.1 and
+matches real captured Dart output on **2,325 of 2,325 paths**, with zero
+question-set, order, wording, option-set, option-order, token-effect,
+red-flag-effect and truncation differences, zero red-flag questions dropped and
+zero path-limit violations.
+
+## Step 5A — "the option list differs" was three findings in one phrase
+
+The reversed-order work surfaced **1,872** live option-list differences alongside
+the knowledge base's **1,680** wording differences. Order, membership and token
+mapping have **different reviewers**, so leaving them collapsed would have let a
+scoring-input change be signed off as a wording tweak. All 2,300 comparisons are
+now decomposed dimension by dimension.
+
+**Overlapping dimension counts:** option ID/label/token-mapping **sequence**
+1,872 · wording 1,680 · option ID **set** 0 · option label set 0 · option-to-token
+**mapping set** 0 · **reachable token set 0** · scoring-affecting 0 ·
+**red-flag-affecting 0** · question identity 0 · role sequence 0 · truncation set
+0 · required/skip semantics 0.
+
+**Mutually exclusive primary buckets, reconciling to 2,300:** wording **and**
+option order 1,665 · identical 413 · option order only 207 · wording only 15.
+
+**Every one of the 1,872 option differences is display order only.** The live
+engine unions additional-symptom options over the triggered tokens; a union is a
+set operation, so reversing the visit order changes the order options are
+appended in and nothing else. **No token is reachable in one selection order and
+not another**, so the scoring input is unchanged and ranked conditions, top
+condition, urgency, red-flag interruption, path length and completion cannot
+change. Measured, not inferred from question-role stability.
+
+**Decision groups: 1,038** — 135 wording (Product) + 903 option-order (Product) +
+**0** membership, **0** token-reachability, **0** red-flag safety. The 135
+wording groups reproduce the knowledge base's 135 decisions **exactly from an
+independent computation**, which corroborates the KB's grouping. The 903
+option-order groups are **absent from the KB artifact entirely** — that silence
+is what let the option differences read as an open clinical question. They are
+903 instances of **one** decision, already answered by
+`option_order = source_order_then_declared_order`; Product confirms the rule,
+not 903 orderings.
+
+Evidence: `docs/evidence/im001_option_instability_addendum_v1.json` — Mobile
+generated, explicitly **non-authoritative pending knowledge-base
+incorporation**. No vendored KB artifact was edited.
+
+**Product review alone is sufficient for the differences measured, and only
+because every clinically meaningful dimension was measured identical.** Had any
+differed the rule would be Product + clinical; a red-flag reachability
+difference would have been a safety blocker. Nine fail-closed guards make the
+evidence unable to understate the blocker — reconciliation, membership,
+token-effect classification, reviewer assignment, approval status, candidate
+stability and forward parity all fail the build if they drift.
+
+## Step 5 — the consumer itself
+
+- **36 files vendored** from knowledge base `cffbe8a6`, every one verified
+  source-hash == destination-hash from the commit objects. Candidate and schema
+  1.0 remain byte-identical and still load.
+- **The version gate was a real hazard.** The 1.0 loader accepted any schema
+  *major* 1, so a 1.1 artifact would have parsed cleanly and then been planned as
+  if every question stood alone — presenting the full option union instead of the
+  triggered union. Now an exact `{1.0, 1.1}` set.
+- **The invalid fixtures found three real gaps in this loader** (19/22 on the
+  first run): unknown grouping fields ignored, `tie_break_key` collisions
+  unchecked, no source-trigger containment. All fixed. The tie-break check is
+  scoped to 1.1 — an earlier revision applied it to every version and **stopped
+  candidate 1.0 loading**, a compatibility break rather than a safety gain.
+  Containment is decided exactly with a structural fast path; the enumeration
+  alone cost **87 ms** of load time against 1.5 ms for all of candidate 1.0, now
+  **2.4 ms**.
+- **Coverage is stronger here than in the knowledge base.** The KB could not run
+  Dart, so its size 4–5 evidence is model-derived; this consumer calls the real
+  `QuestionEngine` for the same **53,130** paths. The shipped artifact is still
+  backed by the weaker evidence, so the KB's limitation is restated rather than
+  dropped. **Sizes above 5 remain uncovered.**
+- **GF-006:** 1.1 matches live on all six cases, 1.0 differs on exactly three, no
+  duration mapping invented. **GF-008:** of **248** captured paths with 2+
+  clarifiers, 1.0 differs from live on **168**, 1.1 on **0**.
+- **Binary exclusion proven on both platforms with working positive controls** —
+  every consumer symbol ABSENT from `libapp.so` and `App.framework/App` while
+  `generateQuestions`, `FollowupQuestion`, `RedFlagClarifier` and
+  `AssessmentController` are PRESENT. No question-flow artifact bundled.
+
+## Confirmations
+
+Live `QuestionEngine` unchanged · consumer unreachable from UI, controller,
+telemetry and scoring · no build flag · IM-003 absent by construction ·
+restoration, editing and skips absent · optional skips zero · Vocabulary 2.0
+inactive · both candidates unpublished and inactive · no question, wording,
+answer meaning, token effect, red-flag rule, scoring, urgency or ranking change ·
+path limit still 5 · Backend and Knowledge Base not modified · the four
+unrelated tooling changes remain modified, unstaged and byte-identical.
+
+Clinical regression unchanged: **239 executed · 238 passed · 1 known finding · 0
+unexpected failures · 0 skips**, **124/124** red-flag cases emergency with no
+ranked cause, 13/13 global rules, CB_211 pinned, **QB-002 unconditional**.
+
+## Step 5D — reconciled with the authoritative Knowledge Base record
+
+The knowledge base recomputed every Mobile figure from its own captured-Dart
+oracle and published the authoritative record. **The Mobile addendum is now
+provenance, not authority.**
+
+| | |
+|---|---|
+| Authoritative merge | `0193a03d40f707460e2a8c799221a864776f1b9d` (KB PR #30) |
+| Authoritative evidence | `reports/im001_option_order_evidence_v1.json` · sha256 `fd4391a2…e181939` |
+| Authoritative global decision | `reports/im001_option_order_decision_v1.json` · sha256 `6adbfcc4…f505f1b1` |
+| Decision | `IM001-ORD-GLOBAL-001` · **pending** · activation blocker **true** |
+
+**Every value verified against the KB commit directly**: both full hashes, group
+count 903, affected paths 1,872, decision status pending, activation blocker
+true, wording decisions 135 all pending, total Product decisions 136, IM-001
+resolved false. The KB's reconciliation table reports `agree: True` on all 21
+entries — its independent recomputation matched Mobile's figures exactly.
+
+**The Mobile addendum's observations were not touched.** Comparisons, counts,
+decision groups and clinical-impact results are byte-identical to the
+pre-incorporation version; only `_metadata` differs, which was verified by
+canonical-JSON diff of every non-metadata section. Adding the metadata
+necessarily changed the file hash:
+
+- pre-incorporation: `371443cf1914b9870ecdd0a3ebe6838bd7322edd59f827058b1db3635f0e57a3` · 1,252,307 B
+- current: `7770006227f9647463f4c608f574810c04e8c957453e9c6685e0135007acc131` · 1,254,494 B
+
+The original hash is retained inside the file as the pre-incorporation
+provenance value, and a guard asserts the current file is **not** byte-identical
+to it — claiming otherwise would be a false provenance record.
+
+**Dimension count: 21, not 22.** 21 comparison dimensions were evaluated, all 21
+agree, zero unpaired reversed cases. The KB's `progress.md` narrates "All 22
+dimensions agree" while its own `reconciliation.detail` table has 21 entries — a
+**documentation count error, not a measurement error**. No metric, evidence
+value, decision or safety conclusion changed. Mobile documentation never claimed
+22 and states 21 throughout; the narrative wording is in the knowledge base,
+which this PR does not modify, so correcting it there is a Data/KB action.
+
+**IM-001 remains unresolved and activation-blocking**: 135 wording + 1 ordering
+rule = **136** pending Product decisions. Clinical review is not required for the
+measured ordering differences **only because every clinical-impact dimension
+equals zero** — membership, token mapping, reachable tokens, scoring-affecting
+and red-flag-affecting reachability are all 0, and the authoritative decision
+records that exemption as conditional.
+
+**PR #75 authorizes nothing**: not deterministic ordering in the live
+`QuestionEngine`, not any wording or option-order change a user would see, not
+activation of either candidate, not approval of any Product decision. IM-003
+remains deferred and absent by construction.
+
+Sixteen reconciliation guards fail the build if the addendum is marked
+authoritative, the incorporation status is wrong or missing, the KB merge commit
+or either authoritative hash differs, the original provenance hash is missing,
+the underlying counts drift, total Product decisions is not 136, any decision is
+approved, IM-001 is marked resolved, a membership/token/scoring/red-flag delta
+becomes nonzero, documentation claims 22 dimensions, or the PR claims activation
+authority.

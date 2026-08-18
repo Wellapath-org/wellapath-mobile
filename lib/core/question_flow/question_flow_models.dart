@@ -13,6 +13,8 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import 'question_grouping_models.dart';
+
 /// A question id that is known to exist in a loaded flow.
 ///
 /// Private constructor, so no raw string becomes a question identity without
@@ -192,6 +194,7 @@ class FlowQuestion {
     required this.terminal,
     required this.sourceText,
     required this.contentApproved,
+    this.grouping,
   });
 
   final QuestionId id;
@@ -220,8 +223,20 @@ class FlowQuestion {
   final String sourceText;
   final bool contentApproved;
 
+  /// Present only on questions that merge (schema 1.1). Absent means this
+  /// question is always presented alone — the correct reading of every 1.0
+  /// question, which is why it is nullable rather than defaulted.
+  final QuestionGrouping? grouping;
+
   bool get isDemographic => clinicalRole == 'demographic';
   bool get isRedFlagQuestion => redFlagEvaluation.canAffectRedFlag;
+
+  /// True when this question merges several baseline sources.
+  ///
+  /// Deliberately keyed on the grouping block's presence, never on the
+  /// clinical role or the tie-break key: inferring grouping from either would
+  /// merge questions the artifact never declared groupable.
+  bool get isGrouped => grouping != null;
 }
 
 /// Path controls as declared by the candidate.
@@ -251,6 +266,7 @@ class FlowMetadata {
     required this.clinicalReviewStatus,
     required this.impedanceMismatchIds,
     required this.vocabulary20Used,
+    this.groupingSemantics,
   });
 
   final String artifactId;
@@ -266,8 +282,16 @@ class FlowMetadata {
   /// otherwise.
   final bool vocabulary20Used;
 
+  /// Declared grouping semantics. Null for a 1.0 artifact, which does not
+  /// group; required for 1.1, enforced at load.
+  final QuestionGroupingSemantics? groupingSemantics;
+
   bool get isCandidateUnapproved => releaseStatus == 'candidate_unapproved';
   bool get claimsPublishable => mayPublish;
+
+  /// True when this artifact declares grouping. A 1.0 artifact is never
+  /// implicitly grouped, whatever its questions look like.
+  bool get groupsQuestions => groupingSemantics?.enabled ?? false;
 }
 
 /// A fully validated, immutable question flow.
