@@ -25,7 +25,9 @@ class LocatorScreen extends StatefulWidget {
 
 class _LocatorScreenState extends State<LocatorScreen> {
   static const Color _primary = Color(0xFF6B4EFF);
-  static const List<String> _states = ['Lagos', 'FCT', 'Kano'];
+  // Reads from nigeria_coverage.dart so the picker and the user-facing
+  // coverage sentence cannot drift apart when the artifact adds a state.
+  static const List<String> _states = kCoveredStates;
 
   static const latlong.LatLng _fallbackCenter = latlong.LatLng(9.0820, 8.6753);
 
@@ -675,8 +677,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
             const SizedBox(height: 20),
             const Text(
               'WellaPath Clinic Locator is not yet available in your '
-              'region. We are currently serving Nigeria and will expand '
-              'to more countries soon.',
+              'region. $kCoverageDisclosure',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -711,7 +712,34 @@ class _LocatorScreenState extends State<LocatorScreen> {
 
   Widget _buildLocationResults() {
     if (!_loading && _results.isEmpty) {
-      return const Center(child: Text('No nearby facilities found.'));
+      // An empty list on its own reads as "there is no care near you", which
+      // is a different and more alarming claim than "we do not hold data for
+      // your state yet". Name the coverage so the user knows which it is.
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'No nearby facilities found.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8),
+              Text(
+                kCoverageDisclosure,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return _isMapView ? _buildMapView(_results) : _buildListView(_results);
   }
@@ -1020,6 +1048,13 @@ class _LocatorScreenState extends State<LocatorScreen> {
             'We could not access your location. Select your area to find '
             'nearby facilities instead.',
             style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          // The picker only offers the covered states, so say why rather than
+          // leaving the user to read the short list as a bug.
+          const Text(
+            kCoverageDisclosure,
+            style: TextStyle(fontSize: 13, color: Colors.black54),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
