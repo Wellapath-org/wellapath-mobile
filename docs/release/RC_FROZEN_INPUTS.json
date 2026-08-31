@@ -253,6 +253,38 @@
         "signature": "none",
         "distributable": false,
         "produced_by": "WELLAPATH_ALLOW_UNSIGNED_RELEASE=true"
+      },
+      "app_bundle": {
+        "filename": "app-release.aab",
+        "sha256": "cfa41692bcd3fc373665d9b9d79a92fb295aab504e42fa7e0b4bb123e401166e",
+        "bytes": 62078226,
+        "signature": "jar verified — single signer, release key",
+        "debug_certificate_present": false,
+        "debuggable_flag_present": false,
+        "distributable": "internal testing only — NOT authorized for any store track",
+        "built_from": {
+          "worktree": "clean detached worktree",
+          "head": "5aa3680510a67230261f25716d3325999b9229bf"
+        },
+        "bundletool_validate_exit": 0,
+        "bundletool_version": "1.18.1",
+        "manifest": {
+          "package": "org.wellapath.wellapath_mobile",
+          "versionCode": 209,
+          "versionName": "0.3.0",
+          "label": "WellaPath",
+          "minSdkVersion": 24,
+          "targetSdkVersion": 36,
+          "compileSdkVersion": 36,
+          "permissions": [
+            "INTERNET",
+            "ACCESS_FINE_LOCATION",
+            "ACCESS_COARSE_LOCATION"
+          ]
+        },
+        "fail_closed_reconfirmed": "the same clean worktree with no signing material REFUSED the AAB build and produced no artifact",
+        "committed_to_git": false,
+        "uploaded": false
       }
     },
     "ios": {
@@ -399,7 +431,11 @@
     "all_three_outcomes_exercised": true,
     "ci_verifies_artifact_is_unsigned": true,
     "credentials_in_git": false,
-    "committed_config_contains": "variable and file names only, never values"
+    "committed_config_contains": "variable and file names only, never values",
+    "continuity_record": "docs/release/SIGNING_CONTINUITY.md",
+    "authorized_signing_locations": 1,
+    "play_app_signing_enrolled": false,
+    "credentials_copied_or_uploaded_by_this_task": false
   },
   "cold_start_policy": {
     "per_attempt_timeout_s": 10,

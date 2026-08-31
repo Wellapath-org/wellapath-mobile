@@ -230,7 +230,7 @@ piece of clinical behaviour.
 |---|---|
 | `RC-BLK-005` | **The build points at staging.** `APP_ENV=staging`, `API_BASE_URL` is the staging host, and **no production configuration exists anywhere in the repo.** A production endpoint and artifact origin must exist before submission. |
 | `RC-BLK-006` | **No store presence at all** — no listing, screenshots, privacy-policy URL, support contact or data-safety declarations. The location permission and the Sentry dependency both require data-safety answers. |
-| `RC-BLK-007` | **No Android App Bundle.** Only a 64.6 MB universal APK was produced. |
+| `RC-BLK-007` | ✅ **RESOLVED.** Signed AAB built from a clean worktree, `bundletool validate` clean, checksummed, labelled internal-testing only. Not uploaded. |
 | `RC-BLK-009` | **iOS app-target privacy manifest absent.** Dependencies ship their own; confirm whether first-party code touches a required-reason API and add `PrivacyInfo.xcprivacy` if so. Not codesigned, and no provisioning profile has been exercised. |
 | `RC-BLK-016` | **CB_211 has no clinical or product adjudication.** An engineering-lead disposition (Option D) authorises carrying it, pinned and fail-closed, and it is unreachable through the UI, over-triage, and cannot suppress a red flag — so it does **not** block internal testing. The registry's own `review_trigger` requires resolution **before external beta**; issue #35 is open. Full record: `docs/release/CB_211_DISPOSITION.md`. |
 | `RC-BLK-010` | **Application ID differs across platforms** — `org.wellapath.wellapath_mobile` (Android) vs `org.wellapath.wellapathMobile` (iOS). Fix before store records are created; changing it afterwards is not possible. |
@@ -273,6 +273,7 @@ metadata; only the presence of a valid signature is reported.
 
 | Artifact | sha256 | Bytes | Distributable |
 |---|---|---|---|
+| **`app-release.aab`** (signing machine, clean worktree) | `cfa41692bcd3fc373665d9b9d79a92fb295aab504e42fa7e0b4bb123e401166e` | 62,078,226 | **YES** — `jar verified`, **internal testing only** |
 | `app-release.apk` (signing machine) | `5f84ee9a75829e3842fbc37b3da3fc881e4aa5239757749185ee7aa5bc1ab2ce` | 64,601,706 | **YES** — release-signed |
 | `app-release.apk` (CI, unsigned) | `00e406718d80d8267c31f39b0591a116f0d8f4760c774593eb0d80a3089e152b` | 64,593,514 | **NO** — no signature |
 | `Runner.app/…/App` (iOS binary) | `08890d1a5bad8e05c507f0fd3bd24fc5ecbeb59667f139a0034b2f33e3711764` | — | **NO** — not codesigned |
@@ -280,23 +281,45 @@ metadata; only the presence of a valid signature is reported.
 
 The signed APK hash reproduced byte-identically across two independent builds.
 
+**AAB (`RC-BLK-007` — closed).** Built from a **clean detached worktree** at
+`5aa3680`, on the authorized signing machine. `bundletool 1.18.1 validate`
+exits 0 with no errors. Manifest: package `org.wellapath.wellapath_mobile` ·
+versionCode **209** · versionName **0.3.0** · label **WellaPath** · minSdk 24 ·
+targetSdk 36 · permissions INTERNET + FINE/COARSE_LOCATION. **No debug
+certificate, no `debuggable` flag, no bundled secret** — the only bundled
+config is the staging `.env` (public URLs and off-by-default flags) and no
+Sentry DSN is present. Excluded symbols absent and engine controls present in
+the AAB's own `libapp.so`.
+
+**Fail-closed reconfirmed on the bundle path:** the same clean worktree, with
+no signing material, **refused** the AAB build and produced no artifact.
+Signing material was then referenced **in place by symlink** — never copied.
+
+The AAB is **not committed** and **not uploaded**. It is labelled
+**internal-testing only**; no store track is authorized.
+
 ## 9. Next action required for internal distribution
 
 ✅ `RC-BLK-001`, `002`, `004` and `017` are **closed**; `003` and `008` are
 mitigated and measured. What remains:
 
-1. **Produce an AAB** for track upload (`RC-BLK-007`) — the only remaining
-   mechanical step before an internal track can accept this build.
+1. ✅ **AAB produced and verified** (`RC-BLK-007` closed) — signed, validated,
+   checksummed, internal-testing only. Not uploaded; upload requires explicit
+   authorization.
 2. **Confirm the version-name decision.** Build number 209 is derived and not
    negotiable; the *name* moving `1.0.0 → 0.3.0` is a judgment call — it
    matches the real tag line and avoids claiming production maturity, but it
    reads as a downgrade to a tester who saw `1.0.0`. One line in `pubspec.yaml`
    reverses it. Android upgrade eligibility depends only on `versionCode`,
    which increases either way.
-3. **Get signing material to a second location** (`RC-BLK-002` follow-on). The
+3. **Get signing material to a second location** — `RC-BLK-002-FOLLOWON`. The
    build now fails closed instead of producing a debug-signed APK, but the
-   keystore still exists on exactly one machine — that is a bus-factor and
-   rollback risk, not a correctness one.
+   keystore exists on **exactly one machine**, is not in any CI secret, and
+   Play App Signing is **not** enrolled, so Google holds no copy. An Android
+   signing key cannot be regenerated. Full analysis, required actions and the
+   authorization matrix: [`SIGNING_CONTINUITY.md`](./SIGNING_CONTINUITY.md).
+   Enrolling in Play App Signing at or before first upload is the primary
+   mitigation and removes most of the risk.
 4. **Backend:** decide whether to remove the Render free-tier spin-down. Mobile
    rides through it now; the wait itself is a Backend property.
 
