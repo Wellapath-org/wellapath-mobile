@@ -17,9 +17,21 @@ class BootController {
 
   final ConfigService _configService;
 
-  Future<BootResult> boot() async {
+  /// Runs the boot sequence.
+  ///
+  /// [onAttempt] reports `/config` attempt progress so the splash can show a
+  /// loading state instead of a frozen logo; [isCancelled] lets a disposed
+  /// screen stop the retry loop rather than leaving it running against a
+  /// widget that has gone away.
+  Future<BootResult> boot({
+    void Function(int attempt, int maxAttempts)? onAttempt,
+    bool Function()? isCancelled,
+  }) async {
     // Step 1 — Try to fetch fresh config from backend
-    final freshConfig = await _configService.fetchConfig();
+    final freshConfig = await _configService.fetchConfig(
+      onAttempt: onAttempt,
+      isCancelled: isCancelled,
+    );
 
     if (freshConfig != null) {
       // Step 2 — Save to cache

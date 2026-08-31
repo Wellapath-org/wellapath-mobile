@@ -1,0 +1,507 @@
+{
+  "schema": "wellapath.mobile.release.frozen_inputs",
+  "schema_version": "1.0",
+  "generated_utc": "2026-08-31T08:30:00Z",
+  "status": "candidate_frozen_unmerged",
+  "authorizes": "nothing — no merge, no upload, no store submission",
+  "release_candidate": {
+    "branch": "release/rc-frozen-baseline",
+    "base_branch": "develop",
+    "head_commit": "652a9f0b26e9fa8b5b43190dfaab75736467c4f1",
+    "head_subject": "feat(release): make the candidate ready for internal distribution",
+    "branched_from": "origin/develop",
+    "branch_point_is_develop_tip": true,
+    "cherry_picks": [],
+    "merges_taken": [],
+    "previous_head_commit": "e45400e13b4729420aafdf81457a45056ce8c5e0",
+    "base_commit": "d820d6cfc3b96cbbba9d434ef4684b9a36140991",
+    "pull_request": 77,
+    "pull_request_state": "OPEN — unmerged"
+  },
+  "backend_baseline": {
+    "authority": "supplied by the release brief and verified live",
+    "config_canonical_sha256_declared": "3b2bbb1cec6b25631bcf499902314c22c19cbab33fe7fcfae0c6288a4f8578ed",
+    "config_canonical_sha256_observed": "3b2bbb1cec6b25631bcf499902314c22c19cbab33fe7fcfae0c6288a4f8578ed",
+    "config_canonicalisation": "JSON re-serialised with sorted keys and compact separators (',' ':'), UTF-8, no trailing newline",
+    "config_raw_body_sha256_observed": "183a15bda78f7ccb3b3954e829e7228b1154a17f200c609bff7a0b73cdf45d3b",
+    "config_raw_body_bytes": 1000,
+    "config_match": true,
+    "backend_develop_commit_declared": "2485ce0ce564e27f562afa7d994d3ebfc388da6d",
+    "backend_develop_commit_verified_by_mobile": false,
+    "backend_develop_verification_note": "Mobile has no checkout of the Backend repository; this value is carried from the brief and not independently confirmed here.",
+    "endpoints": {
+      "staging_api_base_url": "https://wellapath-backend-staging.onrender.com",
+      "artifact_base_url": "https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev",
+      "production_api_base_url": null,
+      "production_configuration_exists": false
+    },
+    "health": {
+      "endpoint": "/health",
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "checks": {
+          "database": "ok"
+        }
+      }
+    },
+    "version": {
+      "endpoint": "/version",
+      "status": 200,
+      "body": {
+        "version": "0.1.0",
+        "environment": "staging"
+      }
+    }
+  },
+  "active_artifacts": {
+    "source": "GET /config at the frozen baseline",
+    "note": "Artifacts are downloaded at runtime and are NOT bundled in the build. Hashes below are the values /config publishes; each was re-downloaded and re-hashed where noted.",
+    "token_dictionary": {
+      "version": "1.1",
+      "url": "https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev/token_dictionary.ng.v1.1.json",
+      "sha256": "0cc47ad9537c0bd4c6ef3aec8f1931eb9b4c62103a8809d16544f94a90b5c019",
+      "release_date": "2026-04-05",
+      "matches_expected_version": true
+    },
+    "knowledge_base": {
+      "version": "2.4",
+      "url": "https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev/kb.ng.v2.4.json",
+      "sha256": "6c00d8257f8417e86bd5e237630bf8a4623ad72e2e46b1b071dd447c067cec2b",
+      "release_date": "2026-07-27",
+      "matches_expected_version": true
+    },
+    "rules": {
+      "version": "2.2",
+      "url": "https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev/rules.ng.v2.2.json",
+      "sha256": "1d27e854cba95b179577a88f92445400f494a7fe8e6a53a60fcaa98b3870d1c4",
+      "release_date": "2026-07-26",
+      "matches_expected_version": true
+    },
+    "facilities": {
+      "version": "1.1",
+      "url": "https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev/facilities.ng.v1.1.json",
+      "sha256_declared": "25684c714367abf2f3c305c8a5597b5f7eb0d11baaf658c5b9e2f8f5e2982398",
+      "sha256_redownloaded": "25684c714367abf2f3c305c8a5597b5f7eb0d11baaf658c5b9e2f8f5e2982398",
+      "hash_match": true,
+      "bytes": 1695844,
+      "release_date": "2026-07-26",
+      "matches_expected_version": true,
+      "record_count": 5344,
+      "coverage_states": {
+        "Lagos": 2690,
+        "Kano": 2040,
+        "FCT": 614
+      },
+      "coverage_is_national": false
+    }
+  },
+  "excluded_by_instruction": {
+    "note": "Each entry states HOW exclusion was proven, not merely that it was intended.",
+    "mobile_pr_76": {
+      "title": "test(im003): measure IM-003 scoring impact with the shipped Mobile engine",
+      "head_commit": "13be0d4937b1c49d6a49ddf096c5d5b6a47c2091",
+      "state": "OPEN — left open and unmerged, as instructed",
+      "excluded": true,
+      "proof": [
+        "git merge-base --is-ancestor 13be0d4 HEAD -> false",
+        "all 14 PR files absent from the working tree",
+        "test count delta 1199 -> 1150 equals the 49 IM-003 tests exactly",
+        "symbols IM003/im003/Im003/ClosureGraph absent from both release binaries"
+      ]
+    },
+    "question_flow_1_1": {
+      "status": "consumer code IS on develop via merged PR #75 and therefore cannot be removed without reverting a merged PR",
+      "excluded_from_runtime": true,
+      "proof": [
+        "no file outside lib/core/question_flow/ imports it (zero cross-imports)",
+        "unreachable from main.dart, app.dart, the engine, the UI, telemetry and scoring",
+        "tree-shaken: QuestionFlowLoader, GroupedPathPlanner, InitialPathPlanner, ConditionEvaluator all ABSENT from libapp.so and App.framework/App",
+        "no question-flow artifact bundled in the APK asset list",
+        "no /config field or route references a question flow artifact"
+      ],
+      "candidate_artifact_active": false
+    },
+    "vocabulary_token_dictionary_2_0": {
+      "status": "consumer code IS on develop via merged PR #72",
+      "excluded_from_runtime": true,
+      "gate": "VOCABULARY_V2_EVALUATION defaults false; APP_ENV=production forces disabled; VOCABULARY_V2_PRODUCTION_APPROVED not set",
+      "proof": [
+        "no cross-imports from outside lib/core/vocabulary/",
+        "VocabularyV2Loader, VocabularySearch, VocabularyNormalizer, CanonicalTokenBoundary ABSENT from both release binaries",
+        "active token dictionary remains 1.1 per /config"
+      ]
+    },
+    "facilities_2_0": {
+      "excluded": true,
+      "proof": [
+        "zero references to facilities 2.0 anywhere in lib/",
+        "/config publishes facilities 1.1 only",
+        "the app reads whichever facilities entry /config names — it pins no version itself"
+      ]
+    },
+    "runtime_manifests": {
+      "excluded": true,
+      "proof": [
+        "no manifest route is called anywhere in lib/",
+        "the only /config keys read are artifacts[*].url, .version, .hash",
+        "no dependency on any manifest endpoint"
+      ]
+    },
+    "knowledge_base_candidate_artifacts": {
+      "excluded": true,
+      "proof": "the app consumes only the four artifacts /config publishes; candidate KB artifacts live under test/fixtures/ and are never loaded at runtime"
+    }
+  },
+  "config_consumption_contract": {
+    "fields_read_by_mobile": [
+      "artifacts",
+      "artifacts.<name>.url",
+      "artifacts.<name>.version",
+      "artifacts.<name>.hash"
+    ],
+    "fields_present_but_unused": [
+      "version",
+      "country",
+      "artifacts.<name>.release_date",
+      "artifacts.<name>.country"
+    ],
+    "artifact_names_requested": [
+      "token_dictionary",
+      "rules",
+      "knowledge_base",
+      "facilities"
+    ],
+    "hash_verification": {
+      "implemented": true,
+      "algorithm": "sha256 over the raw UTF-8 response body",
+      "accepts_sha256_prefix": true,
+      "verified_on_cached_read": true,
+      "verified_on_fresh_download": true,
+      "download_retry_on_hash_failure": 2,
+      "on_persistent_failure": "throws StateError — artifact rejected, never used",
+      "SOFT_FAIL": "a null or empty hash is treated as a pass; integrity depends on /config always publishing a hash. All four currently do."
+    },
+    "cache": {
+      "store": "Hive box 'artifact_cache'",
+      "key_shape": "<cacheKey>_v<version>",
+      "versioned": true,
+      "overwrites_existing_version": false
+    },
+    "download_behaviour": {
+      "core_artifacts_parallel": [
+        "token_dictionary",
+        "rules",
+        "knowledge_base"
+      ],
+      "core_per_attempt_timeout_s": 15,
+      "facilities_background_non_blocking": true,
+      "facilities_per_attempt_timeout_s": 90,
+      "first_byte_timeout_s": 20,
+      "retries": 3,
+      "backoff_s": [
+        2,
+        4,
+        8
+      ]
+    },
+    "failure_behaviour": {
+      "core_download_exhausted": "FirstLaunchOfflineException -> first-launch-offline screen with a Try again action (verified on device)",
+      "hash_integrity_failure": "StateError — deliberately distinct from the offline path",
+      "facilities_failure": "locator shows an empty state; assessment is unaffected",
+      "config_unreachable_with_cache": "BootStatus.offline, last known config used",
+      "config_unreachable_without_cache": "BootStatus.failed, no crash"
+    }
+  },
+  "toolchain": {
+    "flutter": "3.44.4 (stable)",
+    "dart": "3.12.2",
+    "xcode": "26.6 (17F113)",
+    "claude_md_declares_flutter": "3.41.5",
+    "claude_md_declares_dart": "3.11.3",
+    "toolchain_drift_from_docs": true
+  },
+  "build_identity": {
+    "pubspec_version": "0.3.0+209",
+    "pubspec_sha256": "4c4e571615ab4a144446b0b4bc3b70d112da18ca08da3e0d3042f96612c1b67b",
+    "pubspec_lock_sha256": "e3f6bdd8f6d856e7cf6ccb7db6fa14564a6aad06fd3df59a9a94696791611c32",
+    "android": {
+      "application_id": "org.wellapath.wellapath_mobile",
+      "version_code": 209,
+      "version_name": "0.3.0",
+      "application_label": "WellaPath",
+      "min_sdk": 24,
+      "target_sdk": 36,
+      "compile_sdk": 36,
+      "target_sdk_pinned_in_project": false,
+      "target_sdk_source": "flutter.targetSdkVersion — varies with the Flutter version that builds it",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "artifact": "build/app/outputs/flutter-apk/app-release.apk",
+      "artifact_sha256": "5f84ee9a75829e3842fbc37b3da3fc881e4aa5239757749185ee7aa5bc1ab2ce",
+      "artifact_bytes": 64601706,
+      "artifact_kind": "universal APK (all ABIs) — no app bundle produced",
+      "signed_with": "release keystore",
+      "signing_policy": "fail-closed",
+      "signer_identity_disclosure": "withheld — the repository has no policy treating signing certificate fingerprints as public release metadata. Signature presence is verified and reported; the certificate is not published here.",
+      "ci_unsigned_artifact": {
+        "sha256": "00e406718d80d8267c31f39b0591a116f0d8f4760c774593eb0d80a3089e152b",
+        "bytes": 64593514,
+        "signature": "none",
+        "distributable": false,
+        "produced_by": "WELLAPATH_ALLOW_UNSIGNED_RELEASE=true"
+      },
+      "app_bundle": {
+        "filename": "app-release.aab",
+        "sha256": "cfa41692bcd3fc373665d9b9d79a92fb295aab504e42fa7e0b4bb123e401166e",
+        "bytes": 62078226,
+        "signature": "jar verified — single signer, release key",
+        "debug_certificate_present": false,
+        "debuggable_flag_present": false,
+        "distributable": "internal testing only — NOT authorized for any store track",
+        "built_from": {
+          "worktree": "clean detached worktree",
+          "head": "5aa3680510a67230261f25716d3325999b9229bf"
+        },
+        "bundletool_validate_exit": 0,
+        "bundletool_version": "1.18.1",
+        "manifest": {
+          "package": "org.wellapath.wellapath_mobile",
+          "versionCode": 209,
+          "versionName": "0.3.0",
+          "label": "WellaPath",
+          "minSdkVersion": 24,
+          "targetSdkVersion": 36,
+          "compileSdkVersion": 36,
+          "permissions": [
+            "INTERNET",
+            "ACCESS_FINE_LOCATION",
+            "ACCESS_COARSE_LOCATION"
+          ]
+        },
+        "fail_closed_reconfirmed": "the same clean worktree with no signing material REFUSED the AAB build and produced no artifact",
+        "committed_to_git": false,
+        "uploaded": false
+      }
+    },
+    "ios": {
+      "bundle_identifier": "org.wellapath.wellapathMobile",
+      "bundle_display_name": "WellaPath",
+      "bundle_name": "WellaPath",
+      "short_version": "0.3.0",
+      "build": "209",
+      "minimum_os_version": "13.0",
+      "artifact": "build/ios/iphoneos/Runner.app",
+      "artifact_kib": 26356,
+      "codesigned": false,
+      "app_level_privacy_manifest_present": false,
+      "dependency_privacy_manifests_present": [
+        "shared_preferences_foundation",
+        "url_launcher_ios",
+        "geolocator_apple",
+        "package_info_plus",
+        "Sentry",
+        "Flutter"
+      ],
+      "app_binary_sha256": "08890d1a5bad8e05c507f0fd3bd24fc5ecbeb59667f139a0034b2f33e3711764",
+      "bundle_zip_sha256": "84845e2d013115b4a95b086afefa22d04915b7b6da0732a4b660f8b99cf726e3",
+      "distributable": false
+    },
+    "application_id_mismatch_across_platforms": true,
+    "version_name": "0.3.0",
+    "build_number": 209,
+    "build_number_derivation": {
+      "method": "next unused value above every build number this project has attached to a build",
+      "evidence": {
+        "pubspec_all_history_and_tags": 1,
+        "beta_rollback_distributed_versionCode": 1,
+        "internal_beta_ci_release_identifier": 208,
+        "highest_observed": 208
+      },
+      "chosen": 209,
+      "guard": "test/release/build_identity_test.dart — fails on reuse or regression"
+    },
+    "version_name_rationale": "0.3.0 continues the real release line (tags v0.1.0-beta.1, v0.2.0-beta.1, v0.2.0-beta.2; CI identifier 0.2.0). The previous 1.0.0 was the untouched flutter create default and claims a production maturity this staging-only candidate does not have. Note: versionName therefore moves 1.0.0 -> 0.3.0. Android upgrade eligibility depends on versionCode only, which increases."
+  },
+  "feature_flags": {
+    "resolved_for_this_candidate": {
+      "APP_ENV": "staging",
+      "ENABLE_OFFLINE_MODE": "true",
+      "API_TIMEOUT_MS": "10000",
+      "TELEMETRY_ENABLED": "false",
+      "TELEMETRY_PRODUCTION_APPROVED": "false",
+      "CRASH_REPORTING_ENABLED": "unset -> disabled",
+      "CRASH_REPORTING_PRODUCTION_APPROVED": "unset -> disabled",
+      "SENTRY_DSN": "unset -> crash sink is a no-op",
+      "VOCABULARY_V2_EVALUATION": "unset -> disabled",
+      "VOCABULARY_V2_PRODUCTION_APPROVED": "unset -> production block intact"
+    },
+    "all_optional_features_off": true
+  },
+  "clinical_baseline": {
+    "unchanged_by_this_candidate": true,
+    "case_bank": {
+      "fixture": "test/fixtures/case_bank_v1.json",
+      "fixture_sha256": "c7bdc434a33d341e21e015f0defe567274d7f6271c332352b19ba21e7d998834",
+      "executed": 239,
+      "passed": 238,
+      "known_findings": 1,
+      "known_finding_id": "CB_211",
+      "known_finding_class": "obsolete_stale_case_bank_expectation",
+      "unexpected_failures": 0,
+      "skips": 0,
+      "global_red_flag_rules_exercised": "13/13"
+    },
+    "engine_artifacts_pinned": [
+      "kb.ng.v2.4",
+      "rules.ng.v2.2",
+      "token_dictionary.ng.v1.1"
+    ],
+    "scoring_runs_on_device_only": true,
+    "red_flag_override_precedence_intact": true,
+    "cb_211_disposition": {
+      "authority": "engineering lead (Option D), adopted at knowledge-base merge 550e8f17",
+      "is_clinical_approval": false,
+      "is_external_beta_approval": false,
+      "is_production_approval": false,
+      "status": "open_option_d_adopted_awaiting_clinical_product_adjudication",
+      "tracking_issue": "wellapath-mobile #35 (OPEN)",
+      "blocks_internal_testing": false,
+      "blocks_external_beta": true,
+      "blocks_store_submission": true,
+      "reachable_via_normal_ui": false,
+      "triage_direction": "over_triage",
+      "can_suppress_red_flag": false,
+      "blocker_id": "RC-BLK-016",
+      "record": "docs/release/CB_211_DISPOSITION.md"
+    }
+  },
+  "test_results": {
+    "full_suite_passed": 1292,
+    "full_suite_skipped": 7,
+    "full_suite_failed": 0,
+    "baseline_before_this_pr": 1150,
+    "delta_vs_pr76_branch": "-49 tests at the frozen baseline, exactly the IM-003 harness; +29 added by this PR",
+    "flutter_analyze": "No issues found!",
+    "dart_format": "167 files, 0 changed",
+    "added_by_this_pr": [
+      "test/locator/coverage_disclosure_test.dart",
+      "test/locator/covered_state_search_test.dart",
+      "test/locator/facility_wording_test.dart",
+      "test/core/config/config_startup_policy_test.dart",
+      "test/features/boot/splash_startup_test.dart",
+      "test/release/build_identity_test.dart",
+      "test/release/signing_policy_test.dart",
+      "test/release/app_name_test.dart",
+      "test/release/cb211_disposition_test.dart"
+    ]
+  },
+  "changes_in_this_release_pr": {
+    "clinical_behaviour_changed": false,
+    "facility_ranking_changed": false,
+    "emergency_logic_changed": false,
+    "scoring_or_red_flag_changed": false,
+    "network_behaviour_changed": "startup /config retry policy only — bounded, transient-only",
+    "dependencies_changed": false,
+    "product_wording_changed": true,
+    "wording_change_scope": "locator coverage disclosure only",
+    "build_identity_changed": true,
+    "signing_policy_changed": true,
+    "display_name_changed": true,
+    "application_id_changed": false,
+    "bundle_id_changed": false,
+    "startup_retry_policy_changed": true,
+    "distance_cap_added": false
+  },
+  "signing_policy": {
+    "fails_closed": true,
+    "debug_fallback_removed": true,
+    "outcomes": {
+      "keystore_present": "signed with the release key",
+      "no_keystore_with_explicit_opt_in": "built with NO signing config — verifiably unsigned, not distributable",
+      "no_keystore_no_opt_in": "BUILD FAILS with a named remedy"
+    },
+    "opt_in_mechanism": [
+      "WELLAPATH_ALLOW_UNSIGNED_RELEASE=true",
+      "-Pwellapath.allowUnsignedRelease=true"
+    ],
+    "all_three_outcomes_exercised": true,
+    "ci_verifies_artifact_is_unsigned": true,
+    "credentials_in_git": false,
+    "committed_config_contains": "variable and file names only, never values",
+    "continuity_record": "docs/release/SIGNING_CONTINUITY.md",
+    "authorized_signing_locations": 1,
+    "play_app_signing_enrolled": false,
+    "credentials_copied_or_uploaded_by_this_task": false
+  },
+  "cold_start_policy": {
+    "per_attempt_timeout_s": 10,
+    "backoff_s": [
+      1,
+      2,
+      3
+    ],
+    "max_attempts": 4,
+    "total_budget_s": 30,
+    "last_attempt_clamped_to_remaining_budget": true,
+    "retries_transient_only": true,
+    "transient": [
+      "connect/receive/send timeout",
+      "connection error",
+      "408",
+      "429",
+      "5xx"
+    ],
+    "permanent_never_retried": [
+      "4xx except 408/429",
+      "bad certificate",
+      "malformed body",
+      "schema-invalid body"
+    ],
+    "health_endpoint_used_as_dependency": false,
+    "unvalidated_response_cached": false,
+    "artifact_integrity_bypassed": false,
+    "manual_retry_preserved": true,
+    "cancels_on_screen_dispose": true,
+    "loading_state_shown": true,
+    "measured_against_staging": {
+      "device": "iOS Simulator, iPhone 17, debug build (release mode is not supported on the simulator)",
+      "backend": "https://wellapath-backend-staging.onrender.com (Render free tier, spins down when idle)",
+      "staging_latency_observed": {
+        "warm_ttfb_s": [
+          0.5,
+          0.51,
+          0.55,
+          0.97,
+          1.74
+        ],
+        "cold_ttfb_s": [
+          12.8,
+          22.7
+        ],
+        "cold_window_total_stall_s": ">60 observed twice"
+      },
+      "first_launch_cold_backend": {
+        "preconditions": "app uninstalled first — no cached config; backend idle ~26 minutes",
+        "outcome": "REACHED ONBOARDING — did not fall through to the offline screen",
+        "time_to_onboarding_s": "between 15 and 18 (frames at 15s splash, 18s onboarding)",
+        "loading_state_visible": "spinner + \"Connecting…\" observed at 12s",
+        "interpretation": "attempt 1 timed out at 10s; 1s backoff; attempt 2 met a warmed instance and succeeded"
+      },
+      "first_launch_warm_backend": {
+        "time_to_onboarding_s": 7.4,
+        "runs": 3,
+        "config_failures": 0
+      },
+      "repeated_failure": {
+        "method": "API_BASE_URL pointed at unroutable 192.0.2.1 (RFC 5737); app uninstalled first",
+        "outcome": "offline screen with a working Try again, no crash",
+        "time_to_offline_screen_s": "between 30 and 33 — within the 30s budget plus the 2s minimum splash"
+      },
+      "prior_behaviour": "a single 10s attempt with 2/4/8s backoff fell through to the offline screen on this same class of cold start (device-verified in Step 1)"
+    }
+  }
+}

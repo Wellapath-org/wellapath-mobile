@@ -25,7 +25,9 @@ class LocatorScreen extends StatefulWidget {
 
 class _LocatorScreenState extends State<LocatorScreen> {
   static const Color _primary = Color(0xFF6B4EFF);
-  static const List<String> _states = ['Lagos', 'FCT', 'Kano'];
+  // Reads from nigeria_coverage.dart so the picker and the user-facing
+  // coverage sentence cannot drift apart when the artifact adds a state.
+  static const List<String> _states = kCoveredStates;
 
   static const latlong.LatLng _fallbackCenter = latlong.LatLng(9.0820, 8.6753);
 
@@ -312,7 +314,8 @@ class _LocatorScreenState extends State<LocatorScreen> {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         content: const Text(
-          'WellaPath uses your location to show nearby health facilities. '
+          'WellaPath uses your location to sort available health facilities '
+          'by distance. '
           'Your location never leaves your device.',
         ),
         actions: [
@@ -586,7 +589,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 32),
           child: Text(
-            'We could not load nearby facilities. Please check your '
+            'We could not load available facilities. Please check your '
             'connection and try again later.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Colors.black54),
@@ -675,8 +678,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
             const SizedBox(height: 20),
             const Text(
               'WellaPath Clinic Locator is not yet available in your '
-              'region. We are currently serving Nigeria and will expand '
-              'to more countries soon.',
+              'region. $kCoverageDisclosure',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -711,7 +713,34 @@ class _LocatorScreenState extends State<LocatorScreen> {
 
   Widget _buildLocationResults() {
     if (!_loading && _results.isEmpty) {
-      return const Center(child: Text('No nearby facilities found.'));
+      // An empty list on its own reads as "there is no care near you", which
+      // is a different and more alarming claim than "we do not hold data for
+      // your state yet". Name the coverage so the user knows which it is.
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'No facilities found.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 8),
+              Text(
+                kCoverageDisclosure,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: Colors.black54,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return _isMapView ? _buildMapView(_results) : _buildListView(_results);
   }
@@ -792,7 +821,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         if (_loading)
           Center(
             child: _pillBadge(
-              'Checking nearby care centers',
+              'Finding available facilities',
               icon: const SizedBox(
                 width: 14,
                 height: 14,
@@ -1018,8 +1047,15 @@ class _LocatorScreenState extends State<LocatorScreen> {
         children: [
           const Text(
             'We could not access your location. Select your area to find '
-            'nearby facilities instead.',
+            'available facilities instead.',
             style: TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 8),
+          // The picker only offers the covered states, so say why rather than
+          // leaving the user to read the short list as a bug.
+          const Text(
+            kCoverageDisclosure,
+            style: TextStyle(fontSize: 13, color: Colors.black54),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
