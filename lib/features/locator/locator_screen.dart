@@ -314,7 +314,8 @@ class _LocatorScreenState extends State<LocatorScreen> {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         content: const Text(
-          'WellaPath uses your location to show nearby health facilities. '
+          'WellaPath uses your location to sort available health facilities '
+          'by distance. '
           'Your location never leaves your device.',
         ),
         actions: [
@@ -588,7 +589,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 32),
           child: Text(
-            'We could not load nearby facilities. Please check your '
+            'We could not load available facilities. Please check your '
             'connection and try again later.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Colors.black54),
@@ -722,7 +723,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'No nearby facilities found.',
+                'No facilities found.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
@@ -820,7 +821,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         if (_loading)
           Center(
             child: _pillBadge(
-              'Checking nearby care centers',
+              'Finding available facilities',
               icon: const SizedBox(
                 width: 14,
                 height: 14,
@@ -1046,7 +1047,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         children: [
           const Text(
             'We could not access your location. Select your area to find '
-            'nearby facilities instead.',
+            'available facilities instead.',
             style: TextStyle(fontSize: 14, color: Colors.black54),
           ),
           const SizedBox(height: 8),

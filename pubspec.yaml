@@ -16,7 +16,24 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+#
+# ONE version drives all three platforms: Android versionName/versionCode,
+# iOS CFBundleShortVersionString/CFBundleVersion. Do not set them anywhere else.
+#
+# Build number 209 is derived from every distribution record, not assumed:
+#   * pubspec, all tags, all branches ......................... 1
+#   * BETA_ROLLBACK.md distributed beta (versionCode) ......... 1
+#   * internal-beta CI release identifier 0.2.0+208 ........... 208  <- highest
+# 209 is the next unused value above the highest number this project has ever
+# attached to a build, so it cannot collide with either namespace.
+#
+# Version name 0.3.0 continues the real release line (tags v0.1.0-beta.1,
+# v0.2.0-beta.1, v0.2.0-beta.2; CI identifier 0.2.0). The previous `1.0.0` was
+# the untouched `flutter create` default, never a deliberate choice, and it
+# claims a production maturity this candidate does not have — it is
+# staging-only with no store listing. See test/release/build_identity_test.dart,
+# which fails the build if this line regresses or reuses a number.
+version: 0.3.0+209
 
 environment:
   sdk: ^3.11.3

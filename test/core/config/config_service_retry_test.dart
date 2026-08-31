@@ -89,18 +89,24 @@ void main() {
     );
 
     test(
-      'retries respect the configured backoff durations (2s/4s/8s by default)',
+      'retries respect the configured backoff durations (1s/2s/3s by default)',
       () async {
+        // Defaults changed from 2s/4s/8s in the cold-start work. The old
+        // schedule spent 14s in backoff on top of four 10s attempts, so a
+        // failing first launch sat on a static splash for ~54s. The schedule
+        // is now short and deterministic, and a total budget caps startup.
         final service = ConfigService();
         expect(
           service.backoffDurations,
           equals(const [
+            Duration(seconds: 1),
             Duration(seconds: 2),
-            Duration(seconds: 4),
-            Duration(seconds: 8),
+            Duration(seconds: 3),
           ]),
         );
         expect(service.maxRetries, equals(3));
+        expect(service.perAttemptTimeout, equals(const Duration(seconds: 10)));
+        expect(service.totalBudget, equals(const Duration(seconds: 30)));
 
         // Behavioural check with fast, overridden durations: each retry
         // must actually wait for its configured backoff before the next

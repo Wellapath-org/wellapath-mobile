@@ -43,3 +43,39 @@ jobs:
       - name: Check Dart formatting
         if: steps.check_flutter.outputs.flutter_exists == 'true'
         run: dart format --output=none --set-exit-if-changed .
+
+      - name: Run the full test suite
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
+        run: flutter test
+
+      # CI holds no signing material, and release signing now fails closed, so
+      # a plain `flutter build apk --release` here would (correctly) fail. The
+      # unsigned path is requested explicitly rather than letting the build
+      # quietly pick a fallback key: the artifact carries no signature at all,
+      # which is what the distributability check below relies on.
+      - name: Build unsigned release APK (not distributable)
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
+        env:
+          WELLAPATH_ALLOW_UNSIGNED_RELEASE: 'true'
+        run: flutter build apk --release
+
+      # Fails the job if CI ever produces something that looks signed. A
+      # signature here would mean either signing material reached the runner or
+      # the debug fallback came back — both are release-integrity failures, and
+      # both previously produced an artifact labelled "release".
+      - name: Verify the CI artifact is genuinely unsigned
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
+        run: |
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::error::apksigner not found; cannot prove the artifact is unsigned."
+            exit 1
+          fi
+          if "$apksigner" verify "$apk" 2>/dev/null; then
+            echo "::error::CI produced a SIGNED release APK. CI must never hold \
+          signing material, and release builds must not fall back to debug keys."
+            exit 1
+          fi
+          echo "CI artifact is unsigned and therefore not distributable, as required."
+          sha256sum "$apk"

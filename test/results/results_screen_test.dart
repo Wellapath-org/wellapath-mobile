@@ -141,7 +141,7 @@ void main() {
     },
   );
 
-  testWidgets('urgent urgency shows URGENT banner and Find Nearby Care CTA', (
+  testWidgets('urgent urgency shows URGENT banner and Find Care CTA', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -154,7 +154,7 @@ void main() {
     );
 
     expect(find.text('URGENT'), findsWidgets);
-    expect(find.text('Find Nearby Care'), findsWidgets);
+    expect(find.text('Find Care'), findsWidgets);
   });
 
   testWidgets(

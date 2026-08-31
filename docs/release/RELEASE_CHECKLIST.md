@@ -2,7 +2,10 @@
 
 **Branch:** `release/rc-frozen-baseline`
 **Base:** `develop` @ `d820d6c`
+**Build identity:** `0.3.0+209` (versionCode 209)
 **Status:** frozen, unmerged, **not** submitted to any store
+**Step 2 applied:** build identity · fail-closed signing · display name · bounded
+cold-start recovery · neutral facility wording · CB_211 disposition
 **Machine-readable inputs:** [`RC_FROZEN_INPUTS.json`](./RC_FROZEN_INPUTS.json)
 
 This candidate is built from the currently active and verified Backend
@@ -164,10 +167,11 @@ piece of clinical behaviour.
 
 | ID | Finding |
 |---|---|
-| `RC-BLK-001` | **`versionCode` is 1** and `version: 1.0.0+1` has been unchanged across all three beta tags. Play rejects a duplicate `versionCode`; testers cannot upgrade in place. Must be bumped before any distribution. |
-| `RC-BLK-002` | **Release signing exists on one machine only.** `key.properties` and the keystore are gitignored (correctly). Any other builder silently falls back to **debug keys** — the build succeeds and prints only a warning, so an unsigned-for-distribution APK can be produced without anyone noticing. |
-| `RC-BLK-003` | **First launch fails against a cold backend.** Staging is Render free-tier; measured `/config` latencies of 12.8 s, then repeated 60 s+ stalls, against a 10 s per-attempt timeout. Device-verified: the app lands on the first-launch-offline screen and the user must tap "Try again". Graceful, but a poor first run. |
-| `RC-BLK-004` | **App name shows as `wellapath_mobile`** on the Android launcher; iOS shows "Wellapath Mobile" (also not the "WellaPath" brand casing). |
+| `RC-BLK-001` | ✅ **RESOLVED.** Version is now `0.3.0+209`. 209 is derived from every distribution record — pubspec/tags/BETA_ROLLBACK all used `1`, the internal-beta CI release identifier reached `208`. `test/release/build_identity_test.dart` fails the build on any reuse or regression. |
+| `RC-BLK-002` | ✅ **RESOLVED.** Release signing fails closed. No keystore + no explicit opt-in → the build **fails** with a named remedy. The debug fallback is gone. CI uses an explicit unsigned path and verifies the artifact carries **no signature**, so a debug-signed APK can never be labelled release-signed. |
+| `RC-BLK-003` | ⚠️ **MITIGATED, monitored.** Bounded retry policy: finite 10 s per attempt, deterministic 1/2/3 s backoff, **30 s total budget**, transient-only retries, visible loading/retry state, manual "Try again" preserved. Measured recovery of a 22.7 s cold start (§4a). The underlying Render free-tier spin-down is a Backend/infra issue, not a Mobile one. |
+| `RC-BLK-004` | ✅ **RESOLVED.** Android `android:label` and iOS `CFBundleDisplayName`/`CFBundleName` are all **WellaPath**. Application ID and bundle ID deliberately unchanged (see `RC-BLK-010`). |
+| `RC-BLK-017` | **NEW — was a live defect.** "Try again" on the first-launch-offline screen **threw** `This widget has been unmounted` and did nothing. `pushReplacement` disposes the splash, so the callback closed over a defunct context — the recovery button on the recovery screen was dead. Pre-existing on `develop`; found by the new splash tests. ✅ **FIXED** — the retry now navigates from the offline route's own context. |
 
 ### BLOCKS_STORE_SUBMISSION
 
@@ -177,13 +181,14 @@ piece of clinical behaviour.
 | `RC-BLK-006` | **No store presence at all** — no listing, screenshots, privacy-policy URL, support contact or data-safety declarations. The location permission and the Sentry dependency both require data-safety answers. |
 | `RC-BLK-007` | **No Android App Bundle.** Only a 64.6 MB universal APK was produced. |
 | `RC-BLK-009` | **iOS app-target privacy manifest absent.** Dependencies ship their own; confirm whether first-party code touches a required-reason API and add `PrivacyInfo.xcprivacy` if so. Not codesigned, and no provisioning profile has been exercised. |
+| `RC-BLK-016` | **CB_211 has no clinical or product adjudication.** An engineering-lead disposition (Option D) authorises carrying it, pinned and fail-closed, and it is unreachable through the UI, over-triage, and cannot suppress a red flag — so it does **not** block internal testing. The registry's own `review_trigger` requires resolution **before external beta**; issue #35 is open. Full record: `docs/release/CB_211_DISPOSITION.md`. |
 | `RC-BLK-010` | **Application ID differs across platforms** — `org.wellapath.wellapath_mobile` (Android) vs `org.wellapath.wellapathMobile` (iOS). Fix before store records are created; changing it afterwards is not possible. |
 
 ### POST_RELEASE
 
 | ID | Finding |
 |---|---|
-| `RC-BLK-008` | No distance cap in `getNearbyFacilities` (see §5). Product decision. |
+| `RC-BLK-008` | ⚠️ **MITIGATED by truthful wording, not resolved as a feature.** No distance cap was added and ranking is unchanged. Every user-visible "nearby" claim is gone — the locator now says "available facilities", distance stays prominent on every card ("X.X km away", emphasised), and the coverage disclosure is retained. Geographic search remains a Product decision. |
 | `RC-BLK-011` | `/config` hash verification **soft-fails on a null/empty hash**. Consider requiring a hash for the three clinical artifacts. |
 | `RC-BLK-012` | `targetSdk`/`compileSdk`/`minSdk` are **not pinned** — they follow whichever Flutter version builds. Pin them so the target SDK is a release decision. |
 | `RC-BLK-013` | **Toolchain drift:** built on Flutter 3.44.4 / Dart 3.12.2; `CLAUDE.md` declares 3.41.5 / 3.11.3. Reconcile and pin CI. |

@@ -196,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _ServiceCard(
                             icon: Icons.location_on_rounded,
                             accent: _primary,
-                            title: 'Find a clinic near me',
+                            title: 'Find a clinic',
                             subtitle:
                                 'See hospitals and clinics sorted by distance.',
                             onTap: _onFindClinic,

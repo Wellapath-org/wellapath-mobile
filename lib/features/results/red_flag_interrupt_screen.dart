@@ -192,7 +192,7 @@ class _RedFlagInterruptScreenState extends State<RedFlagInterruptScreen> {
                 ),
               ),
               child: const Text(
-                'Find Nearby Care',
+                'Find Care',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),

@@ -345,7 +345,7 @@ class ResultsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildActionButton(
-              label: 'Find Nearby Care',
+              label: 'Find Care',
               onPressed: () => _showFindCareSheet(context),
               primary: false,
               color: _primary,
@@ -356,7 +356,7 @@ class ResultsScreen extends StatelessWidget {
         return Column(
           children: [
             _buildActionButton(
-              label: 'Find Nearby Care',
+              label: 'Find Care',
               onPressed: () => _showFindCareSheet(context),
               primary: true,
               color: _primary,
@@ -382,7 +382,7 @@ class ResultsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildActionButton(
-              label: 'Find Nearby Care',
+              label: 'Find Care',
               onPressed: () => _showFindCareSheet(context),
               primary: false,
               color: _primary,

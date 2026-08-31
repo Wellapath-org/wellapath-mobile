@@ -21,7 +21,7 @@ void main() {
     await _pumpHome(tester);
 
     expect(find.text('Check your symptoms'), findsOneWidget);
-    expect(find.text('Find a clinic near me'), findsOneWidget);
+    expect(find.text('Find a clinic'), findsOneWidget);
     expect(find.text('Call emergency — 112'), findsOneWidget);
   });
 
@@ -30,7 +30,7 @@ void main() {
 
     for (final String title in <String>[
       'Check your symptoms',
-      'Find a clinic near me',
+      'Find a clinic',
       'Call emergency — 112',
     ]) {
       expect(
