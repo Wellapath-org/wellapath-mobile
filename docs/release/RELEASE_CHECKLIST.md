@@ -74,12 +74,14 @@ PR #76 is **left open and unmerged**, as instructed.
 
 | Gate | Result |
 |---|---|
-| `dart format` | 165 files, 0 changed ✅ |
+| `dart format` | 174 files, 0 changed ✅ |
 | `flutter analyze` | No issues found ✅ |
-| Full test suite | **1,150 passed · 7 skipped · 0 failed** ✅ |
+| Full test suite | **1,292 passed · 7 skipped · 0 failed** ✅ |
 | Clinical case bank | **239 executed · 238 passed · 1 known finding (CB_211) · 0 unexpected failures** ✅ |
 | Global red-flag rules | 13/13 exercised ✅ |
-| Android release build | APK built and **release-signed** ✅ |
+| Android release build (signing machine) | APK built and **release-signed** ✅ |
+| Android CI build (no signing material) | **unsigned**, verified unsigned in CI ✅ |
+| Release signing fails closed | all three outcomes exercised ✅ |
 | iOS release build | `Runner.app` built (`--no-codesign`) ✅ |
 | Cold start | reaches onboarding ✅ (device-verified) |
 | Onboarding | renders ✅ (device-verified) |
@@ -91,6 +93,9 @@ PR #76 is **left open and unmerged**, as instructed.
 | Secret scan | no secrets, no keystore, no `.env.local` tracked ✅ |
 | Release-mode logging | fixed-vocabulary only; no PHI ✅ |
 | Package / application ID | verified — **mismatched across platforms** ⚠️ |
+| Build identity | `0.3.0+209`, unique and monotonic ✅ |
+| Display name | **WellaPath** on both platforms ✅ |
+| Cold-start recovery | recovers one transient failure; bounded at 30 s ✅ |
 
 **Login:** the app has no login. There is no account, credential or session
 flow to test. "Login/onboarding" reduces to onboarding, which was verified.
@@ -105,6 +110,52 @@ simulator, so the interactive checks were debug-mode.
 false`; unknown-token logging carries a **count only**, never token values; the
 one place an exception cause is printed sits behind an `assert`, so it is
 debug-only.
+
+## 4a. Cold-start recovery — measured against staging
+
+Staging is Render free tier and spins down when idle. Measured `/config`:
+**warm 0.50–1.74 s**, **cold 12.8 s and 22.7 s**, with two windows stalling
+past **60 s**. A single 10 s attempt cannot outlast a spin-up — and lengthening
+the timeout does not help, because the request that *triggers* the spin-up is
+the one that hangs. The next request meets a warm instance, so the fix is a
+bounded retry.
+
+**Policy:** finite **10 s** per attempt · deterministic **1/2/3 s** backoff ·
+**4 attempts** · **30 s total budget**, with the final attempt clamped to the
+remaining budget · transient-only retries · `/health` is **not** used as an
+application dependency · artifact integrity is untouched · nothing unvalidated
+is returned, so nothing unvalidated is cached.
+
+| Failure | Retried? |
+|---|---|
+| connect / receive / send timeout, connection error | ✅ yes |
+| 408, 429, 5xx | ✅ yes |
+| 4xx other than 408/429 | ❌ no — permanent |
+| bad TLS certificate | ❌ no — permanent |
+| malformed body / schema-invalid | ❌ no — permanent |
+
+**Measured on device** (iPhone 17 simulator; release mode is not supported on
+the simulator, so these are debug builds — the network behaviour is identical):
+
+| Scenario | Result |
+|---|---|
+| **Cold backend, first launch** (app uninstalled, backend idle ~26 min) | **Reached onboarding in 15–18 s.** Did **not** fall through to the offline screen. Spinner + "Connecting…" visible at 12 s. Attempt 1 timed out at 10 s; after a 1 s backoff, attempt 2 met the warmed instance. |
+| Warm backend, 3 launches | onboarding in **7.4 s**, **0** config failures |
+| Repeated failure (`192.0.2.1`, unroutable) | offline screen at **30–33 s** — inside the 30 s budget plus the 2 s minimum splash. No crash. |
+
+Under the previous policy this same class of cold start fell through to the
+offline screen (device-verified in Step 1).
+
+**`RC-BLK-017` — a live defect found while testing this.** "Try again" on the
+first-launch-offline screen **threw** `This widget has been unmounted` and did
+nothing: `pushReplacement` disposes the splash, so the callback closed over an
+already-defunct context. The recovery button on the recovery screen was dead.
+Pre-existing on `develop`. Fixed — the retry now navigates from the offline
+route's own context, covered by `test/features/boot/splash_startup_test.dart`.
+
+> The underlying spin-down is a **Backend/infra** property, not a Mobile one.
+> Mobile now rides through it; a keep-warm ping or a paid tier would remove the
+> wait entirely and remains a Backend decision.
 
 ## 5. Facility coverage disclosure — corrected
 
@@ -150,9 +201,9 @@ piece of clinical behaviour.
 | Data-safety / privacy declarations | **not prepared** |
 | Android permissions | INTERNET, ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION — all justified by the locator |
 | Android target SDK | 36 — meets the Play requirement ✅ |
-| Android signing | release keystore works ✅, but exists only on one machine |
+| Android signing | release keystore works ✅; fails closed without it; still only on one machine |
 | Android artifact | universal APK — Play requires an **AAB**; none produced |
-| App name on device | **`wellapath_mobile`** ⚠️ |
+| App name on device | **WellaPath** ✅ |
 | iOS deployment target | 13.0 ✅ |
 | iOS privacy manifest | dependencies ship theirs; **app target has none** ⚠️ |
 | iOS signing | not codesigned; no provisioning profile exercised |
@@ -214,18 +265,40 @@ candidate first, and neither is related to any of those workstreams.
 | 9 | No phase blending | ✅ candidate work excluded and proven excluded |
 | 10 | Never commit `.env` | ⚠️ `.env` **is** committed — the documented CLAUDE.md exception; contains staging URLs and flags only, no secrets |
 
+## 8a. Artifacts produced
+
+Nothing was uploaded or submitted. Certificate fingerprints are **not**
+published here — the repository has no policy treating them as public release
+metadata; only the presence of a valid signature is reported.
+
+| Artifact | sha256 | Bytes | Distributable |
+|---|---|---|---|
+| `app-release.apk` (signing machine) | `5f84ee9a75829e3842fbc37b3da3fc881e4aa5239757749185ee7aa5bc1ab2ce` | 64,601,706 | **YES** — release-signed |
+| `app-release.apk` (CI, unsigned) | `00e406718d80d8267c31f39b0591a116f0d8f4760c774593eb0d80a3089e152b` | 64,593,514 | **NO** — no signature |
+| `Runner.app/…/App` (iOS binary) | `08890d1a5bad8e05c507f0fd3bd24fc5ecbeb59667f139a0034b2f33e3711764` | — | **NO** — not codesigned |
+| `Runner.app` (zipped bundle) | `84845e2d013115b4a95b086afefa22d04915b7b6da0732a4b660f8b99cf726e3` | 12,811,027 | **NO** — not codesigned |
+
+The signed APK hash reproduced byte-identically across two independent builds.
+
 ## 9. Next action required for internal distribution
 
-1. Bump `version:` in `pubspec.yaml` above every previously distributed
-   `versionCode` (`RC-BLK-001`).
-2. Decide how release signing reaches CI or a second machine, and make an
-   unsigned release build **fail** rather than warn (`RC-BLK-002`).
-3. Set the Android `android:label` and confirm the display name
-   (`RC-BLK-004`).
-4. Accept or mitigate the cold-start first-launch failure (`RC-BLK-003`) — a
-   keep-warm ping, a longer first-attempt timeout, or an explicit product
-   decision to accept it.
-5. Produce an **AAB** for track upload (`RC-BLK-007`).
+✅ `RC-BLK-001`, `002`, `004` and `017` are **closed**; `003` and `008` are
+mitigated and measured. What remains:
+
+1. **Produce an AAB** for track upload (`RC-BLK-007`) — the only remaining
+   mechanical step before an internal track can accept this build.
+2. **Confirm the version-name decision.** Build number 209 is derived and not
+   negotiable; the *name* moving `1.0.0 → 0.3.0` is a judgment call — it
+   matches the real tag line and avoids claiming production maturity, but it
+   reads as a downgrade to a tester who saw `1.0.0`. One line in `pubspec.yaml`
+   reverses it. Android upgrade eligibility depends only on `versionCode`,
+   which increases either way.
+3. **Get signing material to a second location** (`RC-BLK-002` follow-on). The
+   build now fails closed instead of producing a debug-signed APK, but the
+   keystore still exists on exactly one machine — that is a bus-factor and
+   rollback risk, not a correctness one.
+4. **Backend:** decide whether to remove the Render free-tier spin-down. Mobile
+   rides through it now; the wait itself is a Backend property.
 
 Store submission additionally requires the production configuration
 (`RC-BLK-005`), the full listing (`RC-BLK-006`), the iOS privacy/codesigning
