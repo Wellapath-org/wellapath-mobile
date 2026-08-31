@@ -4071,3 +4071,241 @@ the underlying counts drift, total Product decisions is not 136, any decision is
 approved, IM-001 is marked resolved, a membership/token/scoring/red-flag delta
 becomes nonzero, documentation claims 22 dimensions, or the PR claims activation
 authority.
+
+---
+
+# Release Steps 1–3 — frozen release candidate 0.3.0+209, merged
+
+**Merged to `develop` as `7961883f51878080a59db1eb353d5f6754a66864` (PR #77).**
+Parents `d820d6c` (prior tip) + `783a872` (reviewed head). **PR #76 remains
+open, untouched and excluded** — verified not an ancestor of `develop`, with
+every IM-003 path absent from the merged tree.
+
+**Nothing has been uploaded or submitted to either store.** No GitHub release,
+no new tag, no `.aab`/`.apk` in Git, no tester track touched.
+
+## Step 1 — the frozen candidate
+
+Branched from the verified `develop` tip, excluding PR #76 by branch choice.
+
+`/config` canonical SHA256 matched the authoritative baseline exactly —
+`3b2bbb1cec6b25631bcf499902314c22c19cbab33fe7fcfae0c6288a4f8578ed` — but **only
+under key-sorted compact JSON**. The raw body hashes to
+`183a15bda78f7ccb3b3954e829e7228b1154a17f200c609bff7a0b73cdf45d3b` (1,000 B);
+matching on raw bytes would have read as a false mismatch, so both are recorded
+in `docs/release/RC_FROZEN_INPUTS.json`. Active artifacts confirmed
+`token_dictionary 1.1 · knowledge_base 2.4 · rules 2.2 · facilities 1.1`, with
+the facilities artifact re-downloaded and re-hashed byte-for-byte.
+
+Backend `develop @ 2485ce0c` is carried from the brief and **flagged
+unverified** — Mobile has no Backend checkout and does not report it confirmed.
+
+**Exclusions were proven, not asserted.** Question Flow 1.1 and Vocabulary 2.0
+consumer code was **already on `develop`** via merged PRs #75 and #72, so it
+could not be excluded by branch choice. It is excluded from the *product*
+instead: zero cross-imports, unreachable from `main.dart`, and every symbol
+tree-shaken out of both release binaries with the engine controls present.
+Removing the source would mean reverting merged PRs, which is not a
+release-safe change.
+
+**Facility coverage was overstated.** `facilities.ng.v1.1` holds **5,344
+records in exactly three states** — Lagos 2,690 · Kano 2,040 · FCT 614 — yet
+the locator told out-of-region users *"We are currently serving Nigeria and
+will expand to more countries soon."* That implies national coverage and
+promises an uncommitted expansion. Corrected as Product wording only, with
+`kCoveredStates` and `kCoverageDisclosure` as a single source of truth. Ranking,
+emergency-capable ordering, the sparse-coverage fallback and the Nigeria
+bounding box were **not** touched.
+
+## Step 2 — internal-distribution readiness
+
+### Build identity — `0.3.0+209`
+
+Derived from every distribution record, not assumed:
+
+| Evidence | Build |
+|---|---|
+| pubspec across all history and all three tags | 1 |
+| `docs/BETA_ROLLBACK.md` distributed beta versionCode | 1 |
+| internal-beta CI release identifier `0.2.0+208` (run 31794343788) | **208** |
+
+209 is the next unused value above **both** namespaces.
+`test/release/build_identity_test.dart` holds an append-only registry with
+evidence per entry and fails on reuse or regression, including a mutation check
+so the guard cannot pass vacuously.
+
+Version *name* `1.0.0 → 0.3.0` is a judgment call, flagged as such: `1.0.0` was
+the untouched `flutter create` default and claimed a production maturity this
+staging-only build does not have, but it reads as a downgrade to a tester who
+saw `1.0.0`. One line reverses it; Android upgrade eligibility depends only on
+`versionCode`, which increases either way.
+
+### Release signing now fails closed
+
+It previously fell back to the **debug keystore** with only a `logger.warn`,
+producing an APK named `app-release.apk` signed with a shared, per-machine,
+well-known key that testers could never upgrade in place — silently breaking
+Lever B of `docs/BETA_ROLLBACK.md`. Three outcomes now exist and none is silent:
+
+| Condition | Result |
+|---|---|
+| keystore present | release-signed |
+| no keystore **+** explicit `WELLAPATH_ALLOW_UNSIGNED_RELEASE=true` | artifact with **no signing config at all** — verifiably unsigned |
+| no keystore, no opt-in | **build fails** with a named remedy |
+
+All three were exercised for real. CI takes the unsigned path and **fails if
+what it built ever verifies as signed**; that step passed on a runner holding no
+signing material. CI also now runs the full suite and a release build, which it
+did not before.
+
+### Display name
+
+Android `android:label` and iOS `CFBundleDisplayName`/`CFBundleName` are all
+**WellaPath**. Application ID and bundle ID deliberately untouched — they are
+store-record identity and cannot change once a listing exists (`RC-BLK-010`),
+with a test asserting they have not moved.
+
+### Cold-start recovery — bounded, not lengthened
+
+Staging is Render free tier and spins down. Measured `/config`: **warm
+0.50–1.74 s**, **cold 12.8 s and 22.7 s**, with two windows stalling past
+**60 s**. A single 10 s attempt cannot outlast a spin-up, and a longer timeout
+does not help — the request that *triggers* the spin-up is the one that hangs.
+The next request meets a warm instance, so the fix is a bounded retry.
+
+Finite **10 s** per attempt · deterministic **1/2/3 s** backoff · 4 attempts ·
+**30 s total budget** with the final attempt clamped to remaining time ·
+transient-only retries (timeouts, connection loss, 408, 429, 5xx) · 4xx, bad
+certificates and malformed/schema-invalid bodies **never** retried ·
+`/health` **not** used as an application dependency · artifact integrity
+untouched · nothing unvalidated returned, so nothing unvalidated cached.
+
+Measured on device (iPhone 17 simulator; release mode is unsupported there, so
+debug builds — network behaviour is identical):
+
+| Scenario | Result |
+|---|---|
+| **Cold backend, first launch** (uninstalled first, backend idle ~26 min) | **Reached onboarding in 15–18 s.** Did **not** fall through to the offline screen. Spinner + "Connecting…" visible at 12 s. |
+| Warm backend, ×3 | onboarding in **7.4 s**, 0 config failures |
+| Repeated failure (unroutable `192.0.2.1`) | offline screen at **30–33 s**, inside budget + the 2 s minimum splash, no crash |
+
+Under the previous policy this same class of cold start fell through to the
+offline screen.
+
+### `RC-BLK-017` — the recovery button was dead
+
+Found by the new splash tests, **pre-existing on `develop`**: "Try again" on the
+first-launch-offline screen **threw** `This widget has been unmounted` and did
+nothing. `pushReplacement` disposes the splash, so the callback closed over an
+already-defunct context — the recovery button on the recovery screen never
+worked. Fixed: the retry now navigates from the offline route's own context.
+
+### "Nearby" wording — `RC-BLK-008` mitigated, not resolved
+
+`getNearbyFacilities` applies **no distance cap**, so a user in an uncovered
+state is handed facilities that may be hundreds of kilometres away. A cap would
+change ranking, which this release may not do. Every user-visible proximity
+claim was removed instead ("available facilities", "Find Care"), distance stays
+prominent on every card, and the coverage disclosure is retained. The telemetry
+enum `'nearby'` is a fixed backend contract value and was left alone.
+Geographic search remains a Product decision.
+
+### CB_211 — reviewed, not carried silently
+
+Empty symptom input still ranks `malaria` and returns `urgent` where the bank
+expects `non_urgent`/`empty_default` — an `urgency_source` value that does not
+exist in the shipped contract. **Engineering-lead disposition (Option D) only**,
+explicitly not clinical, external-beta or production approval.
+
+Both product guards were re-verified against current code
+(`symptom_selection_screen.dart:83`, `loading_screen.dart:71`), the fixture
+hash still binds, and the finding is over-triage and cannot suppress a red
+flag. **Does not block
+internal testing; does block external beta and store submission**
+(`RC-BLK-016`, issue #35 open). Recorded in
+`docs/release/CB_211_DISPOSITION.md` with a gate test that fails if the guards
+disappear or the status flips without a clinical decision. **No clinical logic
+was changed.**
+
+## Step 3 — signed AAB and merge
+
+| | |
+|---|---|
+| File | `app-release.aab` — **internal testing only** |
+| SHA256 | `cfa41692bcd3fc373665d9b9d79a92fb295aab504e42fa7e0b4bb123e401166e` |
+| Bytes | 62,078,226 |
+| Signature | **`jar verified`**, single signer, **no debug certificate** |
+| Identity | `org.wellapath.wellapath_mobile` · 0.3.0 · 209 · label WellaPath |
+| `bundletool 1.18.1 validate` | **exit 0**, no errors |
+| `debuggable` | absent · no bundled secret · no Sentry DSN |
+
+Built from a **clean detached worktree**. The fail-closed policy was reconfirmed
+on the bundle path first: the same worktree with no signing material **refused**
+the build and produced no artifact. Signing material was then referenced **in
+place by symlink** — never copied.
+
+**Correspondence to the merged tree, with a correction.** Building the merge
+commit in a *different* worktree produced a different hash, and the first read
+of that ("only `r8.json` differs") was **wrong** — the native `.so` files
+differed too. Cause: Flutter's AOT snapshot embeds the absolute build path.
+Rebuilding the merge commit in the *same* directory produced hash
+`cfa41692…`, **byte-identical**. The merge introduced no binary change, and the
+AAB is reproducible for a fixed build path. `jarsigner` also notes the
+certificate chain is not CA-rooted — expected and correct for a self-signed
+Android release key.
+
+## Signing continuity — an operational risk, not a reason to weaken signing
+
+The keystore exists on **exactly one machine**, outside the repo tree, in **no
+CI secret**, and **Play App Signing is not enrolled**, so no second copy exists
+anywhere. An Android signing key **cannot be regenerated**: losing that machine
+breaks in-place upgrade for every tester and voids the APK rollback lever.
+Enrolling in Play App Signing at or before first upload is the primary
+mitigation. Credential transfer requires **founder + engineering lead**; no
+release task authorizes it. Recorded in `docs/release/SIGNING_CONTINUITY.md`
+with **no credential, path or certificate fingerprint**, as
+`RC-BLK-002-FOLLOWON`.
+
+## Verification
+
+**Pre-merge CI** on `783a872`: success. **Post-merge CI** on `7961883`: success.
+Re-run from a clean worktree at the merge commit:
+
+- format clean · analyze clean · **1,292 passed · 7 skipped · 0 failed**
+  (1,150 at the frozen baseline + 142 added)
+- release gates **172 passed**
+- clinical regression **unchanged**: **239 executed · 238 passed · 1 known
+  finding (CB_211) · 0 unexpected failures · 13/13 global red-flag rules ·
+  QB-002 27/27**
+- `/config` canonical **MATCH**; artifact set unchanged
+- all 16 excluded symbols **ABSENT** from the AAB's own `libapp.so`, all 9
+  engine controls **PRESENT**; both retired strings gone from the binary
+- secret scan clean; 0 signing files tracked
+
+**Nothing clinical changed.** All of `lib/core/engine/`, all of
+`lib/features/assessment/`, `facility_locator_service.dart` and
+`staged_artifact_loader.dart` are absent from the diff — verified by path, not
+by claim.
+
+## Blockers
+
+**Closed:** `RC-BLK-001` (build number) · `002` (debug-key fallback) · `004`
+(app name) · `007` (AAB) · `017` (dead retry button).
+**Mitigated and measured:** `003` (cold start) · `008` (nearby wording).
+
+**Internal:** `RC-BLK-002-FOLLOWON` — signing material in one location only.
+
+**Store submission:** `005` build points at **staging** with no production
+configuration anywhere in the repo · `006` no listing, screenshots,
+privacy-policy link, support contact or data-safety declarations · `009` iOS
+app-target privacy manifest absent and not codesigned · `010` application ID
+differs across platforms (`wellapath_mobile` vs `wellapathMobile`, unfixable
+once store records exist) · `016` CB_211.
+
+**Post-release:** `011` `/config` hash soft-fails on a null/empty hash · `012`
+SDK levels unpinned and follow the building Flutter version · `013` toolchain
+drift (built on Flutter 3.44.4 / Dart 3.12.2; CLAUDE.md declares 3.41.5 /
+3.11.3) · `014` two unused assets ship · `015` KGP deprecation warnings.
+
+**Next action for internal distribution:** the build is ready; upload to a
+tester track requires explicit authorization and has not been performed.
