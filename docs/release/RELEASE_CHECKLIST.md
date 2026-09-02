@@ -280,6 +280,12 @@ metadata; only the presence of a valid signature is reported.
 | `Runner.app` (zipped bundle) | `84845e2d013115b4a95b086afefa22d04915b7b6da0732a4b660f8b99cf726e3` | 12,811,027 | **NO** — not codesigned |
 
 The signed APK hash reproduced byte-identically across two independent builds.
+The **AAB hash does not** — R8 stamps a wall-clock `buildTimeNs` into
+`BUNDLE-METADATA/com.android.tools/r8.json`, which changes `MANIFEST.MF`, the
+`.SF` and the `.RSA` with it. Only those 4 of 479 entries move: every
+`libapp.so`, `libflutter.so`, `classes.dex`, the bundled `.env` and every asset
+are CRC-identical across builds at a fixed path. Treat an AAB SHA256 as the
+identifier of one artifact, not as a reproducibility check.
 
 **AAB (`RC-BLK-007` — closed).** Built from a **clean detached worktree** at
 `5aa3680`, on the authorized signing machine. `bundletool 1.18.1 validate`

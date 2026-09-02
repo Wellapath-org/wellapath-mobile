@@ -284,7 +284,40 @@
         },
         "fail_closed_reconfirmed": "the same clean worktree with no signing material REFUSED the AAB build and produced no artifact",
         "committed_to_git": false,
-        "uploaded": false
+        "uploaded": false,
+        "reproducibility": {
+          "byte_reproducible": false,
+          "note": "The AAB container hash is NOT reproducible, even from the same commit in the same build directory. Supersedes the earlier 'byte-identical' claim.",
+          "root_cause": "R8 writes a wall-clock buildTimeNs into BUNDLE-METADATA/com.android.tools/r8.json; that cascades into META-INF/MANIFEST.MF, the .SF and the .RSA.",
+          "entries_differing": 4,
+          "entries_total": 479,
+          "payload_reproducible": true,
+          "payload_note": "Every libapp.so (all 3 ABIs), libflutter.so, classes.dex, the bundled .env and every asset are CRC-identical across builds at a fixed path.",
+          "evidence_builds": [
+            {
+              "sha256": "c1bb30acf267a5e53907fff2c23416bb26f96f3d2ff62bc2eedb89762b1e0ee5",
+              "bytes": 62077768
+            },
+            {
+              "sha256": "096b45bc29c75b34623341171d510bd034ec980f7f71249a5407a94b1565cd54",
+              "bytes": 62077759
+            }
+          ],
+          "guidance": "Treat the AAB SHA256 as an identifier for one specific artifact, not as a reproducibility check."
+        },
+        "reverification_2026_09_02": {
+          "built_from_head": "7961883f51878080a59db1eb353d5f6754a66864",
+          "artifact_of_record_sha256": "096b45bc29c75b34623341171d510bd034ec980f7f71249a5407a94b1565cd54",
+          "bytes": 62077759,
+          "signature": "jar verified — single signer, no debug certificate",
+          "bundletool_validate_exit": 0,
+          "bundletool_version": "1.18.1",
+          "debuggable_flag_present": false,
+          "excluded_symbols_absent_all_abis": true,
+          "engine_controls_present": true,
+          "uploaded": false,
+          "committed_to_git": false
+        }
       }
     },
     "ios": {

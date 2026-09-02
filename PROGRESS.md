@@ -4254,6 +4254,16 @@ AAB is reproducible for a fixed build path. `jarsigner` also notes the
 certificate chain is not CA-rooted — expected and correct for a self-signed
 Android release key.
 
+> **Correction — the "byte-identical at a fixed build path" claim above is
+> wrong.** See "Release Step 3 — independent re-verification" at the end of this
+> file. Two AAB builds from the same commit in the same directory produce
+> **different** hashes: R8 stamps a wall-clock `buildTimeNs` into
+> `BUNDLE-METADATA/com.android.tools/r8.json`, which changes `MANIFEST.MF`, the
+> `.SF` and the `.RSA` in turn. What *is* reproducible at a fixed path is the
+> executable payload — every `libapp.so`, `libflutter.so`, `classes.dex`, the
+> bundled `.env` and every asset are CRC-identical across builds. The AAB
+> *container hash* is not a reproducibility check and must not be used as one.
+
 ## Signing continuity — an operational risk, not a reason to weaken signing
 
 The keystore exists on **exactly one machine**, outside the repo tree, in **no
@@ -4309,3 +4319,134 @@ drift (built on Flutter 3.44.4 / Dart 3.12.2; CLAUDE.md declares 3.41.5 /
 
 **Next action for internal distribution:** the build is ready; upload to a
 tester track requires explicit authorization and has not been performed.
+
+---
+
+# Release Step 3 — independent re-verification of the merged candidate
+
+**Re-run on 2026-09-02 against the already-merged PR #77**, from the brief that
+named reviewed head `5aa3680`. Nothing was re-merged and nothing was uploaded.
+The purpose was to confirm, from evidence rather than from the prior record,
+that the merged tree still verifies and that a signed AAB can be reproduced
+from it.
+
+## Heads, merge and CI
+
+| | |
+|---|---|
+| Base | `d820d6cfc3b96cbbba9d434ef4684b9a36140991` |
+| Reviewed head (per brief) | `5aa3680510a67230261f25716d3325999b9229bf` |
+| Final head (merged) | `783a872ec7656e32e998df684c0e9ccad5b17bf5` |
+| Merge commit | `7961883f51878080a59db1eb353d5f6754a66864` |
+| Merge parents | `d820d6c` + `783a872` — exact, verified |
+| `develop` == `origin/develop` | `ebdf2cf` — in sync |
+
+CI **success** on all three: reviewed head (run 33373941570), final head
+(33377658200), post-merge `develop` (33378378339).
+
+**The brief's file count differs from the merged PR, and the delta is
+explained.** The brief describes 28 files / +3736 −95 at `5aa3680`; the merged
+PR is 29 files / +3898 −95 at `783a872`. The difference is exactly three
+documentation files — `SIGNING_CONTINUITY.md` (new), `RC_FROZEN_INPUTS.json`,
+`RELEASE_CHECKLIST.md` — at +169/−7. Seven of those added lines replaced lines
+added earlier in the same PR, so net additions are +162 and deletions stay 95.
+`3736 + 162 = 3898`. No source or test file changed after the reviewed head.
+
+## Scope confirmations
+
+- **PR #76 excluded.** Still OPEN, `updatedAt` 2026-08-18 — untouched, and
+  before the 2026-08-31 merge. `git merge-base --is-ancestor 13be0d4 develop`
+  returns false. All 14 of its paths are absent from the merged tree.
+- **The three unrelated tooling modifications are absent** from the PR diff and
+  remain unstaged in the working tree: `android/gradle.properties`,
+  `ios/.../project.pbxproj`, `ios/.../Runner.xcscheme`.
+- **No clinical change, verified by path:** `lib/core/engine/`,
+  `lib/features/assessment/`, `facility_locator_service.dart` and
+  `staged_artifact_loader.dart` each show **0 changed files**. The only
+  scoring/ranking-adjacent hits in the diff are a `FontWeight` and a filename
+  header.
+- **Question Flow 1.1 / Vocabulary 2.0 are on `develop` but not in the
+  product:** zero cross-imports from outside their own directories, and all
+  16 excluded symbols absent from the binary (below).
+- **No facilities 2.0 and no manifest runtime consumer.** Runtime requests the
+  four artifacts by name only; versions come from `/config`.
+- The one `im003` string in the tree is a local variable in
+  `test/question_flow_v1_1/grouping_isolation_test.dart` (from PR #75) that
+  asserts IM-003 is `deferred` with `activation_blocker: true`.
+
+## Re-run results — clean detached worktree at the merge commit
+
+`dart format` 0 changed · `flutter analyze` no issues ·
+**1,292 passed · 7 skipped · 0 failed**. Identical in the main checkout.
+
+Release gates **172 passed** — `test/release` 57 + `test/core/config` +
+`test/features/boot` 48 + `test/locator` 67. Engine suite 167 passed.
+Case bank holds **239** cases; the known-findings registry contains exactly
+`{CB_211}` → 239 executed · 238 passed · 1 known finding · 0 unexpected.
+
+**Frozen inputs still hold.** Live `/config`: canonical SHA256
+`3b2bbb1c…` **MATCH**, raw body `183a15bd…` at 1,000 B, and
+`token_dictionary 1.1 · knowledge_base 2.4 · rules 2.2 · facilities 1.1`
+all unchanged. That request took **42.7 s** cold — a live instance of the
+Render spin-down the retry policy exists for, and a reminder that a spin-up can
+still outlast the 30 s budget and land a first launch on the offline screen.
+
+**CB_211 remains unreachable in the UI.** Both guards verified in current code:
+`symptom_selection_screen.dart` disables Continue on `tokens.isNotEmpty`, and
+`loading_screen.dart` blocks empty input before the engine as defence in depth.
+Gate test passes. Still blocks external beta and store submission.
+
+**Secret scan clean.** The only two matches are the *key names*
+`storePassword`/`keyPassword` in `build.gradle.kts` and in the signing policy
+test that guards against literal assignment. **0 signing files tracked.**
+
+## Signed AAB rebuilt from the merged tree
+
+Built in a clean detached worktree at `7961883`, signing material referenced
+**in place by symlink** — never copied. **Fail-closed reconfirmed on the bundle
+path first:** with the symlink removed the build **refused** ("Release build
+refused: no Android signing material") and produced no artifact.
+
+| | |
+|---|---|
+| File | `app-release.aab` — **internal testing only** |
+| SHA256 | `096b45bc29c75b34623341171d510bd034ec980f7f71249a5407a94b1565cd54` |
+| Bytes | 62,077,759 |
+| Signature | **`jar verified`** · single signer · **0 debug-certificate matches** |
+| Identity | `org.wellapath.wellapath_mobile` · 0.3.0 · 209 · label WellaPath |
+| SDK | minSdk 24 · targetSdk 36 |
+| `bundletool 1.18.1 validate` | **exit 0** |
+| `debuggable` | **absent** (0 occurrences) |
+| Bundled `.env` | staging URLs + `TELEMETRY_ENABLED=false`, `TELEMETRY_PRODUCTION_APPROVED=false` — no DSN, no secret |
+
+All **16 excluded symbols ABSENT from all three ABIs** (`arm64-v8a`,
+`armeabi-v7a`, `x86_64`); all **9 engine controls PRESENT**; the retired
+strings `"Find Nearby Care"`, `"near me"` and `"will expand to more countries"`
+are **gone** from every `libapp.so`.
+
+## The AAB is not byte-reproducible — the earlier claim was wrong
+
+Two builds from the **same commit in the same directory** differ:
+`c1bb30ac…` (62,077,768 B) vs `096b45bc…` (62,077,759 B). Both `jar verified`,
+both `bundletool validate` exit 0, both identical in identity and manifest.
+
+Exactly **4 of 479 entries** differ, and the cause is one field:
+
+| Entry | Why |
+|---|---|
+| `BUNDLE-METADATA/com.android.tools/r8.json` | `buildTimeNs` — a wall-clock build duration (`29485367000` vs `14277108083`) |
+| `META-INF/MANIFEST.MF` | carries the digest of `r8.json` |
+| `META-INF/WELLAPAT.SF` | carries the digest of `MANIFEST.MF` |
+| `META-INF/WELLAPAT.RSA` | signs the `.SF` |
+
+Everything that reaches a device is **CRC-identical** across builds: every
+`libapp.so`, `libflutter.so`, `classes.dex`, the bundled `.env` and every
+asset. So the *payload* is reproducible at a fixed build path; the **AAB
+container hash is not**, and the recorded `cfa41692…` cannot be reproduced by
+rebuilding — not because the tree changed, but because R8 stamps time into
+metadata. Treat the AAB hash as an identifier for one specific artifact, not as
+a reproducibility check. The prior record's "byte-identical" claim is corrected
+above.
+
+Nothing was committed of the AAB or signing material. **Nothing was uploaded or
+submitted to any store or tester track.**
