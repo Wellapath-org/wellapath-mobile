@@ -1,4 +1,26 @@
-# WellaPath Mobile — E1.6 Progress Tracker
+# WellaPath Mobile — Progress Tracker
+
+**Phase:** Release — internal-distribution candidate `0.3.0+209`  
+**Current state:** merged and re-verified; **awaiting upload authorization**  
+**Branch:** `develop` @ `b4a4e52` (== `origin/develop`, CI green)  
+**Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
+**Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
+**Last Updated:** 2026-09-05 — Step 3 re-verification recorded; nothing uploaded to any store or tester track
+
+> This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
+> I1/W1 → I2/W2–W3 → Release. The heading below is kept for history; the
+> newest entry is always at the **end** of the file.
+>
+> **Where things stand:** PR #77 merged as `7961883` (parents `d820d6c` +
+> `783a872`). PR #76 remains **OPEN and deliberately excluded**. Next action is
+> upload to a tester track, which **requires explicit authorization and has not
+> been performed**. Open blockers: `RC-BLK-002-FOLLOWON` (signing key exists on
+> one machine only); store submission blocked by `005`, `006`, `009`, `010`,
+> `016` (CB_211).
+
+---
+
+## E1.6 — original tracker header (historical)
 
 **Phase:** E1 — System Spine  
 **Task:** E1.6 Mobile Foundation  
