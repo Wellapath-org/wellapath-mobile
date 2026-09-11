@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'core/config/build_environment.dart';
 import 'core/crash/crash_reporter.dart';
 import 'core/crash/sentry_crash_sink.dart';
 import 'core/storage/storage_service.dart';
@@ -11,6 +12,12 @@ import 'app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+
+  // Cross-environment gate: an internal/staging build pointing at production,
+  // or a production build pointing at staging, refuses to start. Crashing
+  // here is the same posture the boot sequence takes for a missing .env.
+  BuildEnvironment.validate();
+
   await StorageService.init();
 
   // Installed before the first frame so an early framework error is still

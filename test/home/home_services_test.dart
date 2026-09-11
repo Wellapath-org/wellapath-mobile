@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wellapath_mobile/core/config/build_environment.dart';
 import 'package:wellapath_mobile/features/home/home_screen.dart';
 
 /// E9 — the home screen offers three services directly instead of a single
@@ -85,5 +86,17 @@ void main() {
     await _pumpHome(tester);
 
     expect(find.text('Start Symptom Assessment'), findsNothing);
+  });
+
+  testWidgets('the internal-build marker is visible on internal builds', (
+    WidgetTester tester,
+  ) async {
+    // dotenv is not initialised in widget tests, so BuildEnvironment
+    // resolves to the internal default — the same fail-visible behaviour an
+    // ambiguous environment gets on a device.
+    await _pumpHome(tester);
+
+    expect(find.text(BuildEnvironment.kInternalBuildMarker), findsOneWidget);
+    expect(find.text('Internal testing — staging'), findsOneWidget);
   });
 }

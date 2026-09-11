@@ -4472,3 +4472,68 @@ above.
 
 Nothing was committed of the AAB or signing material. **Nothing was uploaded or
 submitted to any store or tester track.**
+
+---
+
+# Store readiness — internal testing preparation, 0.3.0+210
+
+**Branch:** `release/internal-testing-prep` (off `develop` `69be422`)
+**Last Updated:** 2026-09-11
+
+## CURRENT STATUS: prepared and verified — PR open, unmerged; NOTHING uploaded or submitted
+
+Full evidence: `docs/release/STORE_READINESS_0.3.0_210.md`. Summary:
+
+- **Identifier resolved: `org.wellapath.app` on both platforms**
+  (`RC-BLK-010` closed before any store record exists). Verified first:
+  wellapath.org is WellaPath's own live site; Play 404 and iTunes lookup
+  `resultCount: 0` for the identifier; zero uses in all git history; the
+  build registry holds no distribution under it. Changed: Android
+  `applicationId`, all six iOS `PRODUCT_BUNDLE_IDENTIFIER` values, and the
+  map-tile `userAgentPackageName` (the one external service carrying the
+  old id). Android `namespace`/Kotlin package deliberately unchanged
+  (code-only, no store meaning). No Firebase/deep-link/OAuth/notification
+  config exists to update. Parity pinned by `test/release/app_name_test.dart`.
+- **Build identity 0.3.0+210.** 209 appended to the append-only registry
+  (attached to signed artifacts, never uploaded); 210 proven never
+  distributed (no tag, no CI identifier, no history hit, registry-enforced).
+- **Internal-build configuration:** `BuildEnvironment.validate()` runs
+  before the first frame — staging build pointing at production fails,
+  production build pointing at staging fails, unknown `APP_ENV` fails,
+  production-approval flag cannot travel in a staging build. No production
+  endpoint exists and none was invented. Visible **"Internal testing —
+  staging"** marker on the home footer (internal builds only, nonclinical,
+  widget-tested). Release notes + tester instructions:
+  `docs/release/INTERNAL_TESTING_0.3.0_210.md`.
+- **Android:** signed AAB for 210 — sha256
+  `aa05853c1634febcdf85306729184cc57ebdefd1ac0cc475c2eae559c743cf1b`,
+  62,090,591 B, `jar verified`, 0 debug-cert matches, `bundletool 1.18.1
+  validate` exit 0, identity `org.wellapath.app`/0.3.0/210, minSdk 24 /
+  targetSdk 36, excluded symbols absent on all 3 ABIs, engine controls
+  present, secret scans clean, bundled `.env` staging-only. Deterministic
+  payload-entry manifest (477 entries, CRC32+size, 4 R8-timestamp entries
+  marked): `docs/release/AAB_210_PAYLOAD_MANIFEST.txt`. NOT uploaded.
+- **iOS:** app-target `PrivacyInfo.xcprivacy` created, registered in the
+  Xcode project, and validated inside the built unsigned
+  `Runner.app` (7 privacy manifests total incl. plugin bundles). Runner.app:
+  `org.wellapath.app` · 0.3.0 · 210 · min iOS 13.0 · unsigned · App binary
+  sha256 `26f526ce…2eec`. No entitlements/capabilities exist (audited).
+  Manifest audit: `docs/store/IOS_PRIVACY_MANIFEST_AUDIT.md`. Signing
+  requirements for later: `docs/store/APP_STORE_CONNECT_METADATA.md §6`.
+- **Store package prepared (nothing submitted):** Play Data Safety
+  worksheet, Health Apps declaration evidence, permissions inventory
+  (pinned by test: INTERNET + FINE/COARSE location only), content-rating
+  answers, Play App Signing decision checklist (enrol at first upload —
+  primary mitigation for `RC-BLK-002-FOLLOWON`; NOT enrolled), support +
+  privacy-policy requirements (both still missing — founder action),
+  App Store Connect metadata + TestFlight notes, health-app reviewer
+  package, console runbook. All under `docs/store/`.
+- **Verification:** format clean · analyze clean · **1,321 passed · 7
+  skipped · 0 failed** (+29 new gates) · clinical regression unchanged
+  (239 · 238 · 1 known CB_211 · 0 unexpected · 13/13 red-flag rules) ·
+  release gates 85 passed.
+- **Still console-gated:** everything in `docs/store/CONSOLE_RUNBOOK.md`.
+  CB_211 still blocks external beta (`RC-BLK-016`); `RC-BLK-005`/`006`
+  still block store submission. The three unrelated tooling modifications
+  (gradle.properties, pbxproj SPM migration, Runner.xcscheme) remain
+  unstaged and uncommitted.

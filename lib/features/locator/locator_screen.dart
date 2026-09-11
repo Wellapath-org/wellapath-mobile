@@ -794,7 +794,9 @@ class _LocatorScreenState extends State<LocatorScreen> {
             TileLayer(
               urlTemplate:
                   'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-              userAgentPackageName: 'org.wellapath.wellapathMobile',
+              // Sent as the tile-request User-Agent. Kept equal to the store
+              // application identifier (see test/release/app_name_test.dart).
+              userAgentPackageName: 'org.wellapath.app',
             ),
             if (_userLatLng != null)
               CircleLayer(

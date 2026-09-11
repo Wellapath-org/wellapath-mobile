@@ -41,10 +41,23 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
   208:
       'internal-beta validation build, CI run 31794343788 (2026-08-14), '
       'crash release identifier wellapath-mobile@0.2.0+208',
+  209:
+      'release candidate 0.3.0+209 (PR #77, merge 7961883) — signed '
+      'internal-testing AABs sha256 cfa41692…166e (62,078,226 B) and '
+      '096b45bc…cd54 (62,077,759 B) plus a release-signed APK were built '
+      'under org.wellapath.wellapath_mobile. Never uploaded to any store or '
+      'tester track, but the number was attached to distributable signed '
+      'artifacts and must not be reused — especially since the application '
+      'identifier changed to org.wellapath.app afterwards',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
-const int kCurrentBuildNumber = 209;
+///
+/// 210 has never been distributed or uploaded: it appears in no tag, no CI
+/// release identifier, no rollback record and no registry entry above, and
+/// `git log --all -S'+210'` finds no prior use. It is the first build number
+/// of the org.wellapath.app identity.
+const int kCurrentBuildNumber = 210;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';

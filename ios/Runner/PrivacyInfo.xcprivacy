@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  App-target privacy manifest for WellaPath (org.wellapath.app).
+	  Audit evidence: docs/store/IOS_PRIVACY_MANIFEST_AUDIT.md.
+
+	  Declares the app's OWN behaviour. Plugin frameworks
+	  (shared_preferences_foundation, path_provider_foundation,
+	  url_launcher_ios, geolocator_apple, Sentry) each ship their own
+	  PrivacyInfo.xcprivacy inside their framework bundles.
+
+	  The collected-data entries below describe the internal-testing
+	  configuration in which telemetry and crash reporting CAN be enabled
+	  (both are off by default and off in the shipped .env). They are
+	  declared rather than omitted because the code and the Sentry SDK are
+	  capable of collecting them - an "uncollected" claim would be false.
+
+	  NOT collected, verified in code: name, contact info, health data
+	  (symptom answers and scoring never leave the device - LOCKED
+	  PRINCIPLE #2/#3), precise location (used on-device only to sort
+	  facilities; never sent to WellaPath), identifiers (no user/device/
+	  install ID exists; the assessment session id is a random per-session
+	  value), browsing history, contacts, photos, financial data.
+	-->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<!-- Sentry crash events (EU region), redacted exception values,
+			     no PII, no breadcrumbs, no screenshots. Disabled unless a
+			     DSN and both enable gates are supplied at build time. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCrashData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Telemetry contract v1.0: anonymised funnel events
+			     (launch, assessment start/step/complete, facility search).
+			     Off by default; staging endpoint only. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- facility_search telemetry carries admin_area_code, a
+			     state-level region code (Lagos/Kano/FCT). State-level is
+			     the coarsest bucket Apple's taxonomy offers for it. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCoarseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- onboarding_seen and app preferences via shared_preferences;
+			     CA92.1 = access user defaults to read/write the app's own
+			     data only. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

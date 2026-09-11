@@ -88,7 +88,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = "org.wellapath.wellapath_mobile"
+        // Store identity. Resolved as org.wellapath.app before any store
+        // record exists (closes RC-BLK-010) and pinned equal to the iOS
+        // bundle identifier by test/release/app_name_test.dart. It can never
+        // change again once a Play listing is created.
+        //
+        // `namespace` above is deliberately NOT changed: it is the code-only
+        // package for R classes and MainActivity and has no store meaning.
+        applicationId = "org.wellapath.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
