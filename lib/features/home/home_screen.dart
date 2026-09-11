@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/config/build_environment.dart';
 import '../../core/telemetry/contract/telemetry_event.dart';
 import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
@@ -218,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           // ever opening that modal — and LOCKED PRINCIPLE #1 requires
                           // WellaPath never read as a diagnosis engine.
                           const Padding(
-                            padding: EdgeInsets.only(bottom: 16, top: 12),
+                            padding: EdgeInsets.only(bottom: 4, top: 12),
                             child: Text(
                               'WellaPath helps you decide what to do next. It '
                               'is not a diagnosis and not a substitute for '
@@ -231,6 +232,25 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           ),
+                          // Internal-build marker: nonclinical, always visible
+                          // on internal/staging builds so a tester (and a
+                          // store reviewer) can tell this build is not
+                          // production. Never shown on a production build.
+                          if (BuildEnvironment.isInternal())
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: Text(
+                                BuildEnvironment.kInternalBuildMarker,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.white54,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 12),
                         ],
                       ),
                     ),
