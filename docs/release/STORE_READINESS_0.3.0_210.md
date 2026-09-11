@@ -59,9 +59,11 @@ fails on any reuse or regression.
 
 | | |
 |---|---|
-| File | `build/app/outputs/bundle/release/app-release.aab` — **internal testing only, NOT uploaded** |
-| SHA256 | `aa05853c1634febcdf85306729184cc57ebdefd1ac0cc475c2eae559c743cf1b` |
-| Bytes | 62,090,591 (477 zip entries) |
+| File | `app-release.aab` — **internal testing only, NOT uploaded** |
+| Authoritative build | clean detached worktree at `ca2abec`, fail-closed reconfirmed first (no signing material ⇒ build refused) |
+| SHA256 | `a599ab746e77aef55bf4779888b4e382c05639cb3041b396a13ccaa240a08e5a` |
+| Bytes | 62,090,831 (477 zip entries) |
+| Superseded main-checkout build of the same tree | `aa05853c…3cf1b` (62,090,591 B) — all 461 non-per-build, non-path-dependent entries CRC-identical to the authoritative build |
 | Signature | `jar verified`, single signer `CN=John Oluwaseyi, O=Wellapath` — **0 debug-certificate matches** |
 | Identity | `org.wellapath.app` · versionName 0.3.0 · versionCode 210 · label WellaPath |
 | SDK | minSdk 24 · targetSdk 36 · `debuggable` absent |
@@ -69,7 +71,7 @@ fails on any reuse or regression.
 | Bundled `.env` | staging URLs only; `TELEMETRY_ENABLED=false`; `TELEMETRY_PRODUCTION_APPROVED=false`; no DSN, no secret |
 | Secret scan | no key material, DSNs or credentials in any ABI's `libapp.so` or the repo; 0 signing files tracked |
 | Excluded symbols | IM003/ClosureGraph, QuestionFlow (4), Vocabulary (4) consumers **absent from all three ABIs**; 9 engine controls present; retired locator strings gone |
-| Payload manifest | `AAB_210_PAYLOAD_MANIFEST.txt` — per-entry CRC32+size for all 477 entries; the 4 R8-timestamp entries marked NONDETERMINISTIC. Compare payload entries, never the container hash (container reproducibility is impossible by design — R8 `buildTimeNs`) |
+| Payload manifest | `AAB_210_PAYLOAD_MANIFEST.txt` — per-entry CRC32+size for all 477 entries; 4 PER-BUILD entries (R8 `buildTimeNs` → signing chain) and 12 PATH-DEPENDENT entries (Dart AOT embeds the absolute build directory in `libapp.so`/`libdartjni.so` + `.sym`) are tagged. Compare the 461 untagged entries, never the container hash |
 
 ## 5. iOS artifact — unsigned release build
 

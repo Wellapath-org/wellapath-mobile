@@ -30,8 +30,10 @@ access and explicit authorization, and none of them has been performed.
      child-directed content)
 5. Internal testing track → create release:
    - upload `app-release.aab`
-     (sha256 `aa05853c1634febcdf85306729184cc57ebdefd1ac0cc475c2eae559c743cf1b`,
-     62,090,591 bytes — verify the hash before upload)
+     (authoritative build: sha256
+     `a599ab746e77aef55bf4779888b4e382c05639cb3041b396a13ccaa240a08e5a`,
+     62,090,831 bytes — verify the hash before upload; see
+     `docs/release/AAB_210_PAYLOAD_MANIFEST.txt` if it must be rebuilt)
    - release name `0.3.0 (210) — internal, staging`
    - release notes from `docs/release/INTERNAL_TESTING_0.3.0_210.md`
 6. Add internal testers (max 100 email addresses), share the opt-in link

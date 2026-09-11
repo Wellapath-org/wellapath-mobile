@@ -1,35 +1,51 @@
 # Deterministic payload-entry manifest — app-release.aab 0.3.0+210
 #
-# Container: sha256 aa05853c1634febcdf85306729184cc57ebdefd1ac0cc475c2eae559c743cf1b · 62090591 bytes · 477 entries
-# Identity: org.wellapath.app · versionName 0.3.0 · versionCode 210
+# Authoritative artifact: built from a CLEAN DETACHED WORKTREE at ca2abec
+# (build path /Users/iamjohnseyi/dev/wp-verify-210), signing material
+# referenced in place by symlink; fail-closed reconfirmed on this path
+# first (no signing material => build refused, no artifact).
+#   Container: sha256 a599ab746e77aef55bf4779888b4e382c05639cb3041b396a13ccaa240a08e5a · 62090831 bytes · 477 entries
+# A prior build of the same tree from the main checkout hashed
+# aa05853c1634febcdf85306729184cc57ebdefd1ac0cc475c2eae559c743cf1b
+# (62,090,591 B); every entry not tagged below was CRC-identical between
+# the two builds — measured, not assumed.
 #
-# The AAB container hash is NOT reproducible (R8 stamps buildTimeNs into
-# r8.json, which moves MANIFEST.MF, the .SF and the .RSA — the 4 entries
-# marked NONDETERMINISTIC). Every other entry below IS deterministic for a
-# fixed build path: rebuild the same commit in the same directory and each
-# (CRC32, size, name) triple must match. Compare against this file, never
-# against the container hash.
+# Two classes of entry are NOT expected to match across builds:
+#  * PER-BUILD (4): R8 stamps a wall-clock buildTimeNs into r8.json,
+#    which moves MANIFEST.MF, the .SF and the .RSA. Differ on EVERY build.
+#    This is why the AAB container hash is not a reproducibility check.
+#  * PATH-DEPENDENT (12): the Dart AOT snapshot embeds the absolute
+#    build directory, so libapp.so/libdartjni.so (and their .sym files)
+#    are deterministic only for a fixed build path. Verified on both
+#    builds: each lib contains exactly one embedded path string naming
+#    its own build directory, and the excluded-symbol, engine-control,
+#    retired-identifier and secret checks pass identically on both.
+#    libflutter.so is NOT path-dependent and must match.
 #
-# columns: crc32  size-bytes  entry-name
-2b4d1c6c     8472208  BUNDLE-METADATA/com.android.tools.build.debugsymbols/arm64-v8a/libapp.so.sym
-d9ff6c3b      150544  BUNDLE-METADATA/com.android.tools.build.debugsymbols/arm64-v8a/libdartjni.so.sym
+# All 461 untagged entries (dex, libflutter.so, assets,
+# .env, resources, manifest) must be CRC-identical on any rebuild of this
+# tree, from any directory.
+#
+# columns: crc32  size-bytes  [tag] entry-name
+65035703     8472208  PATH-DEPENDENT BUNDLE-METADATA/com.android.tools.build.debugsymbols/arm64-v8a/libapp.so.sym
+6a3612d3      150544  PATH-DEPENDENT BUNDLE-METADATA/com.android.tools.build.debugsymbols/arm64-v8a/libdartjni.so.sym
 efcef53f    18513584  BUNDLE-METADATA/com.android.tools.build.debugsymbols/arm64-v8a/libflutter.so.sym
-de19cc8b     9116280  BUNDLE-METADATA/com.android.tools.build.debugsymbols/armeabi-v7a/libapp.so.sym
-7bf0952a      102776  BUNDLE-METADATA/com.android.tools.build.debugsymbols/armeabi-v7a/libdartjni.so.sym
+f82f83aa     9116280  PATH-DEPENDENT BUNDLE-METADATA/com.android.tools.build.debugsymbols/armeabi-v7a/libapp.so.sym
+b5a736fb      102776  PATH-DEPENDENT BUNDLE-METADATA/com.android.tools.build.debugsymbols/armeabi-v7a/libdartjni.so.sym
 00dbeebc    13630212  BUNDLE-METADATA/com.android.tools.build.debugsymbols/armeabi-v7a/libflutter.so.sym
-38198a9e     8668880  BUNDLE-METADATA/com.android.tools.build.debugsymbols/x86_64/libapp.so.sym
-32ec7343      124784  BUNDLE-METADATA/com.android.tools.build.debugsymbols/x86_64/libdartjni.so.sym
+bf14f8bf     8668880  PATH-DEPENDENT BUNDLE-METADATA/com.android.tools.build.debugsymbols/x86_64/libapp.so.sym
+6df46c6d      124784  PATH-DEPENDENT BUNDLE-METADATA/com.android.tools.build.debugsymbols/x86_64/libdartjni.so.sym
 079ae232    17595376  BUNDLE-METADATA/com.android.tools.build.debugsymbols/x86_64/libflutter.so.sym
 ede09729          57  BUNDLE-METADATA/com.android.tools.build.gradle/app-metadata.properties
 8be93c65       10264  BUNDLE-METADATA/com.android.tools.build.libraries/dependencies.pb
 089bbea7    13316215  BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map
 2d4889b1         399  BUNDLE-METADATA/com.android.tools.build.profiles/baseline.prof
 5599be6c         106  BUNDLE-METADATA/com.android.tools.build.profiles/baseline.profm
-70f066eb        1591  NONDETERMINISTIC BUNDLE-METADATA/com.android.tools/r8.json
+a3b18684        1591  PER-BUILD BUNDLE-METADATA/com.android.tools/r8.json
 ea7dada8         628  BundleConfig.pb
-dd3ad5ca       61810  NONDETERMINISTIC META-INF/MANIFEST.MF
-afe3552a        1392  NONDETERMINISTIC META-INF/WELLAPAT.RSA
-fd895f45       61859  NONDETERMINISTIC META-INF/WELLAPAT.SF
+a30b927b       61810  PER-BUILD META-INF/MANIFEST.MF
+6a3c10ce        1392  PER-BUILD META-INF/WELLAPAT.RSA
+a77930fb       61859  PER-BUILD META-INF/WELLAPAT.SF
 faf9215d         292  base/assets.pb
 0cd4545b         669  base/assets/flutter_assets/.env
 e56a5384        1272  base/assets/flutter_assets/AssetManifest.bin
@@ -55,20 +71,20 @@ ffccef5f        2424  base/assets/flutter_assets/packages/flutter_map/lib/assets
 ac6e9b1e       21856  base/assets/flutter_assets/shaders/ink_sparkle.frag
 3b77a30a       17624  base/assets/flutter_assets/shaders/stretch_effect.frag
 b175da2d     2655760  base/dex/classes.dex
-59f7c11b     7472016  base/lib/arm64-v8a/libapp.so
-3ba3a610      123776  base/lib/arm64-v8a/libdartjni.so
+fb02bdfc     7472016  PATH-DEPENDENT base/lib/arm64-v8a/libapp.so
+72c34be9      123776  PATH-DEPENDENT base/lib/arm64-v8a/libdartjni.so
 4f56ac38        7112  base/lib/arm64-v8a/libdatastore_shared_counter.so
 93962ba8    11580816  base/lib/arm64-v8a/libflutter.so
 dfaa7ee4       19824  base/lib/arm64-v8a/libsentry-android.so
 fe12421a      800712  base/lib/arm64-v8a/libsentry.so
-1c9bd008     8274508  base/lib/armeabi-v7a/libapp.so
-b0fe2ba0       75984  base/lib/armeabi-v7a/libdartjni.so
+87b3e64c     8274508  PATH-DEPENDENT base/lib/armeabi-v7a/libapp.so
+3ad879dc       75984  PATH-DEPENDENT base/lib/armeabi-v7a/libdartjni.so
 ffa6438b        4416  base/lib/armeabi-v7a/libdatastore_shared_counter.so
 cceafc33     8452636  base/lib/armeabi-v7a/libflutter.so
 60ccd547       14152  base/lib/armeabi-v7a/libsentry-android.so
 bc861181      523780  base/lib/armeabi-v7a/libsentry.so
-4404ccd4     7668624  base/lib/x86_64/libapp.so
-1a63f521      107520  base/lib/x86_64/libdartjni.so
+a7788b87     7668624  PATH-DEPENDENT base/lib/x86_64/libapp.so
+7a6ec1ad      107520  PATH-DEPENDENT base/lib/x86_64/libdartjni.so
 54a56b50        6224  base/lib/x86_64/libdatastore_shared_counter.so
 4e78ad33    12857960  base/lib/x86_64/libflutter.so
 f93baa92       19280  base/lib/x86_64/libsentry-android.so
