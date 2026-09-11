@@ -4537,3 +4537,81 @@ Full evidence: `docs/release/STORE_READINESS_0.3.0_210.md`. Summary:
   still block store submission. The three unrelated tooling modifications
   (gradle.properties, pbxproj SPM migration, Runner.xcscheme) remain
   unstaged and uncommitted.
+
+---
+
+# Internal Distribution Step 2 — PR #78 reviewed, strengthened and MERGED
+
+**Merged to `develop` as `5a1930b94da7269f8c66ab1116766e5cd70c9afb`**, parents
+`69be422` (prior tip) + `5e16a6b` (final head). Reviewed head `ca2abec`;
+one docs-only strengthening commit (`5e16a6b`) was added during review.
+**Nothing was uploaded or submitted to any store or tester track.**
+**Last Updated:** 2026-09-11
+
+## Review results (all from evidence, not the prior record)
+
+- `b4a4e52..69be422` differs **only in PROGRESS.md** — the build-relevant
+  tree delta is zero, verified.
+- CI success on the reviewed head (34570538665), the final head
+  (34573050795) and post-merge `develop` (34573724222). PR #76 remains
+  **OPEN** and is not an ancestor of the merge.
+- All 24 reviewed files classified; zero clinical/candidate paths touched
+  (`lib/core/engine`, `lib/features/assessment`, question_flow, vocabulary,
+  telemetry, locator service/coverage all show 0 changed files; the locator
+  diff is the tile user-agent only).
+- Identifier: `org.wellapath.app` in every external position; retired
+  `org.wellapath.wellapathMobile` appears in **zero** built bytes on both
+  platforms; `wellapath_mobile` survives only as the Android code namespace
+  (dex/resources/activity class name — not store identity). No providers,
+  URL schemes, asset links, Firebase or push configs exist.
+- Environment isolation verified **in the release binaries**: both gate
+  error strings and the internal marker are compiled into `libapp.so` and
+  `App.framework/App` (the em-dash strings live as UTF-16 — ASCII `strings`
+  misses them; search UTF-16LE too). dotenv is loaded exactly once and
+  never mutated; bundled `.env` staging-only on both platforms; no DSN.
+- Privacy reconciliation: Sentry requires 2 gates + structurally valid DSN
+  (none bundled) — genuinely off; `admin_area_code` is ISO 3166-2:NG state
+  level, matching the CoarseLocation declaration; the maps directions URL
+  carries the **facility's** coordinates, never the user's; privacy guard
+  denylists symptom fields. 7 privacy manifests present in the built app.
+- CB_211 guards re-verified (`symptom_selection_screen.dart:83`,
+  `loading_screen.dart:71`); still blocks external beta.
+
+## The strengthening — AAB payload manifest corrected by measurement
+
+Rebuilding in a clean detached worktree (fail-closed reconfirmed first)
+surfaced that **the Dart AOT snapshot embeds the absolute build path**:
+`libapp.so`/`libdartjni.so` (+ `.sym`) differ across build directories
+(verified: exactly one embedded path string each, all content checks
+identical). The committed manifest now tags 4 PER-BUILD + 12
+PATH-DEPENDENT entries; the 461 untagged entries must match any rebuild.
+
+| Artifact | sha256 | Bytes | Note |
+|---|---|---|---|
+| AAB, clean worktree @ `ca2abec` (**authoritative, recorded in docs**) | `a599ab746e77aef55bf4779888b4e382c05639cb3041b396a13ccaa240a08e5a` | 62,090,831 | overwritten on disk by the merged-tree rebuild below |
+| AAB, merged tree @ `5a1930b`, same path | `818d60b1d746678404ea1d095bbc5e4f03b587eaa3ab61a237e9b1e95f22129d` | 62,090,832 | **matches the manifest on all 473 deterministic entries; only the 4 PER-BUILD entries differ** — the merge introduced no binary change |
+| earlier main-checkout build (superseded) | `aa05853c…3cf1b` | 62,090,591 | 461 untagged entries identical |
+
+All three: `jar verified` · 0 debug-cert matches · `bundletool 1.18.1
+validate` exit 0 · `org.wellapath.app` / 0.3.0 / 210. Either worktree AAB
+is uploadable; verify by payload manifest, never container hash. Current
+on-disk artifact: `/Users/iamjohnseyi/dev/wp-verify-210/build/app/outputs/
+bundle/release/app-release.aab` (= `818d60b1…`), worktree left in place.
+
+## Merged-tree verification (clean worktree @ `5a1930b`)
+
+format clean · analyze clean · **1,321 passed · 7 skipped · 0 failed** ·
+clinical regression **239 · 238 · 1 known (CB_211) · 0 unexpected** ·
+iOS `Runner.app` rebuilt: `org.wellapath.app` · 0.3.0 · 210 · unsigned ·
+7 privacy manifests. One flaky failure of the pre-existing
+`facilities_progress_test.dart` concurrency test was observed once in the
+first worktree run (untouched by the PR; passed 3/3 isolated and in both
+full reruns) — noted as a flake, not a regression.
+
+## Still open
+
+Console-gated steps (`docs/store/CONSOLE_RUNBOOK.md`) · support email +
+privacy-policy URL (founder) · Play App Signing enrolment at first upload
+(`RC-BLK-002-FOLLOWON`) · CB_211 adjudication before external beta
+(`RC-BLK-016`) · `RC-BLK-005`/`006` before store submission. The three
+unrelated tooling modifications remain unstaged and uncommitted.
