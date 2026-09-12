@@ -1,22 +1,28 @@
 # WellaPath Mobile — Progress Tracker
 
-**Phase:** Release — internal-distribution candidate `0.3.0+209`  
-**Current state:** merged and re-verified; **awaiting upload authorization**  
-**Branch:** `develop` @ `b4a4e52` (== `origin/develop`, CI green)  
+**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`  
+**Current state:** PR #78 merged and re-verified from the merged tree; **awaiting console access + upload authorization**  
+**Branch:** `develop` @ `5a1930b` merge, `9cce8e5` after the Step 2 record (== `origin/develop`, CI green)  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
 **Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-05 — Step 3 re-verification recorded; nothing uploaded to any store or tester track
+**Last Updated:** 2026-09-12 — tracker header refreshed to the post-merge state; nothing uploaded to any store or tester track
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
-> I1/W1 → I2/W2–W3 → Release. The heading below is kept for history; the
-> newest entry is always at the **end** of the file.
+> I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
+> history; the newest entry is always at the **end** of the file.
 >
-> **Where things stand:** PR #77 merged as `7961883` (parents `d820d6c` +
-> `783a872`). PR #76 remains **OPEN and deliberately excluded**. Next action is
-> upload to a tester track, which **requires explicit authorization and has not
-> been performed**. Open blockers: `RC-BLK-002-FOLLOWON` (signing key exists on
-> one machine only); store submission blocked by `005`, `006`, `009`, `010`,
-> `016` (CB_211).
+> **Where things stand:** PR #78 merged as `5a1930b` (parents `69be422` +
+> `5e16a6b`) — identifier resolved to **org.wellapath.app** on both platforms
+> (`RC-BLK-010` closed), build `0.3.0+210`, environment gates in, iOS privacy
+> manifest in (`RC-BLK-009` manifest half closed), signed AAB and unsigned
+> iOS build verified, store package under `docs/store/`. PR #76 remains
+> **OPEN and deliberately excluded**. Next action is upload to the internal
+> tracks per `docs/store/CONSOLE_RUNBOOK.md`, which **requires console access
+> and explicit authorization and has not been performed**. Open blockers:
+> `RC-BLK-002-FOLLOWON` (signing key on one machine — enrol Play App Signing
+> at first upload); support email + privacy-policy URL (founder); external
+> beta blocked by `016` (CB_211); store submission blocked by `005`, `006`
+> and iOS codesigning (the console half of `009`).
 
 ---
 
