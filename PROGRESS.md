@@ -4627,9 +4627,9 @@ unrelated tooling modifications remain unstaged and uncommitted.
 # Facilities 2.0 — consumer and contract preparation (inactive, gated)
 
 **Branch:** `feat/facilities-v2-consumer` (off `develop` `103f311`)
-**Last Updated:** 2026-09-14
+**Last Updated:** 2026-09-15
 
-## CURRENT STATUS: consumer built and tested — candidate absent, gate off, v1.1 untouched; PR open, unmerged
+## CURRENT STATUS: consumer built and verified — candidate absent, gate off, v1.1 untouched; **PR #79 open, CI green, unmerged**
 
 > **Facilities 2.0 remains `candidate_unapproved` / `may_publish: false`.**
 > The candidate dataset is NOT in this repository, no v2 URL or hash exists
@@ -4674,8 +4674,14 @@ from any candidate record. Docs: `docs/FACILITIES_V2_CONSUMER.md`.
   search + null-type guarantees, emergency policy, presentation gating,
   loader fallback matrix, no-inbound-import + no-HTTP/telemetry guards,
   no bundled candidate, no `.env` key.
-- Full suite, clinical regression (239 · 238 · 1 known · 0 unexpected),
-  format and analyze: recorded in the PR.
+- Full suite: **1,381 passed · 7 skipped · 0 failed** (1,321 at the
+  `103f311` baseline + the 60 new gates; zero regressions).
+- Clinical regression unchanged: **239 executed · 238 passed · 1 known
+  finding (CB_211) · 0 unexpected failures**.
+- `flutter analyze` no issues · `dart format --set-exit-if-changed` clean.
+- PR #79 (`feat/facilities-v2-consumer` → `develop`), head `a9c26a8`
+  (commits `79881d6` + `a9c26a8`): **CI success** (run 34835310908).
+  Left unmerged for review.
 
 ## Unresolved dependencies
 
