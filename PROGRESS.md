@@ -4834,3 +4834,95 @@ All previous unresolved dependencies stand. **New:** on-device benchmark on
 the agreed low-end Android profile (blocked this session — needs an
 authorized signed/profile build or an equivalent sanctioned path) before
 any activation decision.
+
+---
+
+# Facilities 2.0 — low-end Android benchmark completed (PR #79 continued)
+
+**Worktree:** `/Users/iamjohnseyi/dev/wp-fac2-bench` (clean, detached at PR
+#79 head `114eb0b`, exactly the expected remote head)
+**Last Updated:** 2026-09-14
+
+## CURRENT STATUS: on-device benchmark done — all provisional budgets PASS; loader parse moved off the UI isolate on the measured evidence; candidate/APK/keystore all deleted after the run
+
+## Authorization and signing (explicit, scoped)
+
+A **throwaway benchmark keystore** (random credentials, generated locally,
+stored in the session scratchpad, validity 7 days) satisfied the
+fail-closed configuration gate via a gitignored `android/key.properties`
+symlink. The real keystore and the main checkout's `key.properties` were
+never read, copied or referenced. The profile buildType itself signs with
+the standard local Android debug certificate (the policy binds release
+only); the resulting APK is local-only and was uninstalled and deleted
+after measurement, along with the keystore, properties symlink and the
+emulator's candidate copy. The release fail-closed policy is untouched —
+an ordinary release build without material still refuses.
+
+## Environment
+
+`wellapath_lowend` AVD — Android 8.0 / API 26, arm64-v8a, 2 GB RAM,
+4 cores, swiftshader GPU · emulator 36.6.11 · host macOS 26.5.2 / Apple
+M4 · Flutter 3.44.4 / Dart 3.12.2 · profile APK (33 MB, arm64) · commit
+`114eb0b` · candidate `03a58e67…cebd75` re-verified (bytes, sha256,
+51,022 records) and adb-pushed to the app's own external files dir.
+**Caveat:** the emulator constrains memory/cores but executes near host
+CPU speed — timings are optimistic vs a real Cortex-A53-class device.
+
+## Results (full raw output: `docs/FACILITIES_V2_BENCH_LOWEND_V1.md`)
+
+| Budget | Measured | Verdict |
+|---|---|---|
+| zero gate-off v2 I/O | 132 µs, 0 touches, parse_count 0 at first frame | PASS |
+| first result ≤ 2 s | first open p50 767 ms (UI isolate) / 311 ms (background) + ≤29 ms first search | PASS |
+| cached open ≤ 500 ms | p50 154 ms, max 177 ms | PASS |
+| search p95 < 200 ms | worst p95 15.1 ms (contains); state 1.6 ms | PASS |
+| no ANR/OOM/crash/freeze | 0 in full-run logcat; worst freeze 897 ms fixed by isolate change | PASS |
+| Δpeak PSS < 100 MB | steady +55–60 MB, peak +93 MB, settles; reopen ×5 plateaus | PASS |
+
+Cold starts (gate off): 1873 ms first-ever, then 1106–1476 ms. Resume:
+parse_count unchanged — no re-parse. Corrupt cache: refetch 120 ms; with
+dead network → `fallbackToV1` (`downloadFailed`), 0 cache writes.
+Distance sort over all 51,022: p50 12 ms. Emergency fallback list: 10 ms,
+no-capability wording, 112 first.
+
+## Committed change: background-isolate verify+parse in the loader
+
+Measured on the UI isolate, hash (424 ms) + decode (226 ms) + parse
+(113 ms) froze the UI up to **897 ms** per first open. The same block in
+`Isolate.run` (same isolate group: raw string shared, result returned via
+`Isolate.exit` without a copy): worst frame **≤125 ms**, wall p50
+**311 ms vs 767 ms**, memory equal within noise, records/rejections/
+attribution identical. `FacilitiesV2Loader` now runs hash+decode+parse in
+a short-lived background isolate for both cache and network paths;
+exceptions transfer intact so every fallback cause is unchanged — proven
+by the untouched loader fallback matrix (all causes re-run green) plus a
+new result-parity test. Cache-defect handling is behaviour-identical: any
+bad cached copy is ignored and the network path runs, as before.
+
+## Verification
+
+- facilities_v2 suite 80/80 · full suite **1,401 passed · 7 skipped · 0
+  failed** · clinical regression **239 · 238 · 1 known (CB_211) · 0
+  unexpected** · analyze clean · format clean under BOTH toolchains
+  (local Dart 3.12.2 and CI-parity Dart 3.13.3)
+- PR #79 updated in place; CI green on the new head. Nothing merged.
+
+## Cleanup confirmations
+
+Benchmark APK uninstalled from the emulator and deleted from build
+output · emulator candidate copy deleted · scratchpad candidate copy
+deleted · throwaway keystore + properties + password file deleted ·
+benchmark entrypoint never committed (isolation guard enforced it) ·
+main checkout byte-identical to its pre-task state (3 modified build
+files + SPM dirs untouched) · no secret or candidate file tracked, in
+the PR diff, or in the committed report · build 210 (`5a1930b`, AAB
+`818d60b1…`) untouched · no build 211 · v2 still unactivatable.
+
+## Go/no-go
+
+Performance is no longer a blocker: **all provisional budgets pass on the
+measured profile** (with the emulator-CPU caveat; a spot check on real
+low-end hardware at activation time is recommended). Activation remains
+**NO-GO** on governance alone: `may_publish: false`, FAC decisions
+pending, no approved manifest, attribution mounting + off-UI-isolate
+integration both land with the future activation change.

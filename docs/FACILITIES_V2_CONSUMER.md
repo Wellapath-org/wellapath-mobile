@@ -129,10 +129,22 @@ exercised in that session — see PROGRESS.md):
 - Distance sort over all records ≈8 ms; repeated open/close parses
   plateau in memory (no unbounded duplicates).
 - Steady-state Dart heap for the full dataset ≈80 MB on the host VM;
-  Android AOT uses compressed pointers so the on-device figure is
-  expected lower, but **must be re-measured on the agreed low-end
-  Android profile before activation** — recorded as an open
-  activation-gating measurement.
+  Android AOT uses compressed pointers so the on-device figure lands
+  lower (measured: ~+55–60 MB steady PSS on device).
+
+**On-device (low-end profile) — measured 2026-09-14**, full raw evidence
+in `docs/FACILITIES_V2_BENCH_LOWEND_V1.md`: every provisional budget
+passed on the 2 GB / 4-core API 26 arm64 AVD (first open p50 767 ms on
+the UI isolate, cached open p50 154 ms, worst search p95 15 ms, distance
+sort p50 12 ms, ΔPSS steady ~+55–60 MB / peak ~+93 MB, 0 ANR/OOM/crash,
+no re-parse on resume, corrupt cache falls back correctly). The UI-isolate
+parse froze the UI for up to ~900 ms, so the loader now verifies+decodes+
+parses in a short-lived `Isolate.run` — worst frame ≤125 ms, wall time
+roughly halved, results byte-identical (parity-tested). Caveat recorded in
+the report: the emulator constrains RAM/cores but runs arm64 near host
+speed, so CPU timings are optimistic vs a real Cortex-A53-class SoC; a
+one-off spot check on real low-end hardware before activation remains
+recommended, not blocking.
 
 ## Unresolved dependencies (not this task's to decide)
 
