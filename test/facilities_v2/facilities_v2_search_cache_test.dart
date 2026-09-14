@@ -54,11 +54,8 @@ void main() {
 
   test('byArea semantics unchanged across repeated (cached) queries', () {
     for (var run = 0; run < 3; run++) {
-      expect(
-        search.byArea(facilities, 'ikeja').map((f) => f.id),
-        ['e', 'f'],
-        reason: 'run $run: city equality + name contains',
-      );
+      final areaHits = search.byArea(facilities, 'ikeja').map((f) => f.id);
+      expect(areaHits, ['e', 'f'], reason: 'run $run');
       expect(search.byArea(facilities, 'Nassarawa').single.id, 'c');
       expect(search.byArea(facilities, 'ikeja', state: 'Lagos').single.id, 'e');
       expect(search.byArea(facilities, 'zz-none'), isEmpty);
