@@ -52,8 +52,7 @@ void main() {
     }
   });
 
-  test('byArea semantics unchanged: lga equality, city equality/contains, '
-      'name contains — stable across repeated (cached) queries', () {
+  test('byArea semantics unchanged across repeated (cached) queries', () {
     for (var run = 0; run < 3; run++) {
       expect(
         search.byArea(facilities, 'ikeja').map((f) => f.id),
@@ -88,8 +87,7 @@ void main() {
     expect(hits.single.id, 'd', reason: 'name contains still works');
   });
 
-  test('parser keeps a shared const map for empty provenance — artifact '
-      'metadata and record parsing add no per-record baggage', () {
+  test('parser shares one const map for empty provenance', () {
     final result = const FacilitiesV2Parser().parse({
       'schema_version': '2.0',
       '_metadata': {
