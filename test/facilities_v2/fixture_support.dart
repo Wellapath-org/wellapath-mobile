@@ -8,6 +8,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:wellapath_mobile/core/facilities_v2/facilities_v2_manifest.dart';
+import 'package:wellapath_mobile/core/facilities_v2/facilities_v2_parser.dart';
 
 const String kFixturePath =
     'test/fixtures/facilities_v2/synthetic_facilities_v2_fixture.json';
@@ -21,6 +22,11 @@ Map<String, dynamic> readFixtureJsonFrom(String raw) =>
     jsonDecode(raw) as Map<String, dynamic>;
 
 String sha256Of(String body) => sha256.convert(utf8.encode(body)).toString();
+
+/// The fixture parsed synchronously on the calling isolate — the reference
+/// result the loader's background-isolate parse must match exactly.
+FacilitiesV2ParseResult parseFixtureDirectly() =>
+    const FacilitiesV2Parser().parse(readFixtureJson());
 
 /// A manifest that would authorize consumption — synthetic, test-only. Its
 /// URL is a reserved example domain and its hash is computed over the

@@ -204,6 +204,33 @@ void main() {
     expect(second.parse!.facilities, hasLength(6));
   });
 
+  test('background-isolate parsing is result-identical to a direct parse '
+      'of the same fixture', () async {
+    // The loader now verifies and parses in a short-lived background
+    // isolate (measured on the low-end profile: worst UI frame 897 ms ->
+    // <=125 ms). This pins that the moved computation changes nothing:
+    // same records in the same order, same rejection count, same
+    // attribution.
+    final cache = _CacheSpy();
+    final loader = loaderWith(cache);
+    final viaLoader = await loader.load(
+      gate: activeGate(),
+      manifest: syntheticApprovedManifest(),
+    );
+    final direct = parseFixtureDirectly();
+    expect(viaLoader.parse!.facilities.length, direct.facilities.length);
+    expect(viaLoader.parse!.rejectedRecords, direct.rejectedRecords);
+    expect(viaLoader.parse!.schemaVersion, direct.schemaVersion);
+    expect(viaLoader.parse!.attribution.citation, direct.attribution.citation);
+    for (var i = 0; i < direct.facilities.length; i++) {
+      expect(viaLoader.parse!.facilities[i].id, direct.facilities[i].id);
+      expect(
+        viaLoader.parse!.facilities[i].latitude,
+        direct.facilities[i].latitude,
+      );
+    }
+  });
+
   test('the v2 cache namespace is disjoint from every v1.1 key', () {
     expect(
       FacilitiesV2CacheKeys.artifact,
