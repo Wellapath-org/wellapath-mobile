@@ -11,6 +11,7 @@
 /// Data Engineering owns coordinate transformations.
 library;
 
+import 'facilities_v2_attribution.dart';
 import 'facility_v2.dart';
 
 /// Why a whole artifact was refused. Fixed vocabulary, safe to log.
@@ -35,6 +36,7 @@ class FacilitiesV2ParseResult {
     required this.schemaVersion,
     required this.facilities,
     required this.rejectedRecords,
+    required this.attribution,
   });
 
   final String schemaVersion;
@@ -43,6 +45,12 @@ class FacilitiesV2ParseResult {
   /// Count only — rejected records are not retained, so a malformed record
   /// cannot leak partial data anywhere downstream.
   final int rejectedRecords;
+
+  /// Source attribution for the artifact, built once per artifact from
+  /// `_metadata` under [FacilitiesV2Attribution]'s validation rules (plain
+  /// text only, HTTPS links only, vendored fallback). Artifact-level: it
+  /// never touches the per-record memory footprint.
+  final FacilitiesV2Attribution attribution;
 }
 
 class FacilitiesV2Parser {
@@ -114,6 +122,9 @@ class FacilitiesV2Parser {
       schemaVersion: schemaVersion,
       facilities: facilities,
       rejectedRecords: rejected,
+      attribution: FacilitiesV2Attribution.fromArtifactMetadata(
+        artifact['_metadata'],
+      ),
     );
   }
 
@@ -138,11 +149,13 @@ class FacilitiesV2Parser {
     final emergencyCapable = raw['emergency_capable'];
     if (emergencyCapable != null && emergencyCapable is! bool) return null;
 
-    final provenance = <String, Object?>{
-      for (final entry in raw.entries)
-        if (entry.key is String && !_consumedKeys.contains(entry.key))
-          entry.key as String: entry.value,
-    };
+    Map<String, Object?> provenance = const {};
+    for (final entry in raw.entries) {
+      if (entry.key is String && !_consumedKeys.contains(entry.key)) {
+        if (provenance.isEmpty) provenance = <String, Object?>{};
+        provenance[entry.key as String] = entry.value;
+      }
+    }
 
     return FacilityV2(
       id: id.trim(),
