@@ -4621,3 +4621,64 @@ privacy-policy URL (founder) · Play App Signing enrolment at first upload
 (`RC-BLK-002-FOLLOWON`) · CB_211 adjudication before external beta
 (`RC-BLK-016`) · `RC-BLK-005`/`006` before store submission. The three
 unrelated tooling modifications remain unstaged and uncommitted.
+
+---
+
+# Facilities 2.0 — consumer and contract preparation (inactive, gated)
+
+**Branch:** `feat/facilities-v2-consumer` (off `develop` `103f311`)
+**Last Updated:** 2026-09-14
+
+## CURRENT STATUS: consumer built and tested — candidate absent, gate off, v1.1 untouched; PR open, unmerged
+
+> **Facilities 2.0 remains `candidate_unapproved` / `may_publish: false`.**
+> The candidate dataset is NOT in this repository, no v2 URL or hash exists
+> here, `/config`/Backend/R2 are unmodified, and no flag combination this
+> repository can express activates the v2 path. The live locator uses
+> facilities 1.1 exactly as shipped in build 210 (`5a1930b`, AAB
+> `818d60b1…`), which this branch does not touch. **No build 211.**
+
+## What was built — `lib/core/facilities_v2/` (zero inbound imports)
+
+Gate (`FacilitiesV2Gate`: `FACILITIES_V2_EVALUATION` default off,
+production blocked behind `FACILITIES_V2_PRODUCTION_APPROVED` which
+nothing sets, **plus** a manifest that must be `approved` AND
+`may_publish: true` — the candidate fails both) · manifest model ·
+version-aware parser (schema major 2 only; per-record isolation; nullable
+type/emergency_capable stay unknown; unknown future types preserved;
+coordinates verbatim or rejected — never repaired) · local-only search
+(state, LGA/city/area, deterministic normalization, haversine sort,
+null-type records always retained by every urgency filter, type never
+inferred from names) · `EmergencyFallbackPolicy.pendingApproval` (FAC-D002
+decision point: only `emergency_capable == true` prioritized, null never
+true, fallback wording claims no capability and keeps 112 first) ·
+approval-gated presentation (v2 phone CTA hidden, unknown hours never
+"open" — the enum has no `open` state) · loader (reuses the trusted
+`StagedArtifactLoader.verifyArtifactHash`; v2-only cache namespace; every
+failure → `fallbackToV1`; a failed v2 attempt cannot touch the v1.1 cache
+— proven with a write-set spy).
+
+Product-code delta outside the consumer: exactly one — `_matchesHash`
+extracted as public static `StagedArtifactLoader.verifyArtifactHash`,
+behaviour identical. `lib/features/locator/` shows **0 changed files**.
+
+Fixture: `test/fixtures/facilities_v2/synthetic_facilities_v2_fixture.json`
+— 11 synthetic entries (6 valid incl. null/unknown/missing-field cases,
+5 malformed), every name `ZZTest … (synthetic)`; explicitly not derived
+from any candidate record. Docs: `docs/FACILITIES_V2_CONSUMER.md`.
+
+## Verification
+
+- 60 new tests (`test/facilities_v2/`, 6 files + isolation guards) — all
+  pass: parsing/tolerances, gate default-off/production/manifest rules,
+  search + null-type guarantees, emergency policy, presentation gating,
+  loader fallback matrix, no-inbound-import + no-HTTP/telemetry guards,
+  no bundled candidate, no `.env` key.
+- Full suite, clinical regression (239 · 238 · 1 known · 0 unexpected),
+  format and analyze: recorded in the PR.
+
+## Unresolved dependencies
+
+Source `may_publish` authorization (Data Engineering) · FAC-D002 Product +
+Clinical approval · phone/opening-hours public-use authorization · a real
+approved manifest via Backend/`/config` · Emergency Hub 2.0 (out of scope).
