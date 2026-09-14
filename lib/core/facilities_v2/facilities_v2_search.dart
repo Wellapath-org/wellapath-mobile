@@ -29,13 +29,36 @@ class FacilitiesV2Search {
   static String normalize(String input) =>
       input.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
 
+  /// Per-record normalization caches. Re-normalizing every record's text
+  /// fields on every query dominated search cost at 51k records (measured:
+  /// ~78 ms/query on a desktop host for the contains searches, which
+  /// projects far past the 200 ms repeated-search budget on the low-end
+  /// Android target). Each record's fields are normalized once on first
+  /// use instead; [normalize] is deterministic and [FacilityV2] fields are
+  /// final, so a cached value can never go stale. Expando entries are
+  /// garbage-collected with their records, so a released dataset frees its
+  /// cache with it. The empty string stands in for a null field — the
+  /// parser stores trimmed-empty values as null, so no real field
+  /// normalizes to ''.
+  static final Expando<String> _normNameCache = Expando('fac2NormName');
+  static final Expando<String> _normStateCache = Expando('fac2NormState');
+  static final Expando<String> _normLgaCache = Expando('fac2NormLga');
+  static final Expando<String> _normCityCache = Expando('fac2NormCity');
+
+  static String _normName(FacilityV2 f) =>
+      _normNameCache[f] ??= normalize(f.name);
+  static String _normState(FacilityV2 f) =>
+      _normStateCache[f] ??= normalize(f.state ?? '');
+  static String _normLga(FacilityV2 f) =>
+      _normLgaCache[f] ??= normalize(f.lga ?? '');
+  static String _normCity(FacilityV2 f) =>
+      _normCityCache[f] ??= normalize(f.cityArea ?? '');
+
   /// State search: normalized equality on the record's own `state` field.
   List<FacilityV2> byState(List<FacilityV2> facilities, String state) {
     final wanted = normalize(state);
     if (wanted.isEmpty) return const [];
-    return facilities
-        .where((f) => f.state != null && normalize(f.state!) == wanted)
-        .toList();
+    return facilities.where((f) => _normState(f) == wanted).toList();
   }
 
   /// LGA / city / area search within an optional state: a record matches
@@ -50,13 +73,14 @@ class FacilitiesV2Search {
     if (wanted.isEmpty) return const [];
     final pool = state == null ? facilities : byState(facilities, state);
     return pool.where((f) {
-      final lga = f.lga == null ? null : normalize(f.lga!);
-      final city = f.cityArea == null ? null : normalize(f.cityArea!);
-      final name = normalize(f.name);
+      final lga = _normLga(f);
+      final city = _normCity(f);
+      // '' stands for a null field and can never match: `wanted` is
+      // non-empty here, so equality and contains are both false for ''.
       return lga == wanted ||
           city == wanted ||
-          (city?.contains(wanted) ?? false) ||
-          name.contains(wanted);
+          city.contains(wanted) ||
+          _normName(f).contains(wanted);
     }).toList();
   }
 
