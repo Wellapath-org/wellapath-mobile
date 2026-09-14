@@ -79,6 +79,61 @@ the last valid v1.1 cache — asserted by a write-set spy in tests.
 entries (6 valid, 5 malformed), every name prefixed `ZZTest … (synthetic)`
 with a `_fixture_note` stating it derives from no candidate record.
 
+## Attribution — `FacilitiesV2Attribution` + `FacilityDataSourceEntry`
+
+The Knowledge Base attribution notice (`facilities/ATTRIBUTION_GRID3.md`)
+makes in-app attribution a **condition of first publication** for the
+GRID3 lineage. The consumer now carries it, gated exactly like everything
+else v2:
+
+- `FacilitiesV2Attribution` holds the citation, licence name and
+  validated links. Artifact `_metadata.source` fields are consumed as
+  plain text only (length-capped, control-character-checked) and links
+  render only as absolute `https://` URLs — `http:`, `javascript:`,
+  `data:`, `file:` and every other scheme are dropped. Any invalid field
+  falls back per-field to the vendored GRID3 notice, because the citation
+  is a licence obligation and must not disappear on malformed metadata.
+  The normalization disclosure and the non-endorsement statement are
+  compile-time constants an artifact can never override.
+- `FacilityDataSourceEntry` renders a small, accessible "Facility data
+  source" block (semantic header, 48 dp link targets) **only when
+  `FacilitiesV2Gate.active` and the v2 load actually served
+  (network/cache)**. Gate off, no manifest, unapproved manifest or
+  `fallbackToV1` all render nothing, so the notice can never accompany
+  v1.1 data and no build that exists today can show it. The v1.1
+  locator's (absent) facility-data attribution behaviour is untouched —
+  nothing outside `lib/core/facilities_v2/` references the widget.
+- **Activation requirement:** the future change that wires the v2 loader
+  into the locator UI MUST mount `FacilityDataSourceEntry` in the
+  facility-locator experience. Until then the widget is complete, tested
+  and unmounted, like the rest of the consumer.
+
+## Performance — measured against the real served candidate (evaluation only)
+
+Evaluated 2026-09-14 against KB PR #42's served candidate
+(`03a58e67…cebd75`, 8,749,444 B, 51,022 records) from an untracked local
+copy; the artifact was not committed, bundled or configured. Host
+reference (macOS arm64 AOT; the low-end Android profile could not be
+exercised in that session — see PROGRESS.md):
+
+- read+hash+decode+parse of all 51,022 records: ~130 ms end to end
+  (hash 65 ms, decode ~35 ms, parse 15 ms); zero record rejections.
+- The gate-off path performs zero download/parse/cache work (measured
+  0–1 µs, no I/O touches) — v2 costs nothing while disabled.
+- Search initially re-normalized every record's text per query
+  (~78 ms/query for contains searches on the host — projected past the
+  200 ms repeated-search budget on low-end Android). Fixed by per-record
+  `Expando` normalization caches in `FacilitiesV2Search`: normalize once
+  per record on first use, results proven identical by test. After:
+  state ≈1 ms, contains ≈8–11 ms per query on the host.
+- Distance sort over all records ≈8 ms; repeated open/close parses
+  plateau in memory (no unbounded duplicates).
+- Steady-state Dart heap for the full dataset ≈80 MB on the host VM;
+  Android AOT uses compressed pointers so the on-device figure is
+  expected lower, but **must be re-measured on the agreed low-end
+  Android profile before activation** — recorded as an open
+  activation-gating measurement.
+
 ## Unresolved dependencies (not this task's to decide)
 
 - Source authorization for the candidate dataset (`may_publish`) — Data

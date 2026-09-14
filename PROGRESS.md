@@ -4688,3 +4688,149 @@ from any candidate record. Docs: `docs/FACILITIES_V2_CONSUMER.md`.
 Source `may_publish` authorization (Data Engineering) · FAC-D002 Product +
 Clinical approval · phone/opening-hours public-use authorization · a real
 approved manifest via Backend/`/config` · Emergency Hub 2.0 (out of scope).
+
+---
+
+# Facilities 2.0 — independent candidate evaluation, benchmark, attribution (PR #79 continued)
+
+**Worktree:** `/Users/iamjohnseyi/dev/wp-fac2-eval` (clean, detached at PR #79
+head `854377c`; the brief's `a9c26a8` had one docs-only PROGRESS commit on top,
+verified `git diff --stat` = PROGRESS.md only)
+**Last Updated:** 2026-09-14
+
+## CURRENT STATUS: candidate contract-verified against all three PRs · attribution shipped (gated, invisible today) · search optimized · candidate NOT committed/bundled/configured · nothing merged, uploaded or activated
+
+## Candidate identity — verified exactly
+
+`candidate/facilities.ng.v2.0-grid3.served.json` extracted from KB PR #42's
+exact head `2fd8ab5` into an untracked scratchpad path, never a tracked one:
+sha256 `03a58e67d94bb1d7c88cc5e690472b167a82cc9f95d4f7afe937d8f5d1cebd75` ·
+8,749,444 bytes · 51,022 records · schema 2.0 · `candidate_unapproved` ·
+`may_publish: false` — all six values match the brief and the KB manifest
+block. The temporary copy was deleted after evaluation.
+
+## Cross-repository contract verification — 13 checks, 0 mismatches
+
+An evaluation-only harness (run from the scratchpad, never committed) drove
+the real consumer over the real bytes:
+
+- all 51,022 records parse, **0 rejected**; ids/names/coordinates/state/
+  city_area byte-verbatim vs raw JSON (trim provably a no-op)
+- every optional field is ABSENT in the served projection → type
+  `unspecified`, `emergency_capable` null, `lga` null, phone/hours hidden by
+  `pendingApproval` presentation — per record, all 51,022
+- state search partitions the dataset exactly (Σ per-state hits = 51,022);
+  city_area search returns each sampled record for its own area; no-result
+  and empty queries return empty, never error
+- all four urgency filters retain all records (null-type guarantee measured)
+- emergency policy: `nearestNoCapabilityClaim`, wording keeps 112 first
+- raw-byte SHA-256 verifies in `StagedArtifactLoader.verifyArtifactHash` in
+  BOTH forms — bare hex and Backend PR #36's `sha256:<hex>` prefix (the
+  verifier strips the prefix; `utf8.encode(body)` == raw bytes, all-ASCII)
+- artifact `_metadata` inflates no record (every provenance map empty)
+- a manifest truthfully describing the candidate can NEVER activate the
+  gate (fails `status` and `may_publish` independently, every flag combo)
+- loader end-to-end over the real bytes under a synthetic in-memory
+  "approved" manifest: network load → v2-only cache key
+  `artifact_facilities_v2_v2.0`, cached open with zero re-downloads,
+  corrupted cache re-verified on read; v1.1 keys never read or written
+- Backend PR #36 (`5d653c7`) `/config` `facilities_v2` shape field-matches
+  `FacilitiesV2Manifest.tryParse`; its gates refuse the candidate's
+  governance state server-side too. KB's `facilities_grid3.manifest.
+  candidate.json` is a PROPOSED block (`IS_LIVE_MANIFEST: false`), not the
+  wire shape — the backend §2 shape is authoritative and compatible.
+
+## Low-end Android benchmark — partially BLOCKED, host AOT evidence recorded
+
+The prepared `wellapath_lowend` AVD (Android 8.0 API 26, arm64-v8a, 2 GB
+RAM, 4 cores) was booted, but no APK could be produced this session: the
+fail-closed signing policy refuses any Android build without signing
+material, and the session's permission policy denied all three routes
+(referencing the real key.properties, `WELLAPATH_ALLOW_UNSIGNED_RELEASE`,
+and a throwaway keystore), plus building from the main checkout. Dart
+cannot cross-compile executables for Android bionic. **On-device numbers on
+the agreed low-end profile remain an open activation-gating measurement.**
+
+Host evidence (macOS arm64, `dart compile exe` AOT — real consumer code,
+real candidate bytes; low-end device expected several times slower on CPU,
+lower on Dart heap due to Android compressed pointers):
+
+- first open (read+hash+decode+parse, 51,022 records): **~130 ms** total
+  (read 14 · hash 65 · decode 37 · parse 15); cached open ~66 ms. This
+  whole block runs on whatever isolate calls `load()` — the future locator
+  integration should parse off the UI isolate; recorded as an integration
+  requirement, not a consumer defect.
+- gate-off path: **0–1 µs, zero I/O touches** — v2 disabled costs nothing
+  at startup (plus zero-inbound-imports guard: nothing v2 is even
+  reachable, so build-210 startup is structurally unchanged)
+- searches before optimization: contains-style queries ~78 ms/query on the
+  host — re-normalizing all 51k records per query; projected far past the
+  200 ms repeated-search p95 budget on low-end hardware → **optimized**
+  (below). After: state p50 ~1.1 ms · contains p50 ~8–11 ms · scoped-state
+  contains ~1.4 ms · urgency filter ~1 ms · distance sort over all 51,022
+  ~8 ms · emergency list ~7 ms (host)
+- memory: baseline 13 MB → ~95 MB after parse (steady ~80 MB delta);
+  transient peak 130–170 MB during search bursts and 5 reopen cycles;
+  reopen RSS plateaus (127→134 MB) — **no unbounded duplicate copies**.
+  Host peak delta exceeds the 100 MB provisional budget transiently;
+  Android compressed pointers should land lower, but this is exactly the
+  measurement that must be redone on device before activation.
+- storage: v2 cache = raw body, 8,749,444 B in its own namespace (v1.1
+  cache 1,695,844 B untouched)
+
+## Optimization applied (PR #79, consumer-only)
+
+`FacilitiesV2Search` now caches each record's normalized name/state/lga/
+city_area in `Expando`s — normalize once per record on first use; results
+proven identical by a differential test; caches are GC'd with their
+records. ~7–12× measured speedup on every search shape. The parser also
+shares one const empty map for empty provenance instead of 51,022 growable
+maps. No behaviour change; 0 changed files outside `lib/core/facilities_v2/`.
+
+## Attribution presentation (PR #79) — gated, invisible in every build that exists
+
+`FacilitiesV2Attribution` + `FacilityDataSourceEntry`
+(`lib/core/facilities_v2/`): the exact GRID3 citation required by the KB
+notice, CC BY 4.0 licence link, WellaPath normalization disclosure and a
+GRID3/CIESIN/Columbia/Nigeria non-endorsement statement — rendered ONLY
+when `FacilitiesV2Gate.active` AND the v2 load actually served
+(network/cache). Gate off, no/unapproved manifest, or `fallbackToV1` render
+nothing, so the notice can never accompany v1.1 data; v1.1 attribution
+behaviour (absent today) is untouched, enforced by the existing isolation
+guard. Artifact metadata is consumed as validated plain text only; links
+render only as absolute `https://` URLs (javascript/data/file/http all
+dropped, proven by test); the fixed statements are compile-time constants.
+Committed tests use synthetic metadata only. **Mounting the entry in the
+locator UI is a recorded requirement of the future activation change.**
+
+## Verification (worktree, after changes)
+
+- `flutter analyze` no issues · `dart format --set-exit-if-changed` clean
+- full suite **1,400 passed · 7 skipped · 0 failed** (1,381 at `854377c`
+  + 19 new attribution/search-cache gates; zero regressions)
+- clinical regression unchanged: **239 executed · 238 passed · 1 known
+  finding (CB_211) · 0 unexpected failures**
+- changed paths: `lib/core/facilities_v2/` (4 files) + 2 test files +
+  docs only — `lib/core/engine/`, `lib/features/assessment/`,
+  `lib/features/locator/`, question flow, vocabulary, telemetry and
+  pubspec.yaml all 0 changed files
+- the worktree's `android/gradle.properties` was auto-touched by the
+  Flutter migrator during the (refused) build attempt — left uncommitted,
+  same as the main checkout's protected tooling diffs
+
+## Confirmations
+
+Candidate not committed, bundled, uploaded or configured; its temporary
+copy deleted · no real v2 URL or hash added anywhere · gate still
+default-off and unactivatable against the real manifest state · PR #36 and
+#42 untouched · PR #79 updated in place, not merged · no build 211, no AAB,
+no store/tester action · build 210 (`5a1930b`, AAB `818d60b1…`) unchanged ·
+main checkout untouched (3 modified build files + SPM dirs exactly as
+found) · scoring, Question Flow and red flags untouched.
+
+## Open dependencies (unchanged + one new)
+
+All previous unresolved dependencies stand. **New:** on-device benchmark on
+the agreed low-end Android profile (blocked this session — needs an
+authorized signed/profile build or an equivalent sanctioned path) before
+any activation decision.
