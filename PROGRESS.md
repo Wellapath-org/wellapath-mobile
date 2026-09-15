@@ -1,11 +1,11 @@
 # WellaPath Mobile — Progress Tracker
 
-**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`  
-**Current state:** PR #78 merged and re-verified from the merged tree; **awaiting console access + upload authorization**  
-**Branch:** `develop` @ `5a1930b` merge, `9cce8e5` after the Step 2 record (== `origin/develop`, CI green)  
+**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`, plus Facilities 2.0 preparation (inactive, gated)  
+**Current state:** PR #78 merged; **awaiting console access + upload authorization**. **PR #79 (Facilities 2.0 consumer) open, CI green @ `93ff67a`** — candidate contract-verified, low-end benchmark passed, attribution + off-UI-isolate parse in; still unactivatable (`may_publish: false`, FAC decisions pending)  
+**Branch:** `develop` @ `5a1930b` merge (== `origin/develop`) · `feat/facilities-v2-consumer` @ `93ff67a` (== origin, ahead of the local main-checkout branch pointer)  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
-**Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-12 — tracker header refreshed to the post-merge state; nothing uploaded to any store or tester track
+**Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3; CI floats `3.x` stable — 3.47.4 / Dart 3.13.3 — whose formatter can disagree with the local one)  
+**Last Updated:** 2026-09-15 — tracker header refreshed after the Facilities 2.0 evaluation + benchmark; nothing uploaded to any store or tester track
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
@@ -4926,3 +4926,50 @@ low-end hardware at activation time is recommended). Activation remains
 **NO-GO** on governance alone: `may_publish: false`, FAC decisions
 pending, no approved manifest, attribution mounting + off-UI-isolate
 integration both land with the future activation change.
+
+---
+
+# Facilities 2.0 — final verification and PR #79 status after the benchmark
+
+**Last Updated:** 2026-09-15
+
+## CURRENT STATUS: PR #79 open, unmerged, CI SUCCESS @ `93ff67a` (run 34890875171) — evaluation cycle complete
+
+The two prospective claims in the previous entry are now confirmed from
+evidence, not intent:
+
+- **CI:** run `34890875171` **success** on the pushed head `93ff67a`
+  (commits `9461cf2` off-UI-isolate verify+parse · `93ff67a` benchmark
+  report + docs). PR #79 head verified == origin == worktree HEAD.
+- **Cleanup executed and verified:** benchmark APK uninstalled and its
+  build output deleted · emulator killed, its candidate copy deleted ·
+  scratchpad candidate copy deleted · throwaway keystore, properties
+  symlink and password file deleted (`android/key.properties` absent
+  from the worktree) · secret/candidate scan of `114eb0b..93ff67a`
+  returned **0 matches** · main checkout re-verified at `854377c` with
+  only the three protected build files + SPM dirs modified, exactly as
+  found.
+
+## PR #79 cumulative state (both evaluation sessions)
+
+Seven commits on top of the reviewed consumer (`854377c`):
+`83db5a9` gated GRID3 attribution presentation · `e427d5f` search
+normalization cache (7–12× measured) · `9affe89` evaluation record ·
+`49046ec` + `114eb0b` formatter-drift fixes · `9461cf2` background-isolate
+verify+parse (897 ms UI freeze → ≤125 ms worst frame) · `93ff67a`
+benchmark report (`docs/FACILITIES_V2_BENCH_LOWEND_V1.md`).
+
+Verification at `93ff67a`: full suite **1,401 · 7 skipped · 0 failed** ·
+clinical regression **239 · 238 · 1 known (CB_211) · 0 unexpected** ·
+analyze clean · format clean under both toolchains · all six provisional
+performance budgets **PASS** on the 2 GB / 4-core API 26 arm64 profile.
+
+## Still true, unchanged
+
+Candidate `candidate_unapproved` / `may_publish: false` — no flag
+combination activates v2 · KB PR #42 (`2fd8ab5`) and Backend PR #36
+(`5d653c7`) open, untouched · build 210 = `5a1930b` / AAB `818d60b1…` ·
+no build 211 · nothing uploaded, merged or activated. Next actions live
+with governance: source `may_publish` (Data Engineering), FAC-D001…D006
+(Product/Clinical), approved manifest via Backend, then the activation
+change (mount `FacilityDataSourceEntry`, real-hardware spot check).
