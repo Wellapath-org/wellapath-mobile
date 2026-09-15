@@ -316,7 +316,12 @@ class StagedArtifactLoader {
     );
   }
 
-  bool _matchesHash(String rawBody, String? expectedHash) {
+  /// The one trusted artifact-integrity check, shared by every consumer
+  /// (the v1.1 pipeline below and the gated Facilities 2.0 loader). Public
+  /// and static so a candidate consumer can reuse it without duplicating
+  /// integrity logic; behaviour is unchanged from the original private
+  /// `_matchesHash`.
+  static bool verifyArtifactHash(String rawBody, String? expectedHash) {
     if (expectedHash == null || expectedHash.isEmpty) return true;
     final expectedHex = expectedHash.startsWith('sha256:')
         ? expectedHash.substring('sha256:'.length)
@@ -324,6 +329,9 @@ class StagedArtifactLoader {
     final actualHex = sha256.convert(utf8.encode(rawBody)).toString();
     return actualHex.toLowerCase() == expectedHex.toLowerCase();
   }
+
+  bool _matchesHash(String rawBody, String? expectedHash) =>
+      verifyArtifactHash(rawBody, expectedHash);
 
   /// Reads [spec] from [box], falling back to a network download (with
   /// backoff retry on network failure, and a single retry on hash-integrity

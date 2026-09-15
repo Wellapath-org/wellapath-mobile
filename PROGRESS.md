@@ -1,11 +1,11 @@
 # WellaPath Mobile — Progress Tracker
 
-**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`  
-**Current state:** PR #78 merged and re-verified from the merged tree; **awaiting console access + upload authorization**  
-**Branch:** `develop` @ `5a1930b` merge, `9cce8e5` after the Step 2 record (== `origin/develop`, CI green)  
+**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`, plus Facilities 2.0 preparation (inactive, gated)  
+**Current state:** PR #78 merged; **awaiting console access + upload authorization**. **PR #79 (Facilities 2.0 consumer) open, CI green @ `93ff67a`** — candidate contract-verified, low-end benchmark passed, attribution + off-UI-isolate parse in; still unactivatable (`may_publish: false`, FAC decisions pending)  
+**Branch:** `develop` @ `5a1930b` merge (== `origin/develop`) · `feat/facilities-v2-consumer` @ `93ff67a` (== origin, ahead of the local main-checkout branch pointer)  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
-**Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-12 — tracker header refreshed to the post-merge state; nothing uploaded to any store or tester track
+**Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3; CI floats `3.x` stable — 3.47.4 / Dart 3.13.3 — whose formatter can disagree with the local one)  
+**Last Updated:** 2026-09-15 — tracker header refreshed after the Facilities 2.0 evaluation + benchmark; nothing uploaded to any store or tester track
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
@@ -4621,3 +4621,355 @@ privacy-policy URL (founder) · Play App Signing enrolment at first upload
 (`RC-BLK-002-FOLLOWON`) · CB_211 adjudication before external beta
 (`RC-BLK-016`) · `RC-BLK-005`/`006` before store submission. The three
 unrelated tooling modifications remain unstaged and uncommitted.
+
+---
+
+# Facilities 2.0 — consumer and contract preparation (inactive, gated)
+
+**Branch:** `feat/facilities-v2-consumer` (off `develop` `103f311`)
+**Last Updated:** 2026-09-15
+
+## CURRENT STATUS: consumer built and verified — candidate absent, gate off, v1.1 untouched; **PR #79 open, CI green, unmerged**
+
+> **Facilities 2.0 remains `candidate_unapproved` / `may_publish: false`.**
+> The candidate dataset is NOT in this repository, no v2 URL or hash exists
+> here, `/config`/Backend/R2 are unmodified, and no flag combination this
+> repository can express activates the v2 path. The live locator uses
+> facilities 1.1 exactly as shipped in build 210 (`5a1930b`, AAB
+> `818d60b1…`), which this branch does not touch. **No build 211.**
+
+## What was built — `lib/core/facilities_v2/` (zero inbound imports)
+
+Gate (`FacilitiesV2Gate`: `FACILITIES_V2_EVALUATION` default off,
+production blocked behind `FACILITIES_V2_PRODUCTION_APPROVED` which
+nothing sets, **plus** a manifest that must be `approved` AND
+`may_publish: true` — the candidate fails both) · manifest model ·
+version-aware parser (schema major 2 only; per-record isolation; nullable
+type/emergency_capable stay unknown; unknown future types preserved;
+coordinates verbatim or rejected — never repaired) · local-only search
+(state, LGA/city/area, deterministic normalization, haversine sort,
+null-type records always retained by every urgency filter, type never
+inferred from names) · `EmergencyFallbackPolicy.pendingApproval` (FAC-D002
+decision point: only `emergency_capable == true` prioritized, null never
+true, fallback wording claims no capability and keeps 112 first) ·
+approval-gated presentation (v2 phone CTA hidden, unknown hours never
+"open" — the enum has no `open` state) · loader (reuses the trusted
+`StagedArtifactLoader.verifyArtifactHash`; v2-only cache namespace; every
+failure → `fallbackToV1`; a failed v2 attempt cannot touch the v1.1 cache
+— proven with a write-set spy).
+
+Product-code delta outside the consumer: exactly one — `_matchesHash`
+extracted as public static `StagedArtifactLoader.verifyArtifactHash`,
+behaviour identical. `lib/features/locator/` shows **0 changed files**.
+
+Fixture: `test/fixtures/facilities_v2/synthetic_facilities_v2_fixture.json`
+— 11 synthetic entries (6 valid incl. null/unknown/missing-field cases,
+5 malformed), every name `ZZTest … (synthetic)`; explicitly not derived
+from any candidate record. Docs: `docs/FACILITIES_V2_CONSUMER.md`.
+
+## Verification
+
+- 60 new tests (`test/facilities_v2/`, 6 files + isolation guards) — all
+  pass: parsing/tolerances, gate default-off/production/manifest rules,
+  search + null-type guarantees, emergency policy, presentation gating,
+  loader fallback matrix, no-inbound-import + no-HTTP/telemetry guards,
+  no bundled candidate, no `.env` key.
+- Full suite: **1,381 passed · 7 skipped · 0 failed** (1,321 at the
+  `103f311` baseline + the 60 new gates; zero regressions).
+- Clinical regression unchanged: **239 executed · 238 passed · 1 known
+  finding (CB_211) · 0 unexpected failures**.
+- `flutter analyze` no issues · `dart format --set-exit-if-changed` clean.
+- PR #79 (`feat/facilities-v2-consumer` → `develop`), head `a9c26a8`
+  (commits `79881d6` + `a9c26a8`): **CI success** (run 34835310908).
+  Left unmerged for review.
+
+## Unresolved dependencies
+
+Source `may_publish` authorization (Data Engineering) · FAC-D002 Product +
+Clinical approval · phone/opening-hours public-use authorization · a real
+approved manifest via Backend/`/config` · Emergency Hub 2.0 (out of scope).
+
+---
+
+# Facilities 2.0 — independent candidate evaluation, benchmark, attribution (PR #79 continued)
+
+**Worktree:** `/Users/iamjohnseyi/dev/wp-fac2-eval` (clean, detached at PR #79
+head `854377c`; the brief's `a9c26a8` had one docs-only PROGRESS commit on top,
+verified `git diff --stat` = PROGRESS.md only)
+**Last Updated:** 2026-09-14
+
+## CURRENT STATUS: candidate contract-verified against all three PRs · attribution shipped (gated, invisible today) · search optimized · candidate NOT committed/bundled/configured · nothing merged, uploaded or activated
+
+## Candidate identity — verified exactly
+
+`candidate/facilities.ng.v2.0-grid3.served.json` extracted from KB PR #42's
+exact head `2fd8ab5` into an untracked scratchpad path, never a tracked one:
+sha256 `03a58e67d94bb1d7c88cc5e690472b167a82cc9f95d4f7afe937d8f5d1cebd75` ·
+8,749,444 bytes · 51,022 records · schema 2.0 · `candidate_unapproved` ·
+`may_publish: false` — all six values match the brief and the KB manifest
+block. The temporary copy was deleted after evaluation.
+
+## Cross-repository contract verification — 13 checks, 0 mismatches
+
+An evaluation-only harness (run from the scratchpad, never committed) drove
+the real consumer over the real bytes:
+
+- all 51,022 records parse, **0 rejected**; ids/names/coordinates/state/
+  city_area byte-verbatim vs raw JSON (trim provably a no-op)
+- every optional field is ABSENT in the served projection → type
+  `unspecified`, `emergency_capable` null, `lga` null, phone/hours hidden by
+  `pendingApproval` presentation — per record, all 51,022
+- state search partitions the dataset exactly (Σ per-state hits = 51,022);
+  city_area search returns each sampled record for its own area; no-result
+  and empty queries return empty, never error
+- all four urgency filters retain all records (null-type guarantee measured)
+- emergency policy: `nearestNoCapabilityClaim`, wording keeps 112 first
+- raw-byte SHA-256 verifies in `StagedArtifactLoader.verifyArtifactHash` in
+  BOTH forms — bare hex and Backend PR #36's `sha256:<hex>` prefix (the
+  verifier strips the prefix; `utf8.encode(body)` == raw bytes, all-ASCII)
+- artifact `_metadata` inflates no record (every provenance map empty)
+- a manifest truthfully describing the candidate can NEVER activate the
+  gate (fails `status` and `may_publish` independently, every flag combo)
+- loader end-to-end over the real bytes under a synthetic in-memory
+  "approved" manifest: network load → v2-only cache key
+  `artifact_facilities_v2_v2.0`, cached open with zero re-downloads,
+  corrupted cache re-verified on read; v1.1 keys never read or written
+- Backend PR #36 (`5d653c7`) `/config` `facilities_v2` shape field-matches
+  `FacilitiesV2Manifest.tryParse`; its gates refuse the candidate's
+  governance state server-side too. KB's `facilities_grid3.manifest.
+  candidate.json` is a PROPOSED block (`IS_LIVE_MANIFEST: false`), not the
+  wire shape — the backend §2 shape is authoritative and compatible.
+
+## Low-end Android benchmark — partially BLOCKED, host AOT evidence recorded
+
+The prepared `wellapath_lowend` AVD (Android 8.0 API 26, arm64-v8a, 2 GB
+RAM, 4 cores) was booted, but no APK could be produced this session: the
+fail-closed signing policy refuses any Android build without signing
+material, and the session's permission policy denied all three routes
+(referencing the real key.properties, `WELLAPATH_ALLOW_UNSIGNED_RELEASE`,
+and a throwaway keystore), plus building from the main checkout. Dart
+cannot cross-compile executables for Android bionic. **On-device numbers on
+the agreed low-end profile remain an open activation-gating measurement.**
+
+Host evidence (macOS arm64, `dart compile exe` AOT — real consumer code,
+real candidate bytes; low-end device expected several times slower on CPU,
+lower on Dart heap due to Android compressed pointers):
+
+- first open (read+hash+decode+parse, 51,022 records): **~130 ms** total
+  (read 14 · hash 65 · decode 37 · parse 15); cached open ~66 ms. This
+  whole block runs on whatever isolate calls `load()` — the future locator
+  integration should parse off the UI isolate; recorded as an integration
+  requirement, not a consumer defect.
+- gate-off path: **0–1 µs, zero I/O touches** — v2 disabled costs nothing
+  at startup (plus zero-inbound-imports guard: nothing v2 is even
+  reachable, so build-210 startup is structurally unchanged)
+- searches before optimization: contains-style queries ~78 ms/query on the
+  host — re-normalizing all 51k records per query; projected far past the
+  200 ms repeated-search p95 budget on low-end hardware → **optimized**
+  (below). After: state p50 ~1.1 ms · contains p50 ~8–11 ms · scoped-state
+  contains ~1.4 ms · urgency filter ~1 ms · distance sort over all 51,022
+  ~8 ms · emergency list ~7 ms (host)
+- memory: baseline 13 MB → ~95 MB after parse (steady ~80 MB delta);
+  transient peak 130–170 MB during search bursts and 5 reopen cycles;
+  reopen RSS plateaus (127→134 MB) — **no unbounded duplicate copies**.
+  Host peak delta exceeds the 100 MB provisional budget transiently;
+  Android compressed pointers should land lower, but this is exactly the
+  measurement that must be redone on device before activation.
+- storage: v2 cache = raw body, 8,749,444 B in its own namespace (v1.1
+  cache 1,695,844 B untouched)
+
+## Optimization applied (PR #79, consumer-only)
+
+`FacilitiesV2Search` now caches each record's normalized name/state/lga/
+city_area in `Expando`s — normalize once per record on first use; results
+proven identical by a differential test; caches are GC'd with their
+records. ~7–12× measured speedup on every search shape. The parser also
+shares one const empty map for empty provenance instead of 51,022 growable
+maps. No behaviour change; 0 changed files outside `lib/core/facilities_v2/`.
+
+## Attribution presentation (PR #79) — gated, invisible in every build that exists
+
+`FacilitiesV2Attribution` + `FacilityDataSourceEntry`
+(`lib/core/facilities_v2/`): the exact GRID3 citation required by the KB
+notice, CC BY 4.0 licence link, WellaPath normalization disclosure and a
+GRID3/CIESIN/Columbia/Nigeria non-endorsement statement — rendered ONLY
+when `FacilitiesV2Gate.active` AND the v2 load actually served
+(network/cache). Gate off, no/unapproved manifest, or `fallbackToV1` render
+nothing, so the notice can never accompany v1.1 data; v1.1 attribution
+behaviour (absent today) is untouched, enforced by the existing isolation
+guard. Artifact metadata is consumed as validated plain text only; links
+render only as absolute `https://` URLs (javascript/data/file/http all
+dropped, proven by test); the fixed statements are compile-time constants.
+Committed tests use synthetic metadata only. **Mounting the entry in the
+locator UI is a recorded requirement of the future activation change.**
+
+## Verification (worktree, after changes)
+
+- `flutter analyze` no issues · `dart format --set-exit-if-changed` clean
+- full suite **1,400 passed · 7 skipped · 0 failed** (1,381 at `854377c`
+  + 19 new attribution/search-cache gates; zero regressions)
+- clinical regression unchanged: **239 executed · 238 passed · 1 known
+  finding (CB_211) · 0 unexpected failures**
+- changed paths: `lib/core/facilities_v2/` (4 files) + 2 test files +
+  docs only — `lib/core/engine/`, `lib/features/assessment/`,
+  `lib/features/locator/`, question flow, vocabulary, telemetry and
+  pubspec.yaml all 0 changed files
+- the worktree's `android/gradle.properties` was auto-touched by the
+  Flutter migrator during the (refused) build attempt — left uncommitted,
+  same as the main checkout's protected tooling diffs
+
+## Confirmations
+
+Candidate not committed, bundled, uploaded or configured; its temporary
+copy deleted · no real v2 URL or hash added anywhere · gate still
+default-off and unactivatable against the real manifest state · PR #36 and
+#42 untouched · PR #79 updated in place, not merged · no build 211, no AAB,
+no store/tester action · build 210 (`5a1930b`, AAB `818d60b1…`) unchanged ·
+main checkout untouched (3 modified build files + SPM dirs exactly as
+found) · scoring, Question Flow and red flags untouched.
+
+## Open dependencies (unchanged + one new)
+
+All previous unresolved dependencies stand. **New:** on-device benchmark on
+the agreed low-end Android profile (blocked this session — needs an
+authorized signed/profile build or an equivalent sanctioned path) before
+any activation decision.
+
+---
+
+# Facilities 2.0 — low-end Android benchmark completed (PR #79 continued)
+
+**Worktree:** `/Users/iamjohnseyi/dev/wp-fac2-bench` (clean, detached at PR
+#79 head `114eb0b`, exactly the expected remote head)
+**Last Updated:** 2026-09-14
+
+## CURRENT STATUS: on-device benchmark done — all provisional budgets PASS; loader parse moved off the UI isolate on the measured evidence; candidate/APK/keystore all deleted after the run
+
+## Authorization and signing (explicit, scoped)
+
+A **throwaway benchmark keystore** (random credentials, generated locally,
+stored in the session scratchpad, validity 7 days) satisfied the
+fail-closed configuration gate via a gitignored `android/key.properties`
+symlink. The real keystore and the main checkout's `key.properties` were
+never read, copied or referenced. The profile buildType itself signs with
+the standard local Android debug certificate (the policy binds release
+only); the resulting APK is local-only and was uninstalled and deleted
+after measurement, along with the keystore, properties symlink and the
+emulator's candidate copy. The release fail-closed policy is untouched —
+an ordinary release build without material still refuses.
+
+## Environment
+
+`wellapath_lowend` AVD — Android 8.0 / API 26, arm64-v8a, 2 GB RAM,
+4 cores, swiftshader GPU · emulator 36.6.11 · host macOS 26.5.2 / Apple
+M4 · Flutter 3.44.4 / Dart 3.12.2 · profile APK (33 MB, arm64) · commit
+`114eb0b` · candidate `03a58e67…cebd75` re-verified (bytes, sha256,
+51,022 records) and adb-pushed to the app's own external files dir.
+**Caveat:** the emulator constrains memory/cores but executes near host
+CPU speed — timings are optimistic vs a real Cortex-A53-class device.
+
+## Results (full raw output: `docs/FACILITIES_V2_BENCH_LOWEND_V1.md`)
+
+| Budget | Measured | Verdict |
+|---|---|---|
+| zero gate-off v2 I/O | 132 µs, 0 touches, parse_count 0 at first frame | PASS |
+| first result ≤ 2 s | first open p50 767 ms (UI isolate) / 311 ms (background) + ≤29 ms first search | PASS |
+| cached open ≤ 500 ms | p50 154 ms, max 177 ms | PASS |
+| search p95 < 200 ms | worst p95 15.1 ms (contains); state 1.6 ms | PASS |
+| no ANR/OOM/crash/freeze | 0 in full-run logcat; worst freeze 897 ms fixed by isolate change | PASS |
+| Δpeak PSS < 100 MB | steady +55–60 MB, peak +93 MB, settles; reopen ×5 plateaus | PASS |
+
+Cold starts (gate off): 1873 ms first-ever, then 1106–1476 ms. Resume:
+parse_count unchanged — no re-parse. Corrupt cache: refetch 120 ms; with
+dead network → `fallbackToV1` (`downloadFailed`), 0 cache writes.
+Distance sort over all 51,022: p50 12 ms. Emergency fallback list: 10 ms,
+no-capability wording, 112 first.
+
+## Committed change: background-isolate verify+parse in the loader
+
+Measured on the UI isolate, hash (424 ms) + decode (226 ms) + parse
+(113 ms) froze the UI up to **897 ms** per first open. The same block in
+`Isolate.run` (same isolate group: raw string shared, result returned via
+`Isolate.exit` without a copy): worst frame **≤125 ms**, wall p50
+**311 ms vs 767 ms**, memory equal within noise, records/rejections/
+attribution identical. `FacilitiesV2Loader` now runs hash+decode+parse in
+a short-lived background isolate for both cache and network paths;
+exceptions transfer intact so every fallback cause is unchanged — proven
+by the untouched loader fallback matrix (all causes re-run green) plus a
+new result-parity test. Cache-defect handling is behaviour-identical: any
+bad cached copy is ignored and the network path runs, as before.
+
+## Verification
+
+- facilities_v2 suite 80/80 · full suite **1,401 passed · 7 skipped · 0
+  failed** · clinical regression **239 · 238 · 1 known (CB_211) · 0
+  unexpected** · analyze clean · format clean under BOTH toolchains
+  (local Dart 3.12.2 and CI-parity Dart 3.13.3)
+- PR #79 updated in place; CI green on the new head. Nothing merged.
+
+## Cleanup confirmations
+
+Benchmark APK uninstalled from the emulator and deleted from build
+output · emulator candidate copy deleted · scratchpad candidate copy
+deleted · throwaway keystore + properties + password file deleted ·
+benchmark entrypoint never committed (isolation guard enforced it) ·
+main checkout byte-identical to its pre-task state (3 modified build
+files + SPM dirs untouched) · no secret or candidate file tracked, in
+the PR diff, or in the committed report · build 210 (`5a1930b`, AAB
+`818d60b1…`) untouched · no build 211 · v2 still unactivatable.
+
+## Go/no-go
+
+Performance is no longer a blocker: **all provisional budgets pass on the
+measured profile** (with the emulator-CPU caveat; a spot check on real
+low-end hardware at activation time is recommended). Activation remains
+**NO-GO** on governance alone: `may_publish: false`, FAC decisions
+pending, no approved manifest, attribution mounting + off-UI-isolate
+integration both land with the future activation change.
+
+---
+
+# Facilities 2.0 — final verification and PR #79 status after the benchmark
+
+**Last Updated:** 2026-09-15
+
+## CURRENT STATUS: PR #79 open, unmerged, CI SUCCESS @ `93ff67a` (run 34890875171) — evaluation cycle complete
+
+The two prospective claims in the previous entry are now confirmed from
+evidence, not intent:
+
+- **CI:** run `34890875171` **success** on the pushed head `93ff67a`
+  (commits `9461cf2` off-UI-isolate verify+parse · `93ff67a` benchmark
+  report + docs). PR #79 head verified == origin == worktree HEAD.
+- **Cleanup executed and verified:** benchmark APK uninstalled and its
+  build output deleted · emulator killed, its candidate copy deleted ·
+  scratchpad candidate copy deleted · throwaway keystore, properties
+  symlink and password file deleted (`android/key.properties` absent
+  from the worktree) · secret/candidate scan of `114eb0b..93ff67a`
+  returned **0 matches** · main checkout re-verified at `854377c` with
+  only the three protected build files + SPM dirs modified, exactly as
+  found.
+
+## PR #79 cumulative state (both evaluation sessions)
+
+Seven commits on top of the reviewed consumer (`854377c`):
+`83db5a9` gated GRID3 attribution presentation · `e427d5f` search
+normalization cache (7–12× measured) · `9affe89` evaluation record ·
+`49046ec` + `114eb0b` formatter-drift fixes · `9461cf2` background-isolate
+verify+parse (897 ms UI freeze → ≤125 ms worst frame) · `93ff67a`
+benchmark report (`docs/FACILITIES_V2_BENCH_LOWEND_V1.md`).
+
+Verification at `93ff67a`: full suite **1,401 · 7 skipped · 0 failed** ·
+clinical regression **239 · 238 · 1 known (CB_211) · 0 unexpected** ·
+analyze clean · format clean under both toolchains · all six provisional
+performance budgets **PASS** on the 2 GB / 4-core API 26 arm64 profile.
+
+## Still true, unchanged
+
+Candidate `candidate_unapproved` / `may_publish: false` — no flag
+combination activates v2 · KB PR #42 (`2fd8ab5`) and Backend PR #36
+(`5d653c7`) open, untouched · build 210 = `5a1930b` / AAB `818d60b1…` ·
+no build 211 · nothing uploaded, merged or activated. Next actions live
+with governance: source `may_publish` (Data Engineering), FAC-D001…D006
+(Product/Clinical), approved manifest via Backend, then the activation
+change (mount `FacilityDataSourceEntry`, real-hardware spot check).
