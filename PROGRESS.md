@@ -4973,3 +4973,77 @@ no build 211 · nothing uploaded, merged or activated. Next actions live
 with governance: source `may_publish` (Data Engineering), FAC-D001…D006
 (Product/Clinical), approved manifest via Backend, then the activation
 change (mount `FacilityDataSourceEntry`, real-hardware spot check).
+
+---
+
+# iOS 0.3.0 (210) — FIRST UPLOAD to App Store Connect / TestFlight (internal)
+
+**Date:** 2026-09-21 · **Source:** clean detached worktree `wp-ios-210` @
+`5a1930b` (the approved build-210 commit — PR #79 / Facilities 2.0 NOT
+included; 0 `facilities_v2` symbols verified in the compiled binary)
+
+## What happened
+
+The **first upload of any WellaPath build to any store console**: iOS
+`org.wellapath.app` 0.3.0 (210) uploaded to the existing App Store
+Connect record (team **Pixus Uganda - SMC LTD / 2SCUC2CBBS**) via the
+authenticated Xcode account flow (`xcodebuild -exportArchive`,
+destination upload). Result: **"Upload succeeded — uploaded package is
+processing."** Internal TestFlight is the only objective: nothing was
+submitted for App Store review or external beta, no other app record
+created, no Android/store change.
+
+## The path there (each step evidence-verified)
+
+- Signing did not exist on this machine (RC-BLK-009 console half). It was
+  stood up via: Apple ID sign-in to Xcode (user) → team grant of
+  "Certificates, Identifiers & Profiles" (account owner) → team grant of
+  "Access to Cloud Managed Distribution Certificate" (account owner).
+  Also mid-flight: a full disk (ENOSPC) blocked Xcode caches and was
+  cleared. Team ID `2SCUC2CBBS` confirmed from the embedded profile.
+- Archive: automatic signing, `DEVELOPMENT_TEAM=2SCUC2CBBS` passed as a
+  build flag (pbxproj untouched). Export re-signed with **Apple
+  Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)**, App Store profile
+  "iOS Team Store Provisioning Profile: org.wellapath.app" (no device
+  list), `get-task-allow=false`, `beta-reports-active=true`, minimal
+  entitlement set, 7 privacy manifests, signature verifies.
+- Compiled-binary preflight (before any signing): bundle/version/build/
+  display name exact; bundled `.env` staging-only with
+  `TELEMETRY_ENABLED=false` and `TELEMETRY_PRODUCTION_APPROVED=false`;
+  zero working Sentry DSN; network destinations = staging backend, R2
+  CDN, carto tiles, maps URL; 1024 icon no-alpha; when-in-use location
+  wording; simulator smoke test passed (onboarding renders, CDSS-safe
+  copy).
+- **Encryption audit:** only SHA-256 hashing + platform TLS → committed
+  no change; `ITSAppUsesNonExemptEncryption=false` added to
+  `ios/Runner/Info.plist` **in the worktree only (uncommitted)** so
+  TestFlight skips the export-compliance question truthfully.
+
+## Artifacts
+
+| | |
+|---|---|
+| `WellaPath.ipa` | sha256 `bd1f378b1939668fc17251c09d6c9e8adcfc1efb868c158d79c997a9b1219f46` · 27,085,109 B |
+| `Runner.xcarchive` (tar) | sha256 `62304eff45b520f7a3ac30c155ac9dd6dd3bf8f36a552f725ea0e2bfeab2e120` · ~183.8 MB |
+| Paths | `wp-ios-210/build/ios/ipa/WellaPath.ipa` · `wp-ios-210/build/ios/archive/Runner.xcarchive` |
+
+## Apple warnings (verbatim, non-blocking)
+
+1. MinimumOSVersion 13.0 accepted now; **Spring 2027 requires 15.0+** —
+   new tracked item for a future release.
+2. Missing dSYM for Sentry.framework (symbol upload only; Sentry is
+   disabled and DSN-less in this build).
+
+## Worktree-local, deliberately uncommitted
+
+SPM migration (pbxproj/xcscheme/swiftpm dirs, copied from `wp-verify-210`)
+and the Info.plist encryption key. The main checkout was never touched.
+Whether to commit `ITSAppUsesNonExemptEncryption` to `develop` for future
+builds is a follow-up decision.
+
+## Status
+
+Upload accepted; **ASC processing state pending visual confirmation** in
+TestFlight (expected: Processing → ready for internal testers; no
+compliance question due to the embedded declaration). Play-side upload
+remains not performed. RC-BLK-002-FOLLOWON (Play App Signing) unchanged.
