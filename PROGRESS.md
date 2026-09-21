@@ -4804,3 +4804,36 @@ physical-device pass remains open until hardware is available.
 No clinical logic touched. CB_211 stays a separately adjudicated
 finding; internal distribution is permitted while it is pending, public
 production submission is not.
+
+---
+
+# Sentry production-readiness (PR open, unmerged; nothing enabled, no DSN exists)
+
+**Branch:** `feat/sentry-production-readiness` off develop `fef680e` ·
+**Date:** 2026-09-21
+
+Audit of PRs #65–#68 found the implementation largely complete: double
+gate (CRASH_REPORTING_ENABLED + structurally-valid DSN) + separate
+production approval; allowlist event REBUILD (not filtering); every
+privacy option explicit (PII/screenshots/view-hierarchy/tracing/
+profiling/sessions/native SDK/breadcrumbs all off); 70 existing tests.
+
+Gaps closed this branch: (1) the production block read APP_ENV only from
+dart-defines while the authoritative env is the bundled .env — now
+either source saying production engages the block, failing closed when
+dotenv is unreadable; (2) replay sample rates pinned null explicitly;
+(3) sanitiser now strips URL queries/fragments and credential headers
+(Authorization/Cookie/Set-Cookie/X-Api-Key); (4) symbol upload
+scaffolded credential-free (sentry_dart_plugin dev dep, env-var auth,
+sentry.properties gitignored, explicit invocation only); (5)
+docs/CRASH_VERIFICATION_212.md — synthetic-crash procedure with
+preconditions (Sentry org EU region, DPA, dedicated internal project,
+founder sign-off) — and docs/store/CRASH_PRIVACY_DECLARATIONS.md —
+exact-payload field inventory, complete exclusion table, draft Apple/
+Google declarations (unchanged "no data collected" until an enabled
+build ships), founder-decision sheet (region/retention/access/DPA).
+
+Verification: analyze clean · format clean · full suite **1,339 · 7
+skipped · 0 failed** (+9 gates). No DSN, credential, event, build or
+distribution was created. Builds 210/211 untouched; next binary must be
+≥212 and requires its own registry entry first.
