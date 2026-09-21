@@ -56,14 +56,24 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'on 2026-09-21 (team 2SCUC2CBBS, org.wellapath.app). The signed '
       'Android AAB sha256 818d60b1…129d4 (62,090,832 B) was built but not '
       'uploaded. The number is burned on both platforms',
+  211:
+      'internal-testing build 0.3.0+211 (PR #80, merge 9269a87, built from '
+      'clean detached worktree wp-dist-211) — iOS IPA sha256 7c39f4f8…a807d '
+      '(27,084,219 B) UPLOADED to App Store Connect / TestFlight internal '
+      'on 2026-09-21 (team 2SCUC2CBBS, org.wellapath.app). The signed '
+      'Android AAB sha256 690249ae…0688 (62,098,441 B) was built and '
+      'verified but not yet uploaded to Play. The number is burned on both '
+      'platforms',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 211 has never been distributed or uploaded: it appears in no tag, no CI
+/// 212 has never been distributed or uploaded: it appears in no tag, no CI
 /// release identifier, no rollback record and no registry entry above, and
-/// `git log --all -S'+211'` finds no prior use.
-const int kCurrentBuildNumber = 211;
+/// `git log --all -S'+212'` finds no prior use. It is reserved for the
+/// controlled internal crash-reporting verification in
+/// docs/CRASH_VERIFICATION_212.md.
+const int kCurrentBuildNumber = 212;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';

@@ -61,6 +61,8 @@ class SystemStatusScreen extends StatelessWidget {
                 style: const TextStyle(color: Colors.red),
               ),
             ],
+            const SizedBox(height: 16),
+            const _BuildRow(),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -107,5 +109,53 @@ class SystemStatusScreen extends StatelessWidget {
           labelStyle: TextStyle(color: Colors.white),
         );
     }
+  }
+}
+
+/// Build-identity row with the controlled synthetic-crash trigger for the
+/// build-212 internal verification (docs/CRASH_VERIFICATION_212.md §3).
+///
+/// Long-pressing the row five times throws
+/// `StateError('synthetic crash verification 212')` — a message designed to
+/// survive the sanitiser untouched, as proof the pipeline preserves what it
+/// is allowed to preserve. The throw happens inside a gesture callback, so it
+/// reaches `FlutterError.onError` and flows through the CrashReporter
+/// boundary exactly like a real framework error. This trigger lives only on
+/// the 212 branch and is removed before any public build.
+class _BuildRow extends StatefulWidget {
+  const _BuildRow();
+
+  @override
+  State<_BuildRow> createState() => _BuildRowState();
+}
+
+class _BuildRowState extends State<_BuildRow> {
+  static const String _version = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: 'dev',
+  );
+  static const String _build = String.fromEnvironment(
+    'APP_BUILD',
+    defaultValue: '0',
+  );
+
+  int _longPresses = 0;
+
+  void _onLongPress() {
+    _longPresses += 1;
+    if (_longPresses < 5) return;
+    _longPresses = 0;
+    throw StateError('synthetic crash verification 212');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: _onLongPress,
+      child: Text(
+        'Build $_version+$_build',
+        style: const TextStyle(color: Colors.grey, fontSize: 12),
+      ),
+    );
   }
 }
