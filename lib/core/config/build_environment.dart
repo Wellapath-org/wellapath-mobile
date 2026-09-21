@@ -11,10 +11,13 @@
 /// not start — the same crash-is-acceptable posture the boot sequence already
 /// takes for a missing `.env` (CLAUDE.md boot order, steps 1–2).
 ///
-/// No production endpoint exists anywhere in this repository (`RC-BLK-005`),
-/// and this module deliberately does not invent one: an `APP_ENV=production`
-/// build therefore always fails validation today, which is correct — shipping
-/// to production is not yet an authorized configuration.
+/// Since build 211 a production endpoint exists and is pinned here
+/// (`RC-BLK-005` closed 2026-09-21: `api.wellapath.org` verified live with
+/// the authoritative `/config` canonical hash). Both directions are
+/// allowlisted: a staging build may only use [kStagingHosts] and a
+/// production build may only use [kProductionHosts] — an unknown host fails
+/// in either environment, so a typo'd or substituted URL can never
+/// validate.
 library;
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -34,6 +37,15 @@ class BuildEnvironment {
     'wellapath-backend-staging.onrender.com',
     'pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev',
   };
+
+  /// Hosts a production build may point at. An allowlist for the same
+  /// reason [kStagingHosts] is one: a production build pointing anywhere
+  /// unrecognised — a typo, a copy-paste of a lookalike domain, or a
+  /// tampered configuration — must fail at boot, not reach the network.
+  /// (Artifact URLs are consumed from `/config` and are not env-validated
+  /// here; the R2 CDN host in [kStagingHosts] is the shared artifact
+  /// origin and appears in no production env value.)
+  static const Set<String> kProductionHosts = {'api.wellapath.org'};
 
   /// The marker shown to testers in nonclinical UI (home footer). Fixed
   /// wording — release notes and tester instructions quote it.
@@ -92,8 +104,9 @@ class BuildEnvironment {
   /// |---|---|---|
   /// | staging | staging hosts only | OK |
   /// | staging | any non-staging host | **StateError** |
+  /// | production | production hosts only | OK |
   /// | production | any staging host | **StateError** |
-  /// | production | (no production config exists) | **StateError** |
+  /// | production | any host outside [kProductionHosts] | **StateError** |
   static void validate({Map<String, String>? env}) {
     final resolved = environment(env: env);
 
@@ -125,6 +138,14 @@ class BuildEnvironment {
         throw StateError(
           'Production build points at staging: ${entry.key} is "$host". '
           'A production build must never depend on the staging backend.',
+        );
+      }
+      if (resolved == AppEnvironment.production &&
+          !kProductionHosts.contains(host)) {
+        throw StateError(
+          'Production build points at an unrecognised host: ${entry.key} '
+          'is "$host", which is not an approved production host. A '
+          'production build may only use ${kProductionHosts.join(', ')}.',
         );
       }
     }

@@ -83,14 +83,17 @@ void main() {
     });
 
     test('every key is a known non-secret configuration key', () {
+      // ARTIFACT_BASE_URL and TELEMETRY_BASE_URL were removed from the
+      // tracked .env for build 211 (artifact URLs come from /config only;
+      // telemetry falls back to API_BASE_URL). They are deliberately NOT
+      // allowed here so this gate and internal_build_config_test state one
+      // policy.
       const allowed = {
         'API_BASE_URL',
-        'ARTIFACT_BASE_URL',
         'APP_ENV',
         'ENABLE_OFFLINE_MODE',
         'API_TIMEOUT_MS',
         'TELEMETRY_ENABLED',
-        'TELEMETRY_BASE_URL',
         'TELEMETRY_PRODUCTION_APPROVED',
       };
       expect(

@@ -1,10 +1,14 @@
-/// Internal-build configuration gates.
+/// Build-environment configuration gates.
 ///
-/// This build line is internal testing against staging only. These tests pin
-/// the two directions of the cross-environment gate — an internal build must
-/// fail if it points at production, and a production build must fail if it
-/// points at staging — plus the bundled `.env` itself and the visible
-/// internal-build marker.
+/// Since build 211 the bundled `.env` is the PRODUCTION configuration
+/// (api.wellapath.org, verified 2026-09-21; RC-BLK-005 closed). These tests
+/// pin the two directions of the cross-environment gate — an internal build
+/// must fail if it points at production, and a production build must fail
+/// if it points at staging — plus the bundled `.env` itself and the
+/// internal-build marker, which production builds never show. Staging work
+/// means editing `.env` locally without committing — flutter_dotenv reads
+/// through the asset bundle, so no gitignored override file can exist, and
+/// these gates fail any commit that changes the tracked values.
 library;
 
 import 'dart:io';
@@ -67,14 +71,45 @@ void main() {
       );
     });
 
-    test('a production build fails today — no production endpoint exists', () {
-      // RC-BLK-005: no production configuration exists anywhere in the repo,
-      // and this module must not invent one. Any APP_ENV=production
-      // configuration reachable from this repository therefore fails.
+    test('a production build without an API base URL still fails', () {
+      // RC-BLK-005 closed 2026-09-21: api.wellapath.org exists and is the
+      // shipped production API. Configuration must still be explicit — a
+      // production declaration with no API_BASE_URL never falls back.
       expect(
         () => BuildEnvironment.validate(env: const {'APP_ENV': 'production'}),
         throwsA(isA<StateError>()),
       );
+    });
+
+    test('the shipped production configuration validates', () {
+      expect(
+        () => BuildEnvironment.validate(
+          env: const {
+            'APP_ENV': 'production',
+            'API_BASE_URL': 'https://api.wellapath.org',
+            'TELEMETRY_ENABLED': 'false',
+            'TELEMETRY_PRODUCTION_APPROVED': 'false',
+          },
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('a production build pointing at an unrecognised host fails — the '
+        'production direction is an allowlist, not a staging denylist', () {
+      for (final lookalike in const [
+        'https://api.wellapath.com',
+        'https://api-wellapath.org',
+        'https://api.wellapath.org.evil.example',
+      ]) {
+        expect(
+          () => BuildEnvironment.validate(
+            env: {'APP_ENV': 'production', 'API_BASE_URL': lookalike},
+          ),
+          throwsA(isA<StateError>()),
+          reason: '$lookalike must not validate in a production build',
+        );
+      }
     });
 
     test('an unknown APP_ENV fails rather than falling back', () {
@@ -95,7 +130,7 @@ void main() {
     });
   });
 
-  group('the bundled .env is the internal-staging configuration', () {
+  group('the bundled .env is the production configuration (build 211+)', () {
     late Map<String, String> bundled;
 
     setUpAll(() {
@@ -111,8 +146,26 @@ void main() {
       }
     });
 
-    test('declares APP_ENV=staging', () {
-      expect(bundled['APP_ENV'], equals('staging'));
+    test('declares APP_ENV=production with the verified production API', () {
+      expect(bundled['APP_ENV'], equals('production'));
+      expect(bundled['API_BASE_URL'], equals('https://api.wellapath.org'));
+    });
+
+    test('references no staging host and constructs no artifact URL', () {
+      for (final entry in bundled.entries) {
+        for (final stagingHost in BuildEnvironment.kStagingHosts) {
+          expect(
+            entry.value.contains(stagingHost),
+            isFalse,
+            reason:
+                '.env ${entry.key} references staging host $stagingHost — '
+                'a production build must never depend on staging',
+          );
+        }
+      }
+      // Artifact URLs come from GET /config only; an env-level base would
+      // reintroduce constructed URLs.
+      expect(bundled.containsKey('ARTIFACT_BASE_URL'), isFalse);
     });
 
     test('passes the cross-environment gate', () {

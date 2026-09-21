@@ -4621,3 +4621,132 @@ privacy-policy URL (founder) · Play App Signing enrolment at first upload
 (`RC-BLK-002-FOLLOWON`) · CB_211 adjudication before external beta
 (`RC-BLK-016`) · `RC-BLK-005`/`006` before store submission. The three
 unrelated tooling modifications remain unstaged and uncommitted.
+
+---
+
+# Build 211 — production soft-launch candidate preparation (PR open, unmerged)
+
+**Branch:** `release/0.3.0-211-soft-launch-prep` (off `develop` `103f311`)
+**Last Updated:** 2026-09-21
+
+## CURRENT STATUS: prepared and verified EXCEPT production configuration — RC-BLK-005 confirmed live (no production backend exists); nothing merged, uploaded or distributed
+
+## Baseline
+
+`develop` tip `103f311` = build-210 commit `5a1930b` + two docs-only
+PROGRESS commits — build-relevant tree identical to shipped 210. Open PRs
+reviewed and EXCLUDED: #79 (Facilities 2.0 consumer — awaiting review, CI
+green is not merge approval) and #76 (IM-003 measurement — deliberately
+excluded since the release freeze).
+
+## Changes (3 commits)
+
+1. `8875048` — SPM/Xcode + gradle migrations now COMMITTED (toolchain-
+   required; production archives must not depend on uncommitted local
+   build-file state). Supersedes the keep-uncommitted convention.
+2. `15f9785` — Apple warning remediation:
+   - **ITMS-90683:** `geolocator_apple` compiles the always-authorization
+     API in; SPM has no hook for its bypass define (verified in
+     Package.swift), so the accurate
+     `NSLocationAlwaysAndWhenInUseUsageDescription` was added — wording
+     explicitly denies background tracking. Runtime stays when-in-use
+     only, structurally: the plugin requests when-in-use whenever the
+     when-in-use key exists (if/else-if in PermissionHandler.m). New
+     release gates pin both wordings, the key that keeps the always
+     branch unreachable, no legacy always key, no UIBackgroundModes.
+     Denied permission keeps manual facility search usable
+     (locator_screen `_locationDenied` path, existing locator tests).
+   - **ITMS-90068:** deployment target 13.0 → 15.0 everywhere. Hardware
+     floor unchanged (iPhone 6s+); only devices stuck below iOS 15 drop
+     (small single-digit % of that hardware class). Removes the warning
+     ahead of Apple's Spring 2027 requirement.
+   - `ITSAppUsesNonExemptEncryption=false` now a reviewed source
+     declaration (2026-09-16 audit: SHA-256 hashing + platform TLS only).
+3. `0f069be` — version 0.3.0+211; registry records 210 as DISTRIBUTED
+   (first ASC upload, IPA `bd1f378b…9f46`).
+
+## Production configuration — BLOCKED, not substituted
+
+Probed live: `api.wellapath.org` does not resolve; `backend.wellapath.org`
+does not resolve; `wellapath-backend.onrender.com` is not a WellaPath
+service (404 on /config and /health); the CLAUDE.md CloudFront host does
+not respond. Staging control: 200, still serving
+`token_dictionary 1.1 · knowledge_base 2.4 · rules 2.2 · facilities 1.1`.
+**No production backend or artifact CDN exists.** `BuildEnvironment`
+already fails an `APP_ENV=production` build by design. The `.env` remains
+staging; flipping it (plus registering production hosts) is the single
+remaining change once production infrastructure exists, and the
+"Internal testing — staging" marker disappears automatically with it.
+
+## Verification
+
+format clean · analyze clean · full suite **1,327 · 7 skipped · 0
+failed** (1,321 baseline + 6 new iOS gates) · release gates **91** ·
+clinical case bank 239 executed, validation green · iOS archive
+validation: **ARCHIVE SUCCEEDED**, compiled app `org.wellapath.app /
+0.3.0 / 211 / MinimumOSVersion 15.0 / ITSAppUsesNonExemptEncryption
+false`, new location wording embedded, Apple-signed (2SCUC2CBBS), 0
+facilities_v2 symbols, 0 Sentry DSN · Android release validation via
+CI's unsigned-release path on the PR (local signed builds remain
+single-machine) · no physical iOS/Android device available for a
+hardware smoke test this session.
+
+## Launch blockers that remain (unchanged by this branch)
+
+RC-BLK-005 production backend/CDN (now measured, above) · RC-BLK-006
+listing assets + support email + privacy-policy URL (founder) ·
+RC-BLK-016 / CB_211 clinical adjudication (blocks external users) ·
+Play App Signing enrolment at first Play upload
+(RC-BLK-002-FOLLOWON) · iOS: TestFlight 210 processing state to
+confirm; App Store review submission explicitly out of scope.
+
+---
+
+# Build 211 — production configuration landed; RC-BLK-005 CLOSED (corrects the previous entry)
+
+**Last Updated:** 2026-09-21 (same day, after the previous entry)
+
+> **Correction:** the previous entry recorded production as BLOCKED
+> ("api.wellapath.org does not resolve") and described a 3-commit branch.
+> Both were true when written and are now superseded: DNS for
+> `api.wellapath.org` went live the same day (the earlier NXDOMAIN also
+> lingered in this machine's negative resolver cache), and the branch
+> gained the production flip plus review fixes below. This entry is the
+> authoritative record for PR #80's final state.
+
+## Production verified, then landed
+
+`api.wellapath.org` → `wellapath-backend-production.onrender.com`
+(confirmed via 1.1.1.1, 8.8.8.8 and the authoritative registrar NS).
+`/config`: 200, 1,000 B, **canonical sha256 `3b2bbb1c…8578ed` — exact
+match to the authoritative baseline**; serves `token_dictionary 1.1 ·
+knowledge_base 2.4 · rules 2.2 · facilities 1.1`, no `facilities_v2`
+key. Facilities 1.1 re-downloaded from the /config URL: **1,695,844 B,
+sha256 `25684c71…2398`** — exact handoff match. The tracked `.env` is
+now the production configuration (`APP_ENV=production`, the production
+API base, telemetry doubly false); `ARTIFACT_BASE_URL` and
+`TELEMETRY_BASE_URL` removed (artifact URLs come from /config only).
+
+## Independent review (beyond CI) and its fixes — one commit
+
+/code-review (high) over the full PR #80 diff returned 8 findings; all
+fixed: production direction of `BuildEnvironment.validate` is now a real
+**allowlist** (`kProductionHosts = {api.wellapath.org}`; lookalike-host
+negative tests added) · stale "no production endpoint exists" invariant
+docs rewritten (module header + table) · CLAUDE.md `.env` contract
+updated (production values, no ARTIFACT_BASE_URL, real staging-override
+mechanism) · the nonexistent `.env.local` route removed from docs/tests
+(staging = local uncommitted edit; asset bundle cannot ship an override
+file) · enablement-safety key allowlist reconciled with the new gate ·
+vacuous when-in-use test replaced with the real implication (always key
+⇒ when-in-use key) · RangeError-prone substring clamped · this PROGRESS
+correction. A separate review run that accidentally targeted the PR #79
+consumer produced 10 findings for THAT branch — recorded in the PR #80
+conversation for the facilities reviewer, none in this diff.
+
+## Verification (final tree)
+
+analyze clean · both formatters clean · release/telemetry/config gates
+463 · full suite **1,330 passed · 7 skipped · 0 failed** · clinical
+case bank 239 executed, green. Compiled-artifact verification and the
+signed 211 builds follow the merge and are recorded separately.

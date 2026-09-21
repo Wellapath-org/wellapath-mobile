@@ -49,15 +49,21 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'tester track, but the number was attached to distributable signed '
       'artifacts and must not be reused — especially since the application '
       'identifier changed to org.wellapath.app afterwards',
+  210:
+      'internal-testing build 0.3.0+210 (commit 5a1930b) — the first build '
+      'UPLOADED to any store console: iOS IPA sha256 bd1f378b…9f46 '
+      '(27,085,109 B) uploaded to App Store Connect / TestFlight internal '
+      'on 2026-09-21 (team 2SCUC2CBBS, org.wellapath.app). The signed '
+      'Android AAB sha256 818d60b1…129d4 (62,090,832 B) was built but not '
+      'uploaded. The number is burned on both platforms',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 210 has never been distributed or uploaded: it appears in no tag, no CI
+/// 211 has never been distributed or uploaded: it appears in no tag, no CI
 /// release identifier, no rollback record and no registry entry above, and
-/// `git log --all -S'+210'` finds no prior use. It is the first build number
-/// of the org.wellapath.app identity.
-const int kCurrentBuildNumber = 210;
+/// `git log --all -S'+211'` finds no prior use.
+const int kCurrentBuildNumber = 211;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';

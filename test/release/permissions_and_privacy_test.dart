@@ -58,6 +58,13 @@ void main() {
     });
 
     test('no other sensitive-capability purpose strings are declared', () {
+      // NSLocationAlwaysAndWhenInUseUsageDescription was deliberately moved
+      // OFF this denylist for build 211 (ITMS-90683): geolocator_apple
+      // compiles the always-authorization API in and Apple's static scan
+      // demands the key. The app still never requests always-level access —
+      // the plugin's if/else-if requests when-in-use whenever that key
+      // exists — and the declared wording explicitly denies background
+      // tracking. Pinned by test/release/ios_production_readiness_test.dart.
       for (final key in const [
         'NSCameraUsageDescription',
         'NSMicrophoneUsageDescription',
@@ -65,7 +72,6 @@ void main() {
         'NSPhotoLibraryUsageDescription',
         'NSHealthShareUsageDescription',
         'NSHealthUpdateUsageDescription',
-        'NSLocationAlwaysAndWhenInUseUsageDescription',
         'NSUserTrackingUsageDescription',
       ]) {
         expect(
