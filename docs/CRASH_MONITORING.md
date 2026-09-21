@@ -398,11 +398,19 @@ to proceed as far as the environment allows.
 | Is Dart debug information needed for useful stacks? | **No.** Without obfuscation, AOT frames retain function and library names |
 | Are native symbols needed? | **No.** Native crash handling is disabled, so no native frames are produced |
 
-**Conclusion: no `SENTRY_AUTH_TOKEN` is required for the scope of this PR.**
-Do not create one.
+**Conclusion at PR #65 time: no `SENTRY_AUTH_TOKEN` was required.**
 
-It would become necessary only if internal-beta later adopts `--obfuscate` or
-`--split-debug-info`, or if native crash handling is enabled. If that happens:
+**Updated for the 212 activation line:** the verification build DOES use
+`--obfuscate --split-debug-info` (docs/CRASH_VERIFICATION_212.md §1), so
+symbol upload becomes real. The deterministic path is now scaffolded,
+credential-free: `sentry_dart_plugin` is a dev dependency, its behaviour is
+pinned in the pubspec `sentry:` block (`upload_debug_symbols: true`, source
+maps and sources off), it runs **only** on explicit
+`dart run sentry_dart_plugin`, and `SENTRY_ORG` / `SENTRY_PROJECT` /
+`SENTRY_AUTH_TOKEN` come from the shell environment alone
+(`sentry.properties` is gitignored in every location). iOS already builds
+`dwarf-with-dsym`; Android Dart symbols come from `--split-debug-info` and
+no Gradle plugin is added. When CI takes this over:
 
 * command: `flutter packages pub run sentry_dart_plugin` (or `sentry-cli debug-files upload`)
 * minimum scope: **`org:ci`** — the scope Sentry documents for CI release and
