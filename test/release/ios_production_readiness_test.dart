@@ -52,15 +52,26 @@ void main() {
       );
     });
 
-    test('the when-in-use key is what keeps the always branch unreachable — '
-        'it must never be removed while geolocator is the location plugin', () {
+    test('the always key never appears without the when-in-use key that '
+        'keeps its branch unreachable', () {
       // geolocator_apple PermissionHandler.m: `if (WhenInUse key) request
-      // when-in-use; else if (always key) request always`. Removing the
-      // when-in-use key would silently flip requests to always-level.
-      final whenInUseIndex = infoPlist.indexOf(
+      // when-in-use; else if (always key) request always`. The always key
+      // alone would therefore flip runtime requests to always-level — the
+      // implication pinned here is the actual safety property.
+      final hasAlwaysKey = infoPlist.contains(
+        'NSLocationAlwaysAndWhenInUseUsageDescription',
+      );
+      final hasWhenInUseKey = infoPlist.contains(
         'NSLocationWhenInUseUsageDescription',
       );
-      expect(whenInUseIndex, greaterThanOrEqualTo(0));
+      expect(
+        !hasAlwaysKey || hasWhenInUseKey,
+        isTrue,
+        reason:
+            'NSLocationAlwaysAndWhenInUseUsageDescription without '
+            'NSLocationWhenInUseUsageDescription makes geolocator request '
+            'always-level authorization',
+      );
     });
 
     test('no standalone legacy always key and no background location mode', () {
@@ -83,7 +94,10 @@ void main() {
       // integrity) and platform TLS — exempt standard encryption.
       final keyIndex = infoPlist.indexOf('ITSAppUsesNonExemptEncryption');
       expect(keyIndex, greaterThanOrEqualTo(0));
-      final after = infoPlist.substring(keyIndex, keyIndex + 120);
+      final end = keyIndex + 120 > infoPlist.length
+          ? infoPlist.length
+          : keyIndex + 120;
+      final after = infoPlist.substring(keyIndex, end);
       expect(after, contains('<false/>'));
     });
   });

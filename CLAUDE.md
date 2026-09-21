@@ -183,20 +183,29 @@ space-free snake_case so they bundle cleanly on all platforms:
 
 ## ENVIRONMENT VARIABLES (.env)
 
+Since build 211 the committed `.env` is the **production** configuration
+(RC-BLK-005 closed 2026-09-21):
+
 ```
-API_BASE_URL=https://wellapath-backend-staging.onrender.com
-ARTIFACT_BASE_URL=https://pub-8bc2ba0d7e7647799d89662d70f23c45.r2.dev
-APP_ENV=staging
+API_BASE_URL=https://api.wellapath.org
+APP_ENV=production
 ENABLE_OFFLINE_MODE=true
 API_TIMEOUT_MS=10000
+TELEMETRY_ENABLED=false
+TELEMETRY_PRODUCTION_APPROVED=false
 ```
 
-> **NOTE — .env is committed with PLACEHOLDER values only.**
+> **NOTE — .env is committed with NON-SECRET values only.**
 > `flutter_dotenv` loads `.env` through the Flutter asset bundle (declared in
-> `pubspec.yaml`), so the file must exist in the repo for CI builds to pass.
-> The committed `.env` contains only non-secret staging config (public URLs and
-> flags) — never real secrets or credentials. Developers override values locally
-> in `.env.local` (gitignored). This is the documented exception to principle #10.
+> `pubspec.yaml`), so the file must exist in the repo for CI builds to pass —
+> never with secrets or credentials. This is the documented exception to
+> principle #10. `ARTIFACT_BASE_URL` was removed for build 211: artifact URLs
+> are consumed from `GET /config`, never constructed from an env base.
+> **Staging work:** there is no `.env.local` mechanism (the asset bundle can
+> only ship the tracked file) — edit `.env` locally (`APP_ENV=staging` + the
+> staging Render host) and do not commit; the release gates in
+> `test/release/internal_build_config_test.dart` fail any commit whose
+> tracked `.env` differs from the production configuration.
 
 ---
 

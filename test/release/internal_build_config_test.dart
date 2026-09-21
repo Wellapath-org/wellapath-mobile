@@ -6,7 +6,9 @@
 /// must fail if it points at production, and a production build must fail
 /// if it points at staging — plus the bundled `.env` itself and the
 /// internal-build marker, which production builds never show. Staging work
-/// uses `.env.local` overrides, never edits to the tracked file.
+/// means editing `.env` locally without committing — flutter_dotenv reads
+/// through the asset bundle, so no gitignored override file can exist, and
+/// these gates fail any commit that changes the tracked values.
 library;
 
 import 'dart:io';
@@ -91,6 +93,23 @@ void main() {
         ),
         returnsNormally,
       );
+    });
+
+    test('a production build pointing at an unrecognised host fails — the '
+        'production direction is an allowlist, not a staging denylist', () {
+      for (final lookalike in const [
+        'https://api.wellapath.com',
+        'https://api-wellapath.org',
+        'https://api.wellapath.org.evil.example',
+      ]) {
+        expect(
+          () => BuildEnvironment.validate(
+            env: {'APP_ENV': 'production', 'API_BASE_URL': lookalike},
+          ),
+          throwsA(isA<StateError>()),
+          reason: '$lookalike must not validate in a production build',
+        );
+      }
     });
 
     test('an unknown APP_ENV fails rather than falling back', () {

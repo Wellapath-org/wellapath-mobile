@@ -4699,3 +4699,54 @@ RC-BLK-016 / CB_211 clinical adjudication (blocks external users) ·
 Play App Signing enrolment at first Play upload
 (RC-BLK-002-FOLLOWON) · iOS: TestFlight 210 processing state to
 confirm; App Store review submission explicitly out of scope.
+
+---
+
+# Build 211 — production configuration landed; RC-BLK-005 CLOSED (corrects the previous entry)
+
+**Last Updated:** 2026-09-21 (same day, after the previous entry)
+
+> **Correction:** the previous entry recorded production as BLOCKED
+> ("api.wellapath.org does not resolve") and described a 3-commit branch.
+> Both were true when written and are now superseded: DNS for
+> `api.wellapath.org` went live the same day (the earlier NXDOMAIN also
+> lingered in this machine's negative resolver cache), and the branch
+> gained the production flip plus review fixes below. This entry is the
+> authoritative record for PR #80's final state.
+
+## Production verified, then landed
+
+`api.wellapath.org` → `wellapath-backend-production.onrender.com`
+(confirmed via 1.1.1.1, 8.8.8.8 and the authoritative registrar NS).
+`/config`: 200, 1,000 B, **canonical sha256 `3b2bbb1c…8578ed` — exact
+match to the authoritative baseline**; serves `token_dictionary 1.1 ·
+knowledge_base 2.4 · rules 2.2 · facilities 1.1`, no `facilities_v2`
+key. Facilities 1.1 re-downloaded from the /config URL: **1,695,844 B,
+sha256 `25684c71…2398`** — exact handoff match. The tracked `.env` is
+now the production configuration (`APP_ENV=production`, the production
+API base, telemetry doubly false); `ARTIFACT_BASE_URL` and
+`TELEMETRY_BASE_URL` removed (artifact URLs come from /config only).
+
+## Independent review (beyond CI) and its fixes — one commit
+
+/code-review (high) over the full PR #80 diff returned 8 findings; all
+fixed: production direction of `BuildEnvironment.validate` is now a real
+**allowlist** (`kProductionHosts = {api.wellapath.org}`; lookalike-host
+negative tests added) · stale "no production endpoint exists" invariant
+docs rewritten (module header + table) · CLAUDE.md `.env` contract
+updated (production values, no ARTIFACT_BASE_URL, real staging-override
+mechanism) · the nonexistent `.env.local` route removed from docs/tests
+(staging = local uncommitted edit; asset bundle cannot ship an override
+file) · enablement-safety key allowlist reconciled with the new gate ·
+vacuous when-in-use test replaced with the real implication (always key
+⇒ when-in-use key) · RangeError-prone substring clamped · this PROGRESS
+correction. A separate review run that accidentally targeted the PR #79
+consumer produced 10 findings for THAT branch — recorded in the PR #80
+conversation for the facilities reviewer, none in this diff.
+
+## Verification (final tree)
+
+analyze clean · both formatters clean · release/telemetry/config gates
+463 · full suite **1,330 passed · 7 skipped · 0 failed** · clinical
+case bank 239 executed, green. Compiled-artifact verification and the
+signed 211 builds follow the merge and are recorded separately.
