@@ -4750,3 +4750,57 @@ analyze clean · both formatters clean · release/telemetry/config gates
 463 · full suite **1,330 passed · 7 skipped · 0 failed** · clinical
 case bank 239 executed, green. Compiled-artifact verification and the
 signed 211 builds follow the merge and are recorded separately.
+
+---
+
+# Build 211 DISTRIBUTED to internal testing (iOS uploaded; Android AAB ready for first Play upload)
+
+**Date:** 2026-09-21 · **Merge commit:** `9269a87` (PR #80 → develop,
+parents 103f311 + 9145d13) · **Built from:** clean detached worktree
+`wp-dist-211` at exactly `9269a87`, zero local mutations (migrations are
+now committed — first fully deterministic build tree).
+
+## Artifacts (identical source + production config, verified compiled)
+
+| | |
+|---|---|
+| Android AAB | `wp-dist-211/build/app/outputs/bundle/release/app-release.aab` — **62,098,441 B**, sha256 `690249ae883c2bb4a3c39613054e308276fa70f10b3caa0a4531a760a0ba0688`, versionCode 211, `jar verified.`, Wellapath upload key (CN=John Oluwaseyi) |
+| iOS IPA | `wp-dist-211/build/ios/ipa/WellaPath.ipa` — **27,084,219 B**, sha256 `7c39f4f862ea7f7ba95c4aed0108cc92afe6365bf103f0d6990c0fef913a807d`, Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS), App Store profile, min iOS 15.0 |
+| iOS xcarchive | tar sha256 `7578d1e5…6120c` (~183.7 MB) |
+
+Both bundles embed the identical production `.env` (api.wellapath.org,
+telemetry doubly false); binaries: 0 facilities_v2 symbols, 0 Sentry
+DSN, 7 iOS privacy manifests, minimal entitlements.
+
+## Distribution status
+
+- **TestFlight internal: UPLOADED — "Upload succeeded"** (2026-09-21,
+  authenticated Xcode flow). No MinimumOSVersion warning this time —
+  ITMS-90068 fix confirmed by Apple's pipeline; only the moot
+  Sentry-dSYM symbol warning. Processing state to be confirmed in ASC.
+- **Play internal track: NOT yet uploaded** — no Play API credentials
+  exist on this machine and the FIRST upload carries the Play App
+  Signing enrolment decision (RC-BLK-002-FOLLOWON), which is a console
+  choice. AAB is verified and ready; upload is a guided console step.
+- Build 210 remains live on TestFlight (not expired/replaced); its IPA
+  preserved locally (`wp-ios-210/WellaPath-210.ipa`, hash re-verified).
+- Nothing submitted for public review anywhere; no external testers.
+
+## Production smoke test (iPhone 17 Pro simulator — no physical device attached)
+
+Fresh install, production config end-to-end: boot passed the
+environment gate; onboarding rendered (CDSS-safe copy); home screen
+shows **no "Internal testing — staging" marker** (clinical disclaimer
+footer only) with all three flows (symptom check / find a clinic / 112);
+Hive `config_cache` contains the production /config payload (facilities
+1.1 artifact URL — provable only via api.wellapath.org); network log
+shows **api.wellapath.org as the sole WellaPath host contacted** — no
+staging, no sentry, no telemetry. Deep flows (assessment, red-flag,
+locator allow/deny, offline) are covered by the 1,330-test suite;
+physical-device pass remains open until hardware is available.
+
+## CB_211 boundary (unchanged)
+
+No clinical logic touched. CB_211 stays a separately adjudicated
+finding; internal distribution is permitted while it is pending, public
+production submission is not.
