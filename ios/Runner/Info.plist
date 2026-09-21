@@ -24,8 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>WellaPath does not track your location in the background and never requests always-on access. Location is used only while you are using the app, to show nearby health facilities, and it never leaves your device.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>WellaPath uses your location to show nearby health facilities. Your location never leaves your device.</string>
 	<key>UIApplicationSceneManifest</key>
