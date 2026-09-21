@@ -1,0 +1,110 @@
+{
+  "_fixture_note": "SYNTHETIC TEST-ONLY DATA. Every facility name, id and coordinate in this file is invented for parser/search tests. This file is NOT derived from, sampled from, or representative of candidate facilities.ng.v2.0.json or any real facility record, which remains candidate_unapproved / may_publish:false and is not present in this repository.",
+  "schema_version": "2.0",
+  "generated_by": "wellapath-mobile test fixture (synthetic)",
+  "facilities": [
+    {
+      "id": "SYN-001",
+      "name": "ZZTest Alpha General Hospital (synthetic)",
+      "type": "hospital",
+      "emergency_capable": true,
+      "state": "Lagos",
+      "lga": "Testville LGA",
+      "city_area": "Alpha Quarter",
+      "latitude": 6.51,
+      "longitude": 3.37,
+      "phone": "+234000000001",
+      "opening_hours": "24/7",
+      "source_provenance": {"dataset": "synthetic", "batch": "t1"},
+      "coordinate_audit": {"method": "invented", "confidence": "n/a"}
+    },
+    {
+      "id": "SYN-002",
+      "name": "ZZTest Beta Clinic (synthetic)",
+      "type": "clinic",
+      "emergency_capable": false,
+      "state": "Lagos",
+      "lga": "Testville LGA",
+      "city_area": "Beta Gardens",
+      "latitude": 6.52,
+      "longitude": 3.38,
+      "phone": null,
+      "opening_hours": "08:00-18:00"
+    },
+    {
+      "id": "SYN-003",
+      "name": "ZZTest Gamma Health Post (synthetic)",
+      "type": null,
+      "emergency_capable": null,
+      "state": "Kano",
+      "lga": "Sampletown LGA",
+      "city_area": "Gamma Ward",
+      "latitude": 12.01,
+      "longitude": 8.52
+    },
+    {
+      "id": "SYN-004",
+      "name": "ZZTest Delta Pharmacy (synthetic)",
+      "type": "pharmacy",
+      "emergency_capable": null,
+      "state": "FCT",
+      "lga": "Mockville LGA",
+      "city_area": "Delta Close",
+      "latitude": 9.06,
+      "longitude": 7.49,
+      "opening_hours": null
+    },
+    {
+      "id": "SYN-005",
+      "name": "ZZTest Epsilon Mobile Unit (synthetic)",
+      "type": "telehealth_pod_future_value",
+      "emergency_capable": null,
+      "state": "Lagos",
+      "lga": "Testville LGA",
+      "city_area": "Epsilon Estate",
+      "latitude": 6.53,
+      "longitude": 3.39,
+      "future_field_apparatus": {"unknown": true}
+    },
+    {
+      "id": "SYN-006",
+      "name": "ZZTest Zeta Hospital Pharmacy Corner (synthetic, type deliberately null despite name)",
+      "type": null,
+      "emergency_capable": null,
+      "state": "Kano",
+      "lga": "Sampletown LGA",
+      "city_area": "Zeta Row",
+      "latitude": 12.02,
+      "longitude": 8.53
+    },
+    {
+      "id": "SYN-BAD-1",
+      "name": "ZZTest Malformed — coordinates missing (synthetic)",
+      "type": "clinic",
+      "state": "Lagos"
+    },
+    {
+      "id": "SYN-BAD-2",
+      "name": "ZZTest Malformed — latitude is a string (synthetic)",
+      "type": "clinic",
+      "latitude": "6.5",
+      "longitude": 3.4,
+      "state": "Lagos"
+    },
+    {
+      "id": "SYN-BAD-3",
+      "name": "ZZTest Malformed — latitude out of range (synthetic)",
+      "type": "clinic",
+      "latitude": 96.5,
+      "longitude": 3.4,
+      "state": "Lagos"
+    },
+    {
+      "id": "",
+      "name": "ZZTest Malformed — empty id (synthetic)",
+      "latitude": 6.5,
+      "longitude": 3.4
+    },
+    "not-a-record-at-all"
+  ]
+}
