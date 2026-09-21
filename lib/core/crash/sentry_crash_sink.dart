@@ -183,6 +183,11 @@ abstract final class CrashMonitoring {
     options.enableUserInteractionBreadcrumbs = false;
 
     // ── Attachments and captures of screen content ────────────────────────
+    // Session replay records the screen. Its sample rates default to off,
+    // but per this file's doctrine defaults are not trusted: both rates are
+    // pinned to null so no SDK upgrade can begin recording.
+    options.replay.sessionSampleRate = null;
+    options.replay.onErrorSampleRate = null;
     options.attachScreenshot = false;
     // Marked experimental by the SDK. Leaving it unset would rely on a
     // default we do not control, for a capability that uploads the widget

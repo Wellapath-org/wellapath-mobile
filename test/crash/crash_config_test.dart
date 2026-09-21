@@ -71,9 +71,13 @@ void main() {
       );
     });
 
-    test('both together enable collection', () {
+    test('both together enable collection (staging bundle)', () {
+      // `bundledIsProduction: false` models an internal build whose bundled
+      // .env says staging. Without it the resolver fails closed to the
+      // production block — covered in sentry_production_readiness_test.dart.
       final config = CrashConfig.fromEnvironment(
         defines: defines(enabled: 'true', dsn: validDsn),
+        bundledIsProduction: false,
       );
       expect(config.enabled, isTrue);
       expect(config.dsn, validDsn);
@@ -105,6 +109,7 @@ void main() {
         expect(
           CrashConfig.fromEnvironment(
             defines: defines(enabled: value, dsn: validDsn),
+            bundledIsProduction: false,
           ).enabled,
           isTrue,
         );
@@ -193,6 +198,7 @@ void main() {
           version: '0.2.0',
           build: '208',
         ),
+        bundledIsProduction: false,
       );
       expect(config.release, 'wellapath-mobile@0.2.0+208');
     });
@@ -218,6 +224,7 @@ void main() {
     test('diagnostics report configuration without the DSN', () {
       final config = CrashConfig.fromEnvironment(
         defines: defines(enabled: 'true', dsn: validDsn),
+        bundledIsProduction: false,
       );
       final diagnostics = config.toDiagnostics().toString();
       expect(diagnostics, isNot(contains('abc123def456')));

@@ -116,6 +116,23 @@ abstract final class CrashSanitiser {
   /// Quoted string literals, which is how most Dart errors embed a value.
   static final RegExp _quoted = RegExp(r'''(['"])(?:(?!\1).){2,}\1''');
 
+  /// A URL's query string or fragment. `DioException` messages embed the
+  /// request URL, and a query string is exactly where a facility search, a
+  /// coordinate pair or a token would ride (`?q=fever&lat=6.5`). The scheme,
+  /// host and path survive — they are what makes a network error debuggable —
+  /// and everything after `?` or `#` is replaced.
+  static final RegExp _urlQuery = RegExp(r'(https?://[^\s?#]+)[?#][^\s]*');
+
+  /// HTTP credential headers written into a message
+  /// (`Authorization: Bearer eyJ…`, `Cookie: session=…`, `Set-Cookie: …`,
+  /// `X-Api-Key: …`). The header name survives; the value is replaced, even
+  /// when it is short enough to slip past the opaque-token rule.
+  static final RegExp _credentialHeader = RegExp(
+    r'\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key)\b'
+    r'\s*[:=]\s*[^\s,;]+(?:\s+[^\s,;]+)?',
+    caseSensitive: false,
+  );
+
   /// Coordinate pairs and high-precision decimals.
   static final RegExp _coordinates = RegExp(
     r'-?\d{1,3}\.\d{4,}\s*[,;]\s*-?\d{1,3}\.\d{4,}|-?\d{1,3}\.\d{6,}',
@@ -179,6 +196,10 @@ abstract final class CrashSanitiser {
 
   static String sanitise(Object? error) {
     var text = error?.toString() ?? '';
+    // URL queries and credential headers first, while their surrounding
+    // structure is still intact for the patterns to anchor on.
+    text = text.replaceAllMapped(_urlQuery, (m) => '${m.group(1)}$redacted');
+    text = text.replaceAll(_credentialHeader, redacted);
     text = text.replaceAll(_quoted, redacted);
     text = text.replaceAll(_coordinates, redacted);
     text = text.replaceAll(_email, redacted);

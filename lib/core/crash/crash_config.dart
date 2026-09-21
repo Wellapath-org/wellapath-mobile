@@ -22,6 +22,8 @@
 /// **The DSN is never hard-coded, never committed and never logged.**
 library;
 
+import '../config/build_environment.dart';
+
 /// Where crash reports may be sent, and whether they may be sent at all.
 class CrashConfig {
   const CrashConfig({
@@ -98,8 +100,12 @@ class CrashConfig {
   /// | `CRASH_REPORTING_PRODUCTION_APPROVED` | The only key that can lift the production block |
   /// | `APP_VERSION` / `APP_BUILD`           | Release identity                               |
   ///
-  /// [defines] is injectable so the gate logic is testable without rebuilding.
-  factory CrashConfig.fromEnvironment({Map<String, String>? defines}) {
+  /// [defines] is injectable so the gate logic is testable without
+  /// rebuilding; [bundledIsProduction] injects the dotenv reading for tests.
+  factory CrashConfig.fromEnvironment({
+    Map<String, String>? defines,
+    bool? bundledIsProduction,
+  }) {
     final source = defines ?? _dartDefines;
 
     String read(String key) => (source[key] ?? '').trim();
@@ -113,8 +119,16 @@ class CrashConfig {
     // Production and public beta stay off until separately approved, by the
     // same two-key rule telemetry uses. One flag flipped by accident cannot
     // start collecting from the public.
+    //
+    // The app's authoritative environment is the bundled `.env` read by
+    // BuildEnvironment — and since build 211 that file declares production.
+    // A define-only check would therefore miss the common case: a build with
+    // the two crash defines set and no `APP_ENV` define at all IS a
+    // production build. Either source saying "production" engages the block.
     final appEnv = read('APP_ENV').toLowerCase();
-    final isProduction = appEnv == 'production' || appEnv == 'prod';
+    final defineIsProduction = appEnv == 'production' || appEnv == 'prod';
+    final isProduction =
+        defineIsProduction || (bundledIsProduction ?? _bundledIsProduction());
     if (isProduction &&
         read('CRASH_REPORTING_PRODUCTION_APPROVED').toLowerCase() != 'true') {
       return disabled;
@@ -127,10 +141,25 @@ class CrashConfig {
       enabled: true,
       dsn: dsn,
       // Anything that is not production and has cleared both gates is an
-      // approved internal build.
-      environment: appEnv.isEmpty ? 'internal-beta' : appEnv,
+      // approved internal build. A production build that cleared the
+      // approval gate must be labelled as production even when the define
+      // was omitted and only the bundled .env said so.
+      environment: appEnv.isNotEmpty
+          ? appEnv
+          : (isProduction ? 'production' : 'internal-beta'),
       release: 'wellapath-mobile@$version+$build',
     );
+  }
+
+  /// Whether the bundled `.env` declares production. Fails CLOSED: if dotenv
+  /// is unavailable or the value is unrecognised, the answer is `true`, so an
+  /// ambiguous environment gets the production block, never a pass.
+  static bool _bundledIsProduction() {
+    try {
+      return BuildEnvironment.environment() == AppEnvironment.production;
+    } on Object {
+      return true;
+    }
   }
 
   /// Compile-time defines. Each must be spelled out because

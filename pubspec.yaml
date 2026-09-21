@@ -77,6 +77,10 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Uploads dSYMs / obfuscation symbols to Sentry on explicit invocation only
+  # (`dart run sentry_dart_plugin`); it hooks nothing into ordinary builds.
+  sentry_dart_plugin: ^3.4.0
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -123,3 +127,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Symbol upload for crash symbolication (sentry_dart_plugin).
+#
+# Deliberately credential-free: SENTRY_AUTH_TOKEN, SENTRY_ORG and
+# SENTRY_PROJECT are read from the shell environment at upload time and are
+# never committed (sentry.properties is gitignored). The upload command and
+# the deterministic build flags it pairs with are documented in
+# docs/CRASH_MONITORING.md §symbol-upload; nothing here runs automatically
+# during an ordinary `flutter build`.
+sentry:
+  upload_debug_symbols: true
+  upload_source_maps: false
+  upload_sources: false
+  log_level: warn
+  commits: false
+  ignore_missing: true
