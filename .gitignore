@@ -60,3 +60,9 @@ app.*.map.json
 android/key.properties
 *.keystore
 *.jks
+
+# Sentry symbol-upload credentials: auth token, org and project live ONLY in
+# the shell environment or an untracked sentry.properties. Never committed.
+sentry.properties
+android/sentry.properties
+ios/sentry.properties

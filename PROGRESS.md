@@ -4804,3 +4804,83 @@ physical-device pass remains open until hardware is available.
 No clinical logic touched. CB_211 stays a separately adjudicated
 finding; internal distribution is permitted while it is pending, public
 production submission is not.
+
+---
+
+# Sentry production-readiness (PR open, unmerged; nothing enabled, no DSN exists)
+
+**Branch:** `feat/sentry-production-readiness` off develop `fef680e` ·
+**Date:** 2026-09-21
+
+Audit of PRs #65–#68 found the implementation largely complete: double
+gate (CRASH_REPORTING_ENABLED + structurally-valid DSN) + separate
+production approval; allowlist event REBUILD (not filtering); every
+privacy option explicit (PII/screenshots/view-hierarchy/tracing/
+profiling/sessions/native SDK/breadcrumbs all off); 70 existing tests.
+
+Gaps closed this branch: (1) the production block read APP_ENV only from
+dart-defines while the authoritative env is the bundled .env — now
+either source saying production engages the block, failing closed when
+dotenv is unreadable; (2) replay sample rates pinned null explicitly;
+(3) sanitiser now strips URL queries/fragments and credential headers
+(Authorization/Cookie/Set-Cookie/X-Api-Key); (4) symbol upload
+scaffolded credential-free (sentry_dart_plugin dev dep, env-var auth,
+sentry.properties gitignored, explicit invocation only); (5)
+docs/CRASH_VERIFICATION_212.md — synthetic-crash procedure with
+preconditions (Sentry org EU region, DPA, dedicated internal project,
+founder sign-off) — and docs/store/CRASH_PRIVACY_DECLARATIONS.md —
+exact-payload field inventory, complete exclusion table, draft Apple/
+Google declarations (unchanged "no data collected" until an enabled
+build ships), founder-decision sheet (region/retention/access/DPA).
+
+Verification: analyze clean · format clean · full suite **1,339 · 7
+skipped · 0 failed** (+9 gates). No DSN, credential, event, build or
+distribution was created. Builds 210/211 untouched; next binary must be
+≥212 and requires its own registry entry first.
+
+---
+
+# PR #81 independent review — 8 findings fixed, project model corrected; PR remains open
+
+**Date:** 2026-09-21 · **Reviewed head before fixes:** `a542511`
+
+Independent release-blocking review (multi-agent /code-review high over
+the full diff + a separate adversarial scrubber corpus). Findings, all
+fixed in one commit: chained cookie/credential values after `;`/`,`
+survived the header scrub · a stale `APP_ENV` define could mislabel
+production events (label now derives from a closed-vocabulary
+`CRASH_REPORTING_CONTEXT` define or the production state, never from
+APP_ENV) · relative-URL query strings and 2-decimal coordinate pairs
+survived (new `_queryParam` + widened pair rule; camelCase clinical
+stems and short credential assignments also closed) · the URL scrub
+could eat a closing quote and defeat quote-pairing (quotes now end every
+scrub run) · three config tests had become vacuous under the fail-closed
+bundled default (de-vacuated with explicit `bundledIsProduction: false`)
+· credential-header allowlist widened (x-auth-token, api-key,
+x-access-token, x-csrf-token, x-session-id, …) · dead
+`ignore_missing` pubspec key dropped · the 212 procedure no longer
+builds from a dirty tracked `.env` (approval-key path +
+`internal-testing` label instead — a forgotten local edit can no longer
+produce a silently-dark build).
+
+**Founder confirmations recorded:** DPA signed effective 2026-09-21
+(WELLAPATH TECHNOLOGIES LIMITED, PDF sha256 `74abf15f…37a5a`) · EU
+region (live) · 30-day retention · owner-only access · diagnostics-only.
+**Project model corrected after live-org inspection:** reuse existing
+`wellapath-mobile` project (0.2.0(208) history preserved), isolate via
+new client key `internal-212` + release `wellapath-mobile@0.3.0+212` +
+environment `internal-testing`; legacy key retained until the test
+succeeds. Live protections confirmed (EU ingest, scrubbers on, IP
+storage prevented, minidumps off); `business-email` Safe-Field removal
+in progress — verification by screenshot is a 212 precondition.
+**Design point recorded:** native iOS/Android crashes are intentionally
+invisible to Sentry for the initial test (native SDK off — envelopes
+would bypass beforeSend); they remain observable via App Store Connect
+crash reports and Play Console Android vitals.
+
+Verification after fixes: analyze clean · format clean · full suite
+**1,344 · 7 skipped · 0 failed** (+4 label tests, +8 adversarial corpus
+cases). Build 211 artifacts re-verified untouched (AAB `690249ae…`, IPA
+`7c39f4f8…`). No DSN, credential, event, build 212 or store-declaration
+change was created. **Verdict: mergeable once the founder confirms the
+Safe-Fields removal; left OPEN for that confirmation.**
