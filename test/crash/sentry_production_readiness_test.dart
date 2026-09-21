@@ -66,6 +66,65 @@ void main() {
     });
   });
 
+  group(
+    'the environment label cannot be spoofed by a stale APP_ENV define',
+    () {
+      test(
+        'bundled production + approval + APP_ENV=staging → still production',
+        () {
+          // A leftover CI define must not tag production data as staging.
+          final config = CrashConfig.fromEnvironment(
+            defines: {
+              ...bothGates(),
+              'CRASH_REPORTING_PRODUCTION_APPROVED': 'true',
+              'APP_ENV': 'staging',
+            },
+            bundledIsProduction: true,
+          );
+          expect(config.enabled, isTrue);
+          expect(config.environment, 'production');
+        },
+      );
+
+      test('CRASH_REPORTING_CONTEXT=internal-testing labels the 212 test', () {
+        final config = CrashConfig.fromEnvironment(
+          defines: {
+            ...bothGates(),
+            'CRASH_REPORTING_PRODUCTION_APPROVED': 'true',
+            'CRASH_REPORTING_CONTEXT': 'internal-testing',
+          },
+          bundledIsProduction: true,
+        );
+        expect(config.enabled, isTrue);
+        expect(config.environment, 'internal-testing');
+      });
+
+      test('an unknown context value falls back to the derived label', () {
+        final config = CrashConfig.fromEnvironment(
+          defines: {
+            ...bothGates(),
+            'CRASH_REPORTING_PRODUCTION_APPROVED': 'true',
+            'CRASH_REPORTING_CONTEXT': 'my-custom-env',
+          },
+          bundledIsProduction: true,
+        );
+        expect(config.environment, 'production');
+      });
+
+      test('the context define never affects the gates themselves', () {
+        final config = CrashConfig.fromEnvironment(
+          defines: {
+            ...bothGates(),
+            'CRASH_REPORTING_CONTEXT': 'internal-testing',
+          },
+          bundledIsProduction: true,
+        );
+        // No approval key: still blocked, whatever the label says.
+        expect(config.enabled, isFalse);
+      });
+    },
+  );
+
   group('session replay is explicitly off', () {
     test('both replay sample rates are pinned to null', () {
       // applyPrivacyOptions is asserted directly — CrashMonitoring.init is
@@ -120,6 +179,54 @@ void main() {
         expect(out, isNot(contains('sid=xyz')), reason: message);
         expect(out, isNot(contains('k-12345678')), reason: message);
       }
+    });
+
+    test('adversarial corpus from the PR #81 review never survives', () {
+      final cases = <String, List<String>>{
+        'NoSuchMethodError: severeHeadache on null': ['severeHeadache'],
+        'failed at 6.52, 3.37 near user': ['6.52', '3.37'],
+        'GET /facilities?q=malaria&lat=6.52 timed out': [
+          'q=malaria',
+          'lat=6.52',
+          '6.52',
+        ],
+        'state feverScore=high chestPain=true': ['feverScore', 'chestPain'],
+        'patient reported chest pain since Tuesday': ['chest', 'pain'],
+        'token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig rejected': [
+          'eyJhbGciOiJIUzI1NiJ9',
+        ],
+        'call 0801 234 5678 failed': ['0801 234 5678'],
+        'X-Auth-Token: tok_live_1234 refused': ['tok_live_1234'],
+        // Second cookie in a chained header (PR #81 review finding).
+        'Cookie: locale=en; sid=tok9xyz1 expired': ['sid=tok9xyz1', 'tok9xyz1'],
+        'Authorization: Bearer abc123x, Basic dXNlcg== retry': [
+          'abc123x',
+          'dXNlcg',
+        ],
+        // Short credential assignment outside any header context.
+        'refresh failed sid=tok9xyz1 retrying': ['tok9xyz1'],
+        // Header name outside the curated list, short non-snake value.
+        'X-Auth-Token: k9f3a2b1 rejected': ['k9f3a2b1'],
+        // Relative redirect path with encoded free text and 4-decimal coords.
+        'Redirect location: /search?q=chest+pain&lat=6.5244&lng=3.3792': [
+          'chest+pain',
+          '6.5244',
+          '3.3792',
+        ],
+        // Quote-eating interaction: the URL scrub must not consume the
+        // closing quote and re-pair later quotes past the free text.
+        "Invalid response for 'https://api.wellapath.org/cfg?t=1' with body "
+            "'severe pain in chest'": [
+          'severe pain',
+          'chest',
+        ],
+      };
+      cases.forEach((input, needles) {
+        final out = CrashSanitiser.sanitise(Exception(input));
+        for (final needle in needles) {
+          expect(out, isNot(contains(needle)), reason: 'in: $input');
+        }
+      });
     });
 
     test(

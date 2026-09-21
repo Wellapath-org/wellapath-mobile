@@ -142,4 +142,3 @@ sentry:
   upload_sources: false
   log_level: warn
   commits: false
-  ignore_missing: true

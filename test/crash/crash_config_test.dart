@@ -154,9 +154,14 @@ void main() {
   group('production stays disabled', () {
     for (final env in ['production', 'PRODUCTION', 'prod', ' Prod ']) {
       test('APP_ENV="$env" blocks collection even with both gates', () {
+        // bundledIsProduction: false so this exercises the DEFINE path
+        // specifically — with the fail-closed bundled default the assertion
+        // would pass vacuously whether or not the define check works
+        // (PR #81 review).
         expect(
           CrashConfig.fromEnvironment(
             defines: defines(enabled: 'true', dsn: validDsn, appEnv: env),
+            bundledIsProduction: false,
           ).enabled,
           isFalse,
         );
@@ -204,8 +209,12 @@ void main() {
     });
 
     test('release contains no user, device or session identifier', () {
+      // bundledIsProduction: false keeps this non-vacuous: without it the
+      // config fails closed to disabled and every assertion runs against an
+      // empty release string (PR #81 review).
       final config = CrashConfig.fromEnvironment(
         defines: defines(enabled: 'true', dsn: validDsn),
+        bundledIsProduction: false,
       );
       for (final forbidden in [
         'user',

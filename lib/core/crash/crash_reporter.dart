@@ -120,22 +120,53 @@ abstract final class CrashSanitiser {
   /// request URL, and a query string is exactly where a facility search, a
   /// coordinate pair or a token would ride (`?q=fever&lat=6.5`). The scheme,
   /// host and path survive — they are what makes a network error debuggable —
-  /// and everything after `?` or `#` is replaced.
-  static final RegExp _urlQuery = RegExp(r'(https?://[^\s?#]+)[?#][^\s]*');
+  /// and everything after `?` or `#` is replaced. Quotes end the run: eating
+  /// a closing quote would leave its partner orphaned and re-pair every
+  /// later quote, defeating the `_quoted` rule downstream (PR #81 review).
+  static final RegExp _urlQuery = RegExp(
+    r'''(https?://[^\s?#'"]+)[?#][^\s'"]*''',
+  );
 
   /// HTTP credential headers written into a message
-  /// (`Authorization: Bearer eyJ…`, `Cookie: session=…`, `Set-Cookie: …`,
-  /// `X-Api-Key: …`). The header name survives; the value is replaced, even
-  /// when it is short enough to slip past the opaque-token rule.
+  /// (`Authorization: Bearer eyJ…`, `Cookie: a=b; sid=…`, `Set-Cookie: …`,
+  /// `X-Api-Key: …`). The header name survives; the value is replaced —
+  /// including every `;`/`,`-chained continuation, so the second cookie in a
+  /// header is as dead as the first (PR #81 review), and quotes end the run
+  /// for the same pairing reason as `_urlQuery`.
   static final RegExp _credentialHeader = RegExp(
-    r'\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key)\b'
-    r'\s*[:=]\s*[^\s,;]+(?:\s+[^\s,;]+)?',
+    r'\b(authorization|proxy-authorization|cookie|set-cookie|x-api-key|'
+    r'x-auth-token|api-key|x-access-token|x-csrf-token|x-session-id|'
+    r'x-api-token|x-refresh-token)\b'
+    r'''\s*[:=]\s*[^\s,;'"]+(?:\s+[^\s,;'"]+)?'''
+    r'''(?:\s*[;,]\s*[^\s,;'"]+(?:[=\s][^\s,;'"]+)?)*''',
     caseSensitive: false,
   );
 
-  /// Coordinate pairs and high-precision decimals.
+  /// A bare credential-shaped assignment (`sid=…`, `token=…`, `apikey=…`)
+  /// outside any header or query context. Short session tokens slip the
+  /// 16-char opaque-token floor; the key name is the tell.
+  static final RegExp _credentialAssignment = RegExp(
+    r'\b(?:sid|sess(?:ion)?\w*|tok(?:en)?\w*|auth\w*|api[_-]?key\w*|'
+    r'secret\w*|csrf\w*|xsrf\w*|passw\w*|access[_-]?key\w*)'
+    r'\s*=\s*[^\s;,&]+',
+    caseSensitive: false,
+  );
+
+  /// Coordinate pairs and high-precision decimals. A pair needs only two
+  /// decimal places to place someone within ~1 km, so the pair form matches
+  /// from two decimals up (found by the adversarial review of PR #81); a
+  /// lone decimal still needs six to look like a coordinate rather than a
+  /// quantity.
   static final RegExp _coordinates = RegExp(
-    r'-?\d{1,3}\.\d{4,}\s*[,;]\s*-?\d{1,3}\.\d{4,}|-?\d{1,3}\.\d{6,}',
+    r'-?\d{1,3}\.\d{2,}\s*[,;]\s*-?\d{1,3}\.\d{2,}|-?\d{1,3}\.\d{6,}',
+  );
+
+  /// Any residual `key=value` query parameter, with or without a scheme.
+  /// `_urlQuery` clears full URLs; this catches relative request paths
+  /// (`GET /facilities?q=…&lat=…`) that Dio-style messages also produce.
+  /// The key survives, the value never does.
+  static final RegExp _queryParam = RegExp(
+    r'''([?&][A-Za-z0-9_%.\-]+)=[^\s&'"]*''',
   );
 
   static final RegExp _email = RegExp(r'[^\s@]+@[^\s@]+\.[A-Za-z]{2,}');
@@ -190,6 +221,50 @@ abstract final class CrashSanitiser {
     caseSensitive: false,
   );
 
+  /// Clinical stems matched INSIDE words, so camelCase identifiers and
+  /// compounds (`severeHeadache`, `feverScore`, `chestPain`) redact whole.
+  /// The word-boundary vocabulary above cannot see them — `\b` does not fire
+  /// between two word characters. Substring matching over-redacts ordinary
+  /// prose occasionally; per this module's doctrine that is the cheap side
+  /// of the trade.
+  static const List<String> _clinicalStems = [
+    'symptom',
+    'headache',
+    'fever',
+    'cough',
+    'bleed',
+    'seizure',
+    'pain',
+    'chest',
+    'vomit',
+    'diarrh',
+    'rash',
+    'breath',
+    'dizz',
+    'swell',
+    'pregnan',
+    'malaria',
+    'typhoid',
+    'mening',
+    'sepsis',
+    'cholera',
+    'urgen',
+    'triage',
+    'diagnos',
+  ];
+
+  static final RegExp _word = RegExp(r'[A-Za-z][A-Za-z0-9]*');
+
+  static String _redactClinicalWords(String text) {
+    return text.replaceAllMapped(_word, (m) {
+      final lower = m.group(0)!.toLowerCase();
+      for (final stem in _clinicalStems) {
+        if (lower.contains(stem)) return redacted;
+      }
+      return m.group(0)!;
+    });
+  }
+
   /// Hard ceiling. A long message is a stack trace or a serialised object that
   /// slipped into an exception string; neither is worth the risk.
   static const int maxMessageLength = 240;
@@ -199,8 +274,11 @@ abstract final class CrashSanitiser {
     // URL queries and credential headers first, while their surrounding
     // structure is still intact for the patterns to anchor on.
     text = text.replaceAllMapped(_urlQuery, (m) => '${m.group(1)}$redacted');
+    text = text.replaceAllMapped(_queryParam, (m) => '${m.group(1)}=$redacted');
     text = text.replaceAll(_credentialHeader, redacted);
+    text = text.replaceAll(_credentialAssignment, redacted);
     text = text.replaceAll(_quoted, redacted);
+    text = _redactClinicalWords(text);
     text = text.replaceAll(_coordinates, redacted);
     text = text.replaceAll(_email, redacted);
     text = text.replaceAll(_phone, redacted);

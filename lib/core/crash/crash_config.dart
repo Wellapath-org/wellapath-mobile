@@ -137,16 +137,23 @@ class CrashConfig {
     final version = read('APP_VERSION').isEmpty ? '0.0.0' : read('APP_VERSION');
     final build = read('APP_BUILD').isEmpty ? '0' : read('APP_BUILD');
 
+    // The Sentry environment label. APP_ENV is deliberately NOT the label
+    // source: a stale APP_ENV define could tag production data as staging
+    // (PR #81 review). The label is either the closed-vocabulary
+    // CRASH_REPORTING_CONTEXT define — how the 212 internal test marks its
+    // events `internal-testing` inside the shared `wellapath-mobile`
+    // project — or the derived default. Unknown values fall back to the
+    // derived default rather than inventing a label.
+    final context = read('CRASH_REPORTING_CONTEXT').toLowerCase();
+    const allowedContexts = {'internal-testing', 'production'};
+    final environment = allowedContexts.contains(context)
+        ? context
+        : (isProduction ? 'production' : 'internal-beta');
+
     return CrashConfig(
       enabled: true,
       dsn: dsn,
-      // Anything that is not production and has cleared both gates is an
-      // approved internal build. A production build that cleared the
-      // approval gate must be labelled as production even when the define
-      // was omitted and only the bundled .env said so.
-      environment: appEnv.isNotEmpty
-          ? appEnv
-          : (isProduction ? 'production' : 'internal-beta'),
+      environment: environment,
       release: 'wellapath-mobile@$version+$build',
     );
   }
@@ -171,6 +178,9 @@ class CrashConfig {
     'SENTRY_DSN': String.fromEnvironment('SENTRY_DSN'),
     'CRASH_REPORTING_PRODUCTION_APPROVED': String.fromEnvironment(
       'CRASH_REPORTING_PRODUCTION_APPROVED',
+    ),
+    'CRASH_REPORTING_CONTEXT': String.fromEnvironment(
+      'CRASH_REPORTING_CONTEXT',
     ),
     'APP_ENV': String.fromEnvironment('APP_ENV'),
     'APP_VERSION': String.fromEnvironment('APP_VERSION'),

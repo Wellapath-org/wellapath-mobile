@@ -4837,3 +4837,50 @@ Verification: analyze clean · format clean · full suite **1,339 · 7
 skipped · 0 failed** (+9 gates). No DSN, credential, event, build or
 distribution was created. Builds 210/211 untouched; next binary must be
 ≥212 and requires its own registry entry first.
+
+---
+
+# PR #81 independent review — 8 findings fixed, project model corrected; PR remains open
+
+**Date:** 2026-09-21 · **Reviewed head before fixes:** `a542511`
+
+Independent release-blocking review (multi-agent /code-review high over
+the full diff + a separate adversarial scrubber corpus). Findings, all
+fixed in one commit: chained cookie/credential values after `;`/`,`
+survived the header scrub · a stale `APP_ENV` define could mislabel
+production events (label now derives from a closed-vocabulary
+`CRASH_REPORTING_CONTEXT` define or the production state, never from
+APP_ENV) · relative-URL query strings and 2-decimal coordinate pairs
+survived (new `_queryParam` + widened pair rule; camelCase clinical
+stems and short credential assignments also closed) · the URL scrub
+could eat a closing quote and defeat quote-pairing (quotes now end every
+scrub run) · three config tests had become vacuous under the fail-closed
+bundled default (de-vacuated with explicit `bundledIsProduction: false`)
+· credential-header allowlist widened (x-auth-token, api-key,
+x-access-token, x-csrf-token, x-session-id, …) · dead
+`ignore_missing` pubspec key dropped · the 212 procedure no longer
+builds from a dirty tracked `.env` (approval-key path +
+`internal-testing` label instead — a forgotten local edit can no longer
+produce a silently-dark build).
+
+**Founder confirmations recorded:** DPA signed effective 2026-09-21
+(WELLAPATH TECHNOLOGIES LIMITED, PDF sha256 `74abf15f…37a5a`) · EU
+region (live) · 30-day retention · owner-only access · diagnostics-only.
+**Project model corrected after live-org inspection:** reuse existing
+`wellapath-mobile` project (0.2.0(208) history preserved), isolate via
+new client key `internal-212` + release `wellapath-mobile@0.3.0+212` +
+environment `internal-testing`; legacy key retained until the test
+succeeds. Live protections confirmed (EU ingest, scrubbers on, IP
+storage prevented, minidumps off); `business-email` Safe-Field removal
+in progress — verification by screenshot is a 212 precondition.
+**Design point recorded:** native iOS/Android crashes are intentionally
+invisible to Sentry for the initial test (native SDK off — envelopes
+would bypass beforeSend); they remain observable via App Store Connect
+crash reports and Play Console Android vitals.
+
+Verification after fixes: analyze clean · format clean · full suite
+**1,344 · 7 skipped · 0 failed** (+4 label tests, +8 adversarial corpus
+cases). Build 211 artifacts re-verified untouched (AAB `690249ae…`, IPA
+`7c39f4f8…`). No DSN, credential, event, build 212 or store-declaration
+change was created. **Verdict: mergeable once the founder confirms the
+Safe-Fields removal; left OPEN for that confirmation.**

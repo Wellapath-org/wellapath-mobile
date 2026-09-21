@@ -61,12 +61,15 @@ Both stores currently carry **"no data collected"** declarations — those
 remain correct for 210/211 and must be updated in the same release that
 first ships an enabled build, not before.
 
-## 4. Founder decisions required (blockers for activation)
+## 4. Founder decisions — CONFIRMED 2026-09-21
 
-| Decision | Options / recommendation |
+| Decision | Confirmed value |
 |---|---|
-| Data region | **EU (Frankfurt) recommended** — set at org creation, immutable. US is the default if unset; do not accept the default. |
-| Retention | Sentry default 90 days; errors-only. Confirm 90 or shorter (30) for the internal project. |
-| Access | Who gets Sentry accounts (recommend: founder + engineering lead only; SSO n/a on team plan). |
-| DPA | Accept Sentry's DPA before the first event; record the acceptance date. |
-| Org/project names | `wellapath` / `wellapath-mobile-internal` proposed; production project is a later, separate decision. |
+| Data region | **European Union** — must be selected at org creation (immutable; US is the silent default) |
+| Retention | **30 days** |
+| Access | **Company owner only** initially; engineering access least-privilege when granted |
+| DPA | **Signed, effective 2026-09-21.** Customer entity: WELLAPATH TECHNOLOGIES LIMITED. PDF sha256 `74abf15fc1c6646517d5b99d6564be1b2caa6a9af5011ed3431979c09ef37a5a` |
+| Project | **Reuse existing `wellapath-mobile`** (corrected 2026-09-21 after live-org inspection; holds historical 0.2.0(208) metadata, which is preserved). Isolation via a new client key `internal-212` + release `wellapath-mobile@0.3.0+212` + environment `internal-testing`; the legacy key stays until the test succeeds, then is assessed for safe disablement |
+| Live server-side protections (screenshot 2026-09-21) | EU ingestion endpoint · Data Scrubber enabled · Default Scrubbers enabled · IP-address storage prevented · minidump attachments disabled. Corrective action in progress: `business-email` removed from Safe Fields (a Safe Field bypasses scrubbing — verify before building 212); replay-derived issue toggles disabled for clarity |
+| Scope | Engineering diagnostics only — never product analytics. Nothing in the payload inventory (§1) can serve analytics: no user, device, session, screen, interaction or usage field exists in the rebuilt event |
+| Initial activation surface | Native capture, replay, screenshots, view hierarchy, sessions, tracing, profiling all remain OFF |
