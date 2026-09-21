@@ -26,11 +26,13 @@ the project.
 
 Live project protections confirmed by screenshot (2026-09-21): EU
 ingestion endpoint · Data Scrubber enabled · Default Scrubbers enabled ·
-IP-address storage prevented · minidump attachments disabled. One unsafe
-setting was found and is being corrected by the founder: **`business-email`
-listed under Safe Fields** (a Safe Field bypasses server-side scrubbing);
-the two replay-derived issue toggles are also being disabled for clarity
-even though the SDK never sends replays.
+IP-address storage prevented · minidump attachments disabled. An apparent unsafe
+setting — `business-email` under Safe Fields — turned out on closer
+inspection to be Sentry's grey placeholder text, not an entered value:
+**Safe Fields is empty**, so no scrubbing bypass exists (founder
+screenshot, 2026-09-21; the additional sensitive-field list is
+populated). The two replay-derived issue toggles are also being disabled
+for clarity even though the SDK never sends replays.
 
 ## Preconditions
 
@@ -40,8 +42,8 @@ even though the SDK never sends replays.
 - [x] Data Processing Agreement signed, effective **2026-09-21**, customer
       entity **WELLAPATH TECHNOLOGIES LIMITED**, DPA PDF sha256
       `74abf15fc1c6646517d5b99d6564be1b2caa6a9af5011ed3431979c09ef37a5a`.
-- [ ] `business-email` removed from Safe Fields — **verify by screenshot
-      before building**; a Safe Field is a scrubbing bypass.
+- [x] Safe Fields confirmed EMPTY (the `business-email` text is Sentry's
+      placeholder, not a value — founder screenshot, 2026-09-21).
 - [ ] Client key `internal-212` created on `wellapath-mobile`; its DSN
       stored ONLY in the local shell / CI secret store. It never enters a
       tracked file, a commit message, PROGRESS.md or a chat log.

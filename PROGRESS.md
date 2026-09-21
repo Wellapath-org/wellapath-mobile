@@ -4884,3 +4884,26 @@ cases). Build 211 artifacts re-verified untouched (AAB `690249ae…`, IPA
 `7c39f4f8…`). No DSN, credential, event, build 212 or store-declaration
 change was created. **Verdict: mergeable once the founder confirms the
 Safe-Fields removal; left OPEN for that confirmation.**
+
+---
+
+# PR #81 MERGED — Sentry production-readiness on develop; 212 test unblocked
+
+**Date:** 2026-09-21 · **Merge commit:** `b494a0d` (parents fef680e +
+e953c40, CI green at head)
+
+Final precondition closed before merge: the `business-email` entry under
+Safe Fields was Sentry's grey placeholder text, not a saved value —
+**Safe Fields is empty**, so no scrubbing bypass exists. Founder
+screenshot additionally confirms Data Scrubber, Default Scrubbers and
+Prevent Storing IP Addresses enabled, with the additional
+sensitive-field list populated. The two docs that described a
+Safe-Fields removal as pending are corrected in this commit.
+
+**Next (awaiting go):** create the `internal-212` client key on the
+existing `wellapath-mobile` project, put its DSN in the shell only, then
+run docs/CRASH_VERIFICATION_212.md end to end (registry entry for 212 →
+build → symbol upload with SENTRY_RELEASE → synthetic crash → envelope
+audit → legacy-key assessment). Still true: no DSN in the repo, no
+event sent, no build 212, builds 210/211 and store declarations
+untouched.
