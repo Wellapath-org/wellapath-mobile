@@ -64,6 +64,12 @@ dependencies:
   latlong2: ^0.9.0
   crypto: ^3.0.7
   sentry_flutter: ^9.0.0
+  # Direct dependency because sentry_crash_sink.dart imports
+  # `package:sentry/src/load_dart_debug_images_integration.dart` (the pinned
+  # implementation import that re-adds the Dart debug-images integration).
+  # Same version line sentry_flutter already resolves; the exact behaviour is
+  # pinned by CrashMonitoring.sdkVersion and its version-pin test.
+  sentry: ^9.0.0
   # Same http package sentry already resolves (locked 1.6.0): the first-party
   # crash transport (lib/core/crash/wellapath_transport.dart) posts envelopes
   # with the SDK-identical client stack.

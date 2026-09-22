@@ -33,13 +33,17 @@ import 'package:http/http.dart' as http;
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 // Implementation imports for the unwanted-integration types, so removal can
-// use `is` checks. `runtimeType.toString()` matching silently failed in the
+// use `is` checks — and for `LoadDartDebugImagesIntegration`, which the
+// symbolication section must add explicitly (see the comment there).
+// `runtimeType.toString()` matching silently failed in the
 // obfuscated build-212 binary — `--obfuscate` renames every class, so no name
 // matched and every automatic integration stayed installed (PROGRESS.md,
 // 2026-09-22). Type checks survive renaming. These classes are not exported
 // publicly, so implementation imports are the only route; the paths are
 // pinned to the SDK version in [CrashMonitoring.sdkVersion] and break loudly
 // at compile time on an SDK upgrade instead of silently at runtime.
+// ignore: implementation_imports
+import 'package:sentry/src/load_dart_debug_images_integration.dart';
 // ignore: implementation_imports
 import 'package:sentry_flutter/src/app_start/ui_load_attached/native_app_start_integration.dart';
 // ignore: implementation_imports
@@ -265,12 +269,29 @@ abstract final class CrashMonitoring {
     // (native SDK never started; its envelopes would bypass beforeSend).
     // The 212 audit proved the consequence: debug_meta.images arrived empty
     // and 0 of 25 frames symbolicated despite correctly uploaded symbols.
-    // Re-enabling engages the SDK's pure-Dart LoadDartDebugImagesIntegration,
-    // which derives ONE image (type, load address, debug id, build id,
+    //
+    // Re-enabling the FLAG alone is NOT enough — the 213 audit proved that,
+    // and local stage instrumentation demonstrated why: the SDK adds
+    // `LoadDartDebugImagesIntegration` inside `Sentry.init`'s default-values
+    // phase, which reads this flag BEFORE this callback runs. The Flutter
+    // layer has already forced the flag false by then (native binding
+    // present), so the integration is never added, and restoring the flag
+    // here cannot resurrect an add-decision that was already skipped.
+    // The integration must therefore be added explicitly. Its own `call()`
+    // re-checks flag + obfuscation + split-debug-info at execution time, so
+    // in debug/JIT builds it still installs nothing — same as SDK default.
+    // The guard keeps this idempotent on platforms (web) or future SDK
+    // versions where the default-values phase does add it.
+    // It derives ONE image (type, load address, debug id, build id,
     // constant code-file name) from the stack trace itself, no native code
     // involved. The sanitiser passes through exactly those fields and
     // nothing else — see SentryEventSanitiser._sanitiseDebugMeta.
     options.enableDartSymbolication = true;
+    if (!options.integrations.any(
+      (Integration<SentryOptions> i) => i is LoadDartDebugImagesIntegration,
+    )) {
+      options.addIntegration(LoadDartDebugImagesIntegration());
+    }
 
     // ── Transport ─────────────────────────────────────────────────────────
     // The SDK's DEFAULT transport assembly lost two controlled events in
