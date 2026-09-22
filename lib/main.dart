@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/config/build_environment.dart';
 import 'core/crash/crash_reporter.dart';
+import 'core/crash/debug_image_diagnostics.dart';
 import 'core/crash/sentry_crash_sink.dart';
 import 'core/storage/storage_service.dart';
 import 'core/telemetry/telemetry.dart';
@@ -32,7 +33,13 @@ Future<void> main() async {
   // third-party package on the path to an assessment; unawaited for the same
   // reason telemetry is. Until this resolves, the boundary keeps its no-op
   // sink and local error behaviour is unchanged.
-  unawaited(CrashMonitoring.init());
+  // DIAGNOSTIC ONLY (never merged): the gated branch runs the same init and
+  // then instruments it locally with a no-network recording transport.
+  if (kDebugImageDiagnostics) {
+    unawaited(DebugImageDiagnostics.run());
+  } else {
+    unawaited(CrashMonitoring.init());
+  }
 
   // Telemetry starts *after* runApp, deliberately. Opening the queue box and
   // reading configuration must never sit between launch and first frame:

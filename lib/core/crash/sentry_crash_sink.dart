@@ -28,6 +28,8 @@
 ///    sanitiser has rebuilt field by field.
 library;
 
+import 'dart:async' show FutureOr;
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -171,7 +173,14 @@ abstract final class CrashMonitoring {
     }
 
     try {
+      // DIAGNOSTIC ONLY (never merged): stage tokens localising init flow.
+      if (const bool.fromEnvironment('DEBUG_IMAGE_DIAGNOSTICS')) {
+        debugPrint('WPDIAG init_stage_before_sentry_init');
+      }
       await SentryFlutter.init(applyPrivacyOptions);
+      if (const bool.fromEnvironment('DEBUG_IMAGE_DIAGNOSTICS')) {
+        debugPrint('WPDIAG init_stage_after_sentry_init');
+      }
       CrashReporter.setSink(SentryCrashSink());
       debugPrint(
         'Crash monitoring enabled — '
@@ -192,6 +201,10 @@ abstract final class CrashMonitoring {
   /// itself can be asserted without a network client.
   @visibleForTesting
   static void applyPrivacyOptions(SentryFlutterOptions options) {
+    // DIAGNOSTIC ONLY (never merged): stage token.
+    if (const bool.fromEnvironment('DEBUG_IMAGE_DIAGNOSTICS')) {
+      debugPrint('WPDIAG init_stage_options_callback_entered');
+    }
     options.dsn = _config.dsn;
     options.environment = _config.environment;
     options.release = _config.release;
@@ -310,6 +323,34 @@ abstract final class CrashMonitoring {
     options.beforeSend = (event, hint) => SentryEventSanitiser.sanitise(event);
 
     removeAutomaticErrorIntegrations(options);
+    // DIAGNOSTIC ONLY (never merged): stage token, SDK logger routed to
+    // debugPrint (default uses dart:developer, silent in AOT), and an
+    // enter/exit wrapper around every remaining integration so any call()
+    // that never completes is named by index.
+    if (const bool.fromEnvironment('DEBUG_IMAGE_DIAGNOSTICS')) {
+      debugPrint('WPDIAG init_stage_options_callback_exited');
+      options.debug = true;
+      options.diagnosticLevel = SentryLevel.debug;
+      // ignore: invalid_use_of_internal_member — diagnostic-only routing.
+      options.log =
+          (
+            SentryLevel level,
+            String message, {
+            String? logger,
+            Object? exception,
+            StackTrace? stackTrace,
+          }) {
+            debugPrint('WPSDK ${level.name} $message');
+          };
+      final ordered = List<Integration<SentryOptions>>.of(
+        options.integrations.cast<Integration<SentryOptions>>(),
+      );
+      for (var n = 0; n < ordered.length; n++) {
+        options.removeIntegration(ordered[n]);
+        options.addIntegration(_DiagIntegrationWrap(ordered[n], n));
+      }
+      debugPrint('WPDIAG wrapped_integration_count_${ordered.length}');
+    }
   }
 
   /// Removes the SDK's own error-capturing and context-loading integrations.
@@ -357,4 +398,23 @@ abstract final class CrashMonitoring {
     'native_crash_handling': false,
     'session_tracking': false,
   };
+}
+
+/// DIAGNOSTIC ONLY (never merged): names the integration whose `call()`
+/// never completes by emitting enter/exit tokens around each one.
+class _DiagIntegrationWrap extends Integration<SentryOptions> {
+  _DiagIntegrationWrap(this._inner, this._n);
+
+  final Integration<SentryOptions> _inner;
+  final int _n;
+
+  @override
+  FutureOr<void> call(Hub hub, SentryOptions options) async {
+    debugPrint('WPDIAG integ_enter_${_n}_${_inner.runtimeType}');
+    await _inner.call(hub, options);
+    debugPrint('WPDIAG integ_exit_$_n');
+  }
+
+  @override
+  FutureOr<void> close() => _inner.close();
 }
