@@ -56,14 +56,29 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'on 2026-09-21 (team 2SCUC2CBBS, org.wellapath.app). The signed '
       'Android AAB sha256 818d60b1…129d4 (62,090,832 B) was built but not '
       'uploaded. The number is burned on both platforms',
+  211:
+      'internal-testing build 0.3.0+211 (distributed 2026-09-21): iOS IPA '
+      'sha256 7c39f4f8… uploaded to TestFlight internal; signed Android AAB '
+      'sha256 690249ae… built. The number is burned',
+  212:
+      'LOCAL SENTRY VERIFICATION ONLY — never distributed, never to be '
+      'distributed. Release APKs built 2026-09-22 on the local-only branch '
+      'build/212-internal-verification for the crash-transport '
+      'investigation: sha256 b680fcf8… (superseded), 967f672b… (rebuilt at '
+      'the integration fix), df2d3e65… and 79550774… (diagnostic variants). '
+      'Every artifact stayed on one local emulator; the number is burned '
+      'because release wellapath-mobile@0.3.0+212 exists in Sentry',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 211 has never been distributed or uploaded: it appears in no tag, no CI
-/// release identifier, no rollback record and no registry entry above, and
-/// `git log --all -S'+211'` finds no prior use.
-const int kCurrentBuildNumber = 211;
+/// 213 is LOCAL VERIFICATION ONLY (docs/CRASH_VERIFICATION_213.md): it
+/// exists to prove the merged crash transport, geo scrubbing and minimal
+/// debug images with exactly one controlled event, and must never be
+/// distributed. The first potentially distributable Sentry-enabled
+/// candidate is 214 or higher. 213 appears in no tag, no CI release
+/// identifier and no registry entry above.
+const int kCurrentBuildNumber = 213;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';
