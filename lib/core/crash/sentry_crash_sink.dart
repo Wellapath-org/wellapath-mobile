@@ -59,6 +59,7 @@ import 'package:sentry_flutter/src/integrations/widgets_binding_integration.dart
 import 'crash_config.dart';
 import 'crash_reporter.dart';
 import 'sentry_event_sanitiser.dart';
+import 'wellapath_transport.dart';
 
 /// Forwards sanitised crashes to Sentry.
 class SentryCrashSink extends CrashSink {
@@ -269,6 +270,16 @@ abstract final class CrashMonitoring {
     // involved. The sanitiser passes through exactly those fields and
     // nothing else — see SentryEventSanitiser._sanitiseDebugMeta.
     options.enableDartSymbolication = true;
+
+    // ── Transport ─────────────────────────────────────────────────────────
+    // The SDK's DEFAULT transport assembly lost two controlled events in
+    // obfuscated release builds and swallows its own failures; it is
+    // replaced, not trusted (founder decision 2026-09-22 — see
+    // wellapath_transport.dart for the full record). Setting the public
+    // `options.transport` seam here means the SentryClient factory skips its
+    // internal HttpTransport construction and wraps this transport in its
+    // client-report decorator, so reports still flow.
+    options.transport = WellaPathTransport(options);
 
     // ── The fail-closed outbound boundary ─────────────────────────────────
     options.beforeSend = (event, hint) => SentryEventSanitiser.sanitise(event);
