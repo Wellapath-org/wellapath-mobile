@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/crash/crash_verification_gate.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
@@ -7,9 +8,57 @@ import '../boot/boot_controller.dart';
 class SystemStatusScreen extends StatelessWidget {
   final BootResult result;
 
-  const SystemStatusScreen({super.key, required this.result});
+  /// Test-only override for widget tests proving the synthetic-error
+  /// control is unavailable outside the gated 213 verification build.
+  /// `null` (every production call site) defers to
+  /// [CrashVerificationGate.enabled].
+  final bool? crashVerificationTriggerEnabled;
+
+  const SystemStatusScreen({
+    super.key,
+    required this.result,
+    this.crashVerificationTriggerEnabled,
+  });
 
   static const Color _primary = Color(0xFF6B4EFF);
+
+  bool get _verificationEnabled =>
+      crashVerificationTriggerEnabled ?? CrashVerificationGate.enabled;
+
+  /// LOCAL-VERIFICATION-ONLY (docs/CRASH_VERIFICATION_213.md): only the
+  /// confirmed 'Send test error' action throws, synchronously inside the
+  /// button's gesture callback, so the error reaches
+  /// `FlutterError.onError` and flows through the CrashReporter boundary
+  /// exactly like a real framework error. The word 'crash' in the message
+  /// is expected to arrive as `[redacted]` — the clinical 'rash' stem —
+  /// which is the documented fail-safe over-redaction.
+  void _confirmSyntheticError(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Send synthetic test error?'),
+        content: const Text(
+          'This sends exactly one synthetic engineering error to the '
+          'crash-reporting pipeline for the build-213 internal '
+          'verification. It contains no real personal or health '
+          'information.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              throw StateError('synthetic crash verification 213');
+            },
+            child: const Text('Send test error'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _startAssessment(BuildContext context) {
     final controller = AssessmentController();
@@ -61,6 +110,24 @@ class SystemStatusScreen extends StatelessWidget {
                 style: const TextStyle(color: Colors.red),
               ),
             ],
+            const SizedBox(height: 16),
+            const _BuildRow(),
+            // The 213 synthetic-error control: rendered ONLY when the
+            // four-define CrashVerificationGate passes. Every other build
+            // emits nothing here — no placeholder, gesture or semantics
+            // node.
+            if (_verificationEnabled) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => _confirmSyntheticError(context),
+                icon: const Icon(Icons.science_outlined, size: 18),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB45309),
+                  side: const BorderSide(color: Color(0xFFB45309)),
+                ),
+                label: const Text('Send synthetic Sentry test error'),
+              ),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -107,5 +174,30 @@ class SystemStatusScreen extends StatelessWidget {
           labelStyle: TextStyle(color: Colors.white),
         );
     }
+  }
+}
+
+/// Display-only build-identity row so the tester can confirm on screen
+/// which build is installed. Carries no gesture handler: the 213
+/// synthetic-error control is the explicit gated button above, never a
+/// hidden interaction.
+class _BuildRow extends StatelessWidget {
+  const _BuildRow();
+
+  static const String _version = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: 'dev',
+  );
+  static const String _build = String.fromEnvironment(
+    'APP_BUILD',
+    defaultValue: '0',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Build $_version+$_build',
+      style: const TextStyle(color: Colors.grey, fontSize: 12),
+    );
   }
 }
