@@ -4907,3 +4907,40 @@ build → symbol upload with SENTRY_RELEASE → synthetic crash → envelope
 audit → legacy-key assessment). Still true: no DSN in the repo, no
 event sent, no build 212, builds 210/211 and store declarations
 untouched.
+
+---
+
+# Crash-transport remediation line (fix/crash-transport-remediation)
+
+**Date:** 2026-09-22 · Base: `develop` (`9463c1d`) · Clean of every
+LOCAL-VERIFICATION-ONLY commit, diagnostic UI, trigger, probe and
+local-only dependency from the 212 branch.
+
+Commits:
+1. `20c74c0` — obfuscation-safe integration removal (cherry-pick -x of
+   `9b39fff`; the one independently mergeable fix from the 212 line).
+2. `6f564e5` — minimal debug-image allowlist (five approved fields) +
+   `enableDartSymbolication` re-enabled; serialized-envelope proofs.
+3. `828630a` — `WellaPathTransport` replaces the SDK default transport
+   assembly (public seams only, bounded timeout, no retry, id/empty
+   contract, wire-fidelity tests). Adds production `http` dep at the
+   already-locked 1.6.0.
+4. `eaba864` — docs: founder decisions, `$user.geo` Advanced Data
+   Scrubbing steps + verification plan, trace/_dsc metadata record,
+   redaction-doc correction ('rash' stem redacts 'crash' by design).
+
+Verification: analyze clean · format clean · crash suite 138 · release
+gates 94 · full suite **1,372 passed · 7 skipped · 0 failed**.
+
+**PR plan (independent review):** one PR, `fix/crash-transport-remediation
+→ develop`, reviewers: engineering lead (transport + sanitiser) +
+founder (privacy declarations §15.2/§15.3). Review focus in order:
+(a) `wellapath_transport.dart` — endpoint/auth derivation vs SDK source,
+failure mapping, timeout semantics; (b) `_sanitiseDebugMeta` — the five
+fields against `LoadDartDebugImagesIntegration` in sentry 9.27.0;
+(c) integration-removal is-checks and their pinned implementation
+imports; (d) test evidence. Before merge the founder applies the
+`$user.geo` scrub rule in the Sentry UI. After merge: production Sentry
+remains NO-GO until a founder-approved controlled verification (new
+build number ≥213, fresh symbols, one event, re-audit incl. geo-absence
+check) passes on this transport. Store declarations untouched.
