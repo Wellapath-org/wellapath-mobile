@@ -4944,3 +4944,121 @@ imports; (d) test evidence. Before merge the founder applies the
 remains NO-GO until a founder-approved controlled verification (new
 build number ≥213, fresh symbols, one event, re-audit incl. geo-absence
 check) passes on this transport. Store declarations untouched.
+
+---
+
+# Debug-image root cause DEMONSTRATED and fixed locally (fix/crash-debug-image-attachment)
+
+**Date:** 2026-09-22 · Base: `origin/develop` (`f419619`, the PR #82
+merge) · Fix commit: `6a61cd6` · Diagnostics (never merge):
+`diag/213-debug-image-local` (`a4ae674`)
+
+Local, no-network investigation of the 213 audit's missing `debug_meta`
+(criteria 2–3). Method: closed-vocabulary stage instrumentation
+(`WPDIAG` tokens — presence booleans, counts and schema field names
+only), a recording transport that cannot contact any host, an
+iptables-level outbound block on the `wellapath_lowend` emulator, and an
+obfuscated `--split-debug-info` release build with a placeholder
+non-routable DSN. No event left any device; no store artifact, symbol
+upload, build 214 or store-declaration change was created.
+
+**Root cause (demonstrated, not inferred):** the SDK adds
+`LoadDartDebugImagesIntegration` in exactly one place —
+`Sentry.init`'s default-values phase — gated on
+`enableDartSymbolication` AT THAT MOMENT. `SentryFlutter.init` has
+already forced that flag `false` (a native binding exists on mobile)
+before `Sentry.init` runs, so the integration is never added.
+`applyPrivacyOptions` restoring the flag later cannot resurrect the
+skipped add-decision. Token stream on the unfixed base:
+`integration_absent · processor_absent · runtime_obfuscated_true ·
+split_debug_info_true · raw_build_id_line_present ·
+raw_isolate_dso_base_line_present · debug_meta 0 at pre-sanitiser,
+post-sanitiser and serialized envelope`. **First failing stage:
+integration installation** — before any event processing; every later
+stage (parser input, sanitiser, transport) was proven healthy.
+Founder question 6 answered: the flag is not overridden later (it is
+forced false EARLIER); the integration is not removed by our removal
+list (all 16 remaining integrations ran and completed); the parser
+input is compatible (all header lines present).
+
+**Fix (`6a61cd6`, +23/−3 in the sink plus a pinned direct `sentry`
+dependency):** add the integration explicitly at the same site that
+restores the flag, guarded for idempotence; its own `call()` still
+applies the flag/obfuscation/split-debug-info gates, so debug and JIT
+builds install nothing. Corrects the PR #82 comment that claimed the
+flag alone engages the integration.
+
+**Verification:** fixed diagnostic build on `wellapath_lowend` (still
+outbound-blocked): `processor_installed → processor_entered →
+parsed_build_id_present → parsed_base_addr_present →
+debug_images_created_1 → pre/post_sanitiser_debug_meta_1 →
+serialized_envelope_debug_meta_1 → envelope_image_fields_within_five`.
+Suite at the fix commit: analyze clean · format clean · **1,386 passed
+· 7 skipped · 0 failed** (+7: installation exactly-once, no-duplicate,
+removal-safety, double-apply idempotence, parsed-trace preconditions,
+five-field + derived-debug-id survival through sanitiser and
+serialization, no image without an obfuscation header).
+
+**Hygiene finding:** the LOCAL `develop` ref was stale (behind the
+PR #82 merge); the first diagnosis pass unknowingly ran against
+pre-remediation code and was discarded once tokens exposed behaviour
+only the old sink could produce (string-based removal removing
+nothing). The branch was rebuilt from `origin/develop`. Fast-forward
+the local `develop` ref before its next use.
+
+**PR plan (independent review):** one PR,
+`fix/crash-debug-image-attachment → develop`, containing `6a61cd6`
+only. Reviewers: engineering lead + founder. Review focus in order:
+(a) the add-site — timing of `applyPrivacyOptions` inside
+`Sentry.init`'s configuration phase relative to the default-values
+phase and integration execution, against sentry 9.27.0 source;
+(b) the idempotence guard and the debug/JIT no-op claim;
+(c) the new direct `sentry` dependency pin;
+(d) test evidence, especially the five-field + debug-id survival test.
+The diagnostics branch is reference material for reviewers and is
+never merged. After merge: the founder re-inspects the `$user.geo`
+scrub rule (criterion 1, server-side — unaddressed by this fix);
+then build **214** is the next local-only controlled verification
+(new registry entry, fresh key and symbols, one event, full re-audit);
+**215+** is the earliest possible distributable candidate.
+
+---
+
+# PR #83 independent review — 2 findings fixed in-review; OPEN, mergeable
+
+**Date:** 2026-09-22 · **Reviewed head:** `4e303ff` · PR:
+`fix/crash-debug-image-attachment → develop` (open, unmerged)
+
+Pre-work: local `develop` fast-forwarded `103f311 → f419619`
+(ancestor-verified clean fast-forward; no worktree disturbed).
+
+Review against the eight required items: merge-base is exactly
+`f419619` with no diagnostic code in any tracked file · the
+initialization ordering confirmed at 9.27.0 source level
+(`sentry_flutter.dart:102/238` forces the flag false before
+`sentry.dart:66` default-values runs the `:117` conditional add; the
+`:69` callback then runs before `:203/207` executes the live
+integration list, so the explicit add is early enough) · idempotence
+guard verified by tests (exactly-one, double-apply, pre-existing
+instance, removal-safety; one processor and one image proven on-device)
+· the sanitiser still emits exactly the approved five image fields and
+rejects near-miss code_files, paths, id-less images and unapproved
+types (dedicated tests re-run green) · the `sentry` + `sentry_flutter`
+versions are enforced at exactly 9.27.0 by the lock-file pin test that
+CI runs (the pubspec ranges stay loose by design; noted, no action).
+
+**Findings (both fixed in-review, commit `4e303ff`):** (1) LOW — the
+debug/JIT no-op statement was wording, not a test; now tested: the
+integration OBJECT installs, its `call()` adds no event processor in a
+JIT run — the runtime obfuscation/split-debug-info checks close the
+gate, the flag plays no part. (2) LOW — that new test introduced two
+`invalid_use_of_internal_member` analyzer warnings; silenced with the
+file's established ignore pattern.
+
+Independent re-runs at `4e303ff`: format clean · analyze clean · crash
+suite 153 · release gates 94 · full suite **1,387 passed · 7 skipped ·
+0 failed**. **Recommendation: MERGEABLE** — left OPEN per instruction.
+Not done, per instruction: no merge, no build 214, no symbol upload, no
+event, no Sentry enablement, no store-declaration change, no
+distribution. The `$user.geo` scrub rule remains the open criterion-1
+item for the founder before the build-214 controlled verification.
