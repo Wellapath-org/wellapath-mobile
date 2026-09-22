@@ -69,6 +69,11 @@ dependencies:
   # probe uses the SDK-identical client stack. Removed with the diagnostic
   # chain before any distributable build.
   http: ^1.6.0
+  # LOCAL-VERIFICATION-ONLY (212 branch): direct dependency on the sentry
+  # core package sentry_flutter already resolves (locked 9.27.0), for the
+  # transport-outcome diagnostic's HttpTransport construction. Removed with
+  # the diagnostic chain before any distributable build.
+  sentry: ^9.27.0
   unorm_dart: ^0.3.2
 
 dev_dependencies:

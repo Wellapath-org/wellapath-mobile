@@ -134,7 +134,7 @@ class SystemStatusScreen extends StatelessWidget {
                 label: const Text('Send synthetic Sentry test error'),
               ),
             ],
-            // Rendered ONLY in the five-define no-network diagnostic build:
+            // Rendered ONLY in the five-define diagnostic build:
             // closed-vocabulary stage names and a numeric item count, nothing
             // else. Every other build emits nothing here.
             if (crashPipelineDiagnosticEnabled ??
@@ -214,7 +214,7 @@ class _PipelineDiagnosticPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Pipeline diagnostic — no-network build',
+                'Pipeline diagnostic — local verification build',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 6),

@@ -59,6 +59,7 @@ import 'package:sentry_flutter/src/integrations/widgets_binding_integration.dart
 import 'crash_config.dart';
 import 'crash_pipeline_diagnostic.dart';
 import 'crash_reporter.dart';
+import 'crash_transport_outcome.dart';
 import 'sentry_event_sanitiser.dart';
 
 /// Forwards sanitised crashes to Sentry.
@@ -287,14 +288,13 @@ abstract final class CrashMonitoring {
       return sanitised;
     };
 
-    // Diagnostic builds only: the SDK's transport is replaced BEFORE the
-    // client is created, so `HttpTransport` is never installed and no
-    // envelope can leave the device (the client's ClientReportTransport
-    // wrapper delegates to this recorder too). Every other build keeps the
-    // SDK's own transport untouched.
-    if (CrashPipelineDiagnostic.isEnabled) {
-      options.transport = RecordingTransport();
-    }
+    // Diagnostic builds only. Earlier in this LOCAL-VERIFICATION-ONLY chain
+    // this installed the no-network RecordingTransport; as of the
+    // transport-outcome commit the diagnostic build instead DELIVERS through
+    // the real HttpTransport, instrumented at the documented httpClient seam
+    // plus a thin bracketing wrapper (crash_transport_outcome.dart). Every
+    // other build keeps the SDK's own transport untouched.
+    installTransportOutcomeDiagnostic(options);
 
     removeAutomaticErrorIntegrations(options);
   }
