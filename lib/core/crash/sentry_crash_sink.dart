@@ -31,6 +31,31 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+// Implementation imports for the unwanted-integration types, so removal can
+// use `is` checks. `runtimeType.toString()` matching silently failed in the
+// obfuscated build-212 binary — `--obfuscate` renames every class, so no name
+// matched and every automatic integration stayed installed (PROGRESS.md,
+// 2026-09-22). Type checks survive renaming. These classes are not exported
+// publicly, so implementation imports are the only route; the paths are
+// pinned to the SDK version in [CrashMonitoring.sdkVersion] and break loudly
+// at compile time on an SDK upgrade instead of silently at runtime.
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/app_start/ui_load_attached/native_app_start_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/debug_print_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/flutter_error_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/load_contexts_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/native_load_debug_images_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/native_sdk_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/screenshot_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/widgets_binding_integration.dart';
+
 import 'crash_config.dart';
 import 'crash_reporter.dart';
 import 'sentry_event_sanitiser.dart';
@@ -248,25 +273,33 @@ abstract final class CrashMonitoring {
   /// gathering and discarding.
   @visibleForTesting
   static void removeAutomaticErrorIntegrations(SentryOptions options) {
-    const unwanted = {
-      'FlutterErrorIntegration',
-      'OnErrorIntegration',
-      'RunZonedGuardedIntegration',
-      'IsolateErrorIntegration',
-      'NativeSdkIntegration',
-      'LoadContextsIntegration',
-      'LoadImageListIntegration',
-      'NativeAppStartIntegration',
-      'ScreenshotIntegration',
-      'WidgetsBindingIntegration',
-      'DebugPrintIntegration',
-    };
     for (final integration in List<Integration>.of(options.integrations)) {
-      if (unwanted.contains(integration.runtimeType.toString())) {
+      if (isUnwantedIntegration(integration)) {
         options.removeIntegration(integration);
       }
     }
   }
+
+  /// Obfuscation-safe membership test for the unwanted set.
+  ///
+  /// `is` checks match subtypes too, so a renamed (obfuscated) or subclassed
+  /// instance is still removed. `LoadNativeDebugImagesIntegration` is the
+  /// SDK 9.x name of what the earlier string list called
+  /// `LoadImageListIntegration` — that stale name matched nothing even in
+  /// debug builds, so debug-image loading had never actually been removed.
+  @visibleForTesting
+  static bool isUnwantedIntegration(Integration integration) =>
+      integration is FlutterErrorIntegration ||
+      integration is OnErrorIntegration ||
+      integration is RunZonedGuardedIntegration ||
+      integration is IsolateErrorIntegration ||
+      integration is NativeSdkIntegration ||
+      integration is LoadContextsIntegration ||
+      integration is LoadNativeDebugImagesIntegration ||
+      integration is NativeAppStartIntegration ||
+      integration is ScreenshotIntegration ||
+      integration is WidgetsBindingIntegration ||
+      integration is DebugPrintIntegration;
 
   /// Non-sensitive status, safe to print in any build. **Never the DSN.**
   static Map<String, Object?> diagnostics() => {
