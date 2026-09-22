@@ -5021,3 +5021,44 @@ scrub rule (criterion 1, server-side — unaddressed by this fix);
 then build **214** is the next local-only controlled verification
 (new registry entry, fresh key and symbols, one event, full re-audit);
 **215+** is the earliest possible distributable candidate.
+
+---
+
+# PR #83 independent review — 2 findings fixed in-review; OPEN, mergeable
+
+**Date:** 2026-09-22 · **Reviewed head:** `4e303ff` · PR:
+`fix/crash-debug-image-attachment → develop` (open, unmerged)
+
+Pre-work: local `develop` fast-forwarded `103f311 → f419619`
+(ancestor-verified clean fast-forward; no worktree disturbed).
+
+Review against the eight required items: merge-base is exactly
+`f419619` with no diagnostic code in any tracked file · the
+initialization ordering confirmed at 9.27.0 source level
+(`sentry_flutter.dart:102/238` forces the flag false before
+`sentry.dart:66` default-values runs the `:117` conditional add; the
+`:69` callback then runs before `:203/207` executes the live
+integration list, so the explicit add is early enough) · idempotence
+guard verified by tests (exactly-one, double-apply, pre-existing
+instance, removal-safety; one processor and one image proven on-device)
+· the sanitiser still emits exactly the approved five image fields and
+rejects near-miss code_files, paths, id-less images and unapproved
+types (dedicated tests re-run green) · the `sentry` + `sentry_flutter`
+versions are enforced at exactly 9.27.0 by the lock-file pin test that
+CI runs (the pubspec ranges stay loose by design; noted, no action).
+
+**Findings (both fixed in-review, commit `4e303ff`):** (1) LOW — the
+debug/JIT no-op statement was wording, not a test; now tested: the
+integration OBJECT installs, its `call()` adds no event processor in a
+JIT run — the runtime obfuscation/split-debug-info checks close the
+gate, the flag plays no part. (2) LOW — that new test introduced two
+`invalid_use_of_internal_member` analyzer warnings; silenced with the
+file's established ignore pattern.
+
+Independent re-runs at `4e303ff`: format clean · analyze clean · crash
+suite 153 · release gates 94 · full suite **1,387 passed · 7 skipped ·
+0 failed**. **Recommendation: MERGEABLE** — left OPEN per instruction.
+Not done, per instruction: no merge, no build 214, no symbol upload, no
+event, no Sentry enablement, no store-declaration change, no
+distribution. The `$user.geo` scrub rule remains the open criterion-1
+item for the founder before the build-214 controlled verification.
