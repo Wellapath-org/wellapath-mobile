@@ -4944,3 +4944,74 @@ imports; (d) test evidence. Before merge the founder applies the
 remains NO-GO until a founder-approved controlled verification (new
 build number ≥213, fresh symbols, one event, re-audit incl. geo-absence
 check) passes on this transport. Store declarations untouched.
+
+---
+
+# Build 213 controlled verification — EXECUTED; audit FAILS 3 of 5 criteria
+
+**Date:** 2026-09-22 · Branch head `03aef47` · Event sent
+2026-09-22T11:32:23Z (exactly one; the 213 event budget is spent)
+
+Execution per docs/CRASH_VERIFICATION_213.md: clean tree verified ·
+full suite at head **1,396 passed · 7 skipped · 0 failed** · obfuscated
+release APK 0.3.0+213, sha256 `2662e178…d29f5aac`, release-signed
+(cert sha256 `94e7c574…9083d836`), org.wellapath.app versionCode 213,
+bundled `.env` byte-identical to tracked production, temp token absent
+from the binary · symbols uploaded (plugin exit 0), arm64 debug ID
+`098518b7-0320-8f39-1ab8-06423ff754b9` confirmed on the project at
+11:29Z BEFORE install · hash-verified install on `wellapath_lowend`
+only (base.apk pull re-hash matched) · one confirmed event through the
+gated UI. Founder-supplied stored Event JSON audited fields-only.
+
+**Audit (registered five criteria):**
+
+1. **FAIL — `user.geo` present and POPULATED** (keys: city,
+   country_code, region, subdivision; values not recorded here). No
+   `_meta` scrub annotation anywhere on the event: the saved Advanced
+   Data Scrubbing rule (Remove · Anything · `$user.geo`) did not
+   operate at ingest. Rule selector/scope needs founder re-inspection.
+   (`user.ip_address` is absent — Prevent Storing IP worked; geo was
+   still derived server-side from the connection.)
+2. **FAIL — `debug_meta` entirely absent** (zero images), so the
+   five-field allowlist and the debug-ID match could not be observed
+   live. The uploaded symbols are NOT the problem (present pre-event).
+3. **FAIL — 0/25 frames symbolicated**; every frame carries
+   `symbolicator_status: unknown_image` (addresses arrived, no image
+   to resolve against — downstream of finding 2). The no-source-
+   exposure sub-checks pass trivially (no filenames, line numbers or
+   context lines on any frame). Same failure shape as the 212 audit
+   despite `enableDartSymbolication = true` at this head: the SDK's
+   `LoadDartDebugImagesIntegration` did not attach the Dart image.
+   Static review of sentry 9.27.0 shows the transport serialises the
+   SDK envelope wire-faithfully and the integration's install gates
+   (flag, obfuscation, split-debug-info) should hold, so the failure
+   is in client-side image attachment (candidates: `event.stacktrace`
+   null at processor time, or `baseAddr`/`buildId` header lines absent
+   from the parsed trace string). Needs an instrumented LOCAL
+   reproduction on a remediation line — NOT another live event.
+4. **PASS — §2 privacy inventory clean.** No request, breadcrumb,
+   extra, thread, module, span or replay data; no populated identity/
+   location/session keys anywhere; contexts limited to `trace`
+   (span_id/status/trace_id/type) per §15.4; `_dsc` as documented;
+   exception type `StateError`; message equals the documented
+   synthetic text behind the standard `Bad state: ` StateError prefix
+   (doc wording updated expectation noted, not a deviation).
+5. **PASS — identity and tags exact.** Release
+   `wellapath-mobile@0.3.0+213`, environment `internal-testing`, dist
+   `213`; client tags exactly `crash_source=flutter_framework` +
+   `severity=non_fatal` (fixed vocabulary); remaining tag keys (level,
+   release, dist, environment, interface_type) are server-derived
+   promotions, none client-sent (verified absent from lib/ and SDK).
+
+Transport delivery is live-proven by the received event; rate-limit
+backoff remains test-verified only, per the registered plan.
+
+**Verdict: FAIL — production Sentry remains NO-GO.** Cleanup done:
+Event JSON and `sentry.properties` deleted and confirmed never
+tracked; the temporary CI token and the build-213 client key have no
+remaining dependency and can be revoked/disabled by the founder. No
+second event was or may be sent from 213; build 213 is not distributed;
+no build 214 exists; store declarations untouched. Next: founder
+re-inspects the `$user.geo` rule; debug-image attachment investigated
+locally; the next live verification requires a new registry entry and
+build ≥214 with a fresh key and symbols.
