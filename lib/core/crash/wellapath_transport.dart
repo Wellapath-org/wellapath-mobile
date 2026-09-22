@@ -27,10 +27,17 @@
 ///  * a **bounded send timeout** — the SDK sets none, and an unbounded hang
 ///    is indistinguishable from silent loss. Dart's `Future.timeout` does
 ///    not cancel the underlying request; on timeout the single request may
-///    still complete server-side. Nothing is ever retried either way.
-///  * **no rate-limit bookkeeping** — this app sends rare, single crash
-///    events; a 429 simply resolves to `SentryId.empty` with no retry, so
-///    there is nothing to amplify.
+///    still complete server-side, so an event can appear in Sentry even
+///    though this send reported `SentryId.empty`. That is one request with
+///    a late success — never a duplicate, because nothing is ever retried.
+///  * **conservative global rate limiting** instead of the SDK's
+///    per-category bookkeeping: any `429` or `X-Sentry-Rate-Limits` header
+///    opens a single global backoff window (the longest advertised
+///    interval, default 60s), during which sends resolve to
+///    `SentryId.empty` locally with zero network traffic. This app emits
+///    one category of rare error events, so a global window over-limits
+///    at worst — the safe direction — and a crash loop cannot hammer a
+///    rate-limited ingest.
 ///  * **no logging** of the DSN, endpoint, headers, payload or response.
 ///
 /// The `SentryClient` factory wraps whatever `options.transport` holds in
@@ -47,11 +54,18 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 class WellaPathTransport implements Transport {
   WellaPathTransport(this._options, {http.Client Function()? clientFactory})
-    : _clientFactory = clientFactory ?? http.Client.new;
+    : _clientFactory = clientFactory;
 
   final SentryOptions _options;
-  final http.Client Function() _clientFactory;
-  http.Client? _client;
+
+  /// Test seam only. In production the transport uses `options.httpClient`
+  /// — the installer sets it — so `SentryClient.close()` closes it and no
+  /// client leaks on SDK shutdown.
+  final http.Client Function()? _clientFactory;
+  http.Client? _testClient;
+
+  /// End of the active global rate-limit window, when one is open.
+  DateTime? _rateLimitedUntil;
 
   /// Bounded send timeout. Observation-bounded only: it does not cancel the
   /// in-flight request.
@@ -93,6 +107,35 @@ class WellaPathTransport implements Transport {
         'sentry_key=$publicKey';
   }
 
+  /// The global backoff a response demands, or null for none.
+  ///
+  /// `X-Sentry-Rate-Limits` is `"<seconds>:<categories>:<scope>, …"`; the
+  /// longest advertised interval is applied globally (this app has one
+  /// event category, so a global window only ever over-limits — the safe
+  /// direction). A bare `429` without a parseable header backs off for the
+  /// `Retry-After` value, or 60 seconds.
+  @visibleForTesting
+  static Duration? rateLimitBackoff(
+    int statusCode,
+    Map<String, String> headers,
+  ) {
+    final Map<String, String> lower = {
+      for (final entry in headers.entries) entry.key.toLowerCase(): entry.value,
+    };
+    int? seconds;
+    final String? sentryLimits = lower['x-sentry-rate-limits'];
+    if (sentryLimits != null) {
+      for (final String entry in sentryLimits.split(',')) {
+        final int? s = int.tryParse(entry.trim().split(':').first);
+        if (s != null && (seconds == null || s > seconds)) seconds = s;
+      }
+    }
+    if (seconds == null && statusCode == 429) {
+      seconds = int.tryParse(lower['retry-after']?.trim() ?? '') ?? 60;
+    }
+    return seconds == null ? null : Duration(seconds: seconds);
+  }
+
   @override
   Future<SentryId?> send(SentryEnvelope envelope) async {
     try {
@@ -100,6 +143,12 @@ class WellaPathTransport implements Transport {
 
       final List<int> body = <int>[];
       await envelope.envelopeStream(_options).forEach(body.addAll);
+
+      final DateTime? until = _rateLimitedUntil;
+      if (until != null && now().isBefore(until)) {
+        // Active rate limit: drop locally, touch nothing on the network.
+        return const SentryId.empty();
+      }
 
       final String dsn = _options.dsn ?? '';
       final request = http.Request('POST', envelopeUriFor(dsn));
@@ -111,7 +160,10 @@ class WellaPathTransport implements Transport {
       });
       request.bodyBytes = gzip.encode(body);
 
-      final client = _client ??= _clientFactory();
+      final factory = _clientFactory;
+      final http.Client client = factory != null
+          ? (_testClient ??= factory())
+          : _options.httpClient;
       final http.StreamedResponse response = await client
           .send(request)
           .timeout(sendTimeout);
@@ -119,6 +171,14 @@ class WellaPathTransport implements Transport {
       unawaited(
         response.stream.listen((_) {}).asFuture<void>().catchError((_) {}),
       );
+
+      final Duration? backoff = rateLimitBackoff(
+        response.statusCode,
+        response.headers,
+      );
+      if (backoff != null) {
+        _rateLimitedUntil = now().add(backoff);
+      }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return envelope.header.eventId ?? SentryId.newId();

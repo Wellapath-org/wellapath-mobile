@@ -21,6 +21,7 @@ const String kTestDsn = 'https://testkey@o0.ingest.de.sentry.io/1234567';
 class _FakeClient extends http.BaseClient {
   int sends = 0;
   int statusCode = 200;
+  Map<String, String> responseHeaders = const {};
   Object? toThrow;
   bool neverComplete = false;
   http.BaseRequest? request;
@@ -36,7 +37,11 @@ class _FakeClient extends http.BaseClient {
     if (neverComplete) return Completer<http.StreamedResponse>().future;
     final Object? error = toThrow;
     if (error != null) throw error;
-    return http.StreamedResponse(const Stream.empty(), statusCode);
+    return http.StreamedResponse(
+      const Stream.empty(),
+      statusCode,
+      headers: responseHeaders,
+    );
   }
 }
 
@@ -196,12 +201,80 @@ void main() {
     );
   });
 
+  group('rate limiting — conservative global backoff', () {
+    test('X-Sentry-Rate-Limits applies its longest interval', () {
+      expect(
+        WellaPathTransport.rateLimitBackoff(200, {
+          'X-Sentry-Rate-Limits': '60:error:key, 2700:default, 10:log_item',
+        }),
+        const Duration(seconds: 2700),
+      );
+    });
+
+    test('a bare 429 honours Retry-After, defaulting to 60s', () {
+      expect(
+        WellaPathTransport.rateLimitBackoff(429, {'Retry-After': '7'}),
+        const Duration(seconds: 7),
+      );
+      expect(
+        WellaPathTransport.rateLimitBackoff(429, {}),
+        const Duration(seconds: 60),
+      );
+    });
+
+    test('an unlimited 200 demands no backoff', () {
+      expect(WellaPathTransport.rateLimitBackoff(200, {}), isNull);
+    });
+
+    test(
+      'sends inside an active window drop locally with zero network',
+      () async {
+        var clock = DateTime.utc(2026, 9, 22, 12);
+        WellaPathTransport.now = () => clock;
+        final client = _FakeClient()
+          ..statusCode = 429
+          ..responseHeaders = {'Retry-After': '30'};
+        final transport = WellaPathTransport(
+          options(),
+          clientFactory: () => client,
+        );
+
+        expect(await transport.send(envelope()), const SentryId.empty());
+        expect(client.sends, 1);
+
+        // 10s later: still limited — dropped locally, no request.
+        clock = clock.add(const Duration(seconds: 10));
+        expect(await transport.send(envelope()), const SentryId.empty());
+        expect(client.sends, 1, reason: 'no network inside the window');
+
+        // 31s later: window over — sends again.
+        clock = clock.add(const Duration(seconds: 25));
+        client.statusCode = 200;
+        client.responseHeaders = {};
+        final SentryId? id = await transport.send(envelope());
+        expect(id, isNot(const SentryId.empty()));
+        expect(client.sends, 2);
+      },
+    );
+  });
+
   group('wiring', () {
     test('applyPrivacyOptions installs the first-party transport', () {
       final opts = SentryFlutterOptions();
       // ignore: invalid_use_of_visible_for_testing_member
       CrashMonitoring.applyPrivacyOptions(opts);
       expect(opts.transport, isA<WellaPathTransport>());
+    });
+
+    test('the http client is owned via options so sdk close releases it', () {
+      final opts = SentryFlutterOptions();
+      // ignore: invalid_use_of_visible_for_testing_member
+      CrashMonitoring.applyPrivacyOptions(opts);
+      // The installer must replace the sdk's no-op default with a real
+      // client; SentryClient.close() closes options.httpClient, which is
+      // the entire lifecycle story for the transport's client. (The
+      // runtimeType check runs only in tests, which are never obfuscated.)
+      expect(opts.httpClient.runtimeType.toString(), isNot('NoOpClient'));
     });
   });
 }

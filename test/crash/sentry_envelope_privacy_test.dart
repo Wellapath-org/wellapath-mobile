@@ -138,6 +138,39 @@ void main() {
       expect(wireText, isNot(contains('arm64')));
     });
 
+    test('code_file near-misses never survive — exact constants only', () {
+      for (final String nearMiss in [
+        'libapp.so.bak',
+        'xlibapp.so',
+        'libapp.so ',
+        ' libapp.so',
+        'LIBAPP.SO',
+        'lib/app.so',
+        'libapp_so',
+        'App.Framework/App/../App',
+      ]) {
+        final event = baseEvent();
+        event.debugMeta = DebugMeta(
+          images: [
+            DebugImage(
+              type: 'elf',
+              debugId: '098518b7-4711-cdf3-1ab8-0642b4c05cac',
+              codeFile: nearMiss,
+            ),
+          ],
+        );
+        final json = SentryEventSanitiser.sanitise(event)!.toJson();
+        final image = ((json['debug_meta'] as Map)['images'] as List)
+            .cast<Map>()
+            .first;
+        expect(
+          image.containsKey('code_file'),
+          isFalse,
+          reason: 'code_file "$nearMiss" must not survive',
+        );
+      }
+    });
+
     test('a real filesystem path in code_file is dropped, image kept', () {
       final event = baseEvent();
       event.debugMeta = DebugMeta(

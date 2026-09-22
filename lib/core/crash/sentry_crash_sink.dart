@@ -29,6 +29,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 // Implementation imports for the unwanted-integration types, so removal can
@@ -279,6 +280,9 @@ abstract final class CrashMonitoring {
     // `options.transport` seam here means the SentryClient factory skips its
     // internal HttpTransport construction and wraps this transport in its
     // client-report decorator, so reports still flow.
+    // The client is owned through the public `options.httpClient` seam so
+    // `SentryClient.close()` closes it — no leaked client on SDK shutdown.
+    options.httpClient = http.Client();
     options.transport = WellaPathTransport(options);
 
     // ── The fail-closed outbound boundary ─────────────────────────────────
