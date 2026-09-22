@@ -100,11 +100,46 @@ failure visible before anything ships.
 
 ## Step 3 — the synthetic crash
 
-A debug-only trigger on the system-status screen (long-press the build
-row 5×) throws `StateError('synthetic crash verification 212')` — a
-message that survives the sanitiser untouched, by design, as proof the
-pipeline preserves what it is allowed to preserve. The trigger lands in
-the 212 branch and is removed before any public build.
+**Reachability defect (found 2026-09-21, execution attempt):** the first
+trigger design — a hidden 5× long-press on the status screen's build row
+— was unreachable in a release build: `SystemStatusScreen` left the main
+flow in E4.2 and its only remaining entries were the orphaned
+`BootScreen` and the assessment loading screen's engine-null error path.
+A proposed hidden long-press doorway on the Home logo was rejected
+(correctly) as backdoor-shaped for a health app. Hidden interactions are
+therefore ruled out entirely.
+
+**Current design — explicit, visible, compile-time gated.** Both
+controls exist only when `CrashVerificationGate` passes, which requires
+ALL of: `CRASH_VERIFICATION_TRIGGER_ENABLED=true` (a dedicated define no
+other build command sets) · `CRASH_REPORTING_ENABLED=true` ·
+`CRASH_REPORTING_PRODUCTION_APPROVED=true` ·
+`CRASH_REPORTING_CONTEXT=internal-testing`. Absent, malformed, different
+or partial values fail closed: ordinary, production and
+partially-configured builds render neither control — no placeholder,
+gesture handler, semantics node or route. The full 2⁴ define matrix,
+malformed values and the production context are proven in
+`test/crash/crash_verification_gate_test.dart`.
+
+1. **Home doorway:** an amber, visibly test-only card labelled
+   `Internal verification — System status` / `Local build 212 only`
+   below the service cards; tapping it pushes the existing
+   `SystemStatusScreen`.
+2. **Synthetic-error control:** on the status screen, an explicit button
+   `Send synthetic Sentry test error` opens a confirmation dialog
+   stating that exactly one synthetic engineering error is sent and that
+   it contains no real personal or health information. Only the
+   confirmed `Send test error` action throws
+   `StateError('synthetic crash verification 212')` — synchronously,
+   inside the button's gesture callback, so it reaches
+   `FlutterError.onError` and flows through the CrashReporter boundary
+   exactly like a real framework error. The message survives the
+   sanitiser untouched, by design, as proof the pipeline preserves what
+   it is allowed to preserve.
+
+The build row itself is display-only and carries no gesture. The entire
+verification UI lives only on the 212 branch and is removed in a
+reviewed cleanup commit before any distributable build (213+).
 
 ## Step 4 — verify, then stop
 

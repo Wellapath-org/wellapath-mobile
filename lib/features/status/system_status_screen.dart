@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/crash/crash_verification_gate.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
@@ -7,9 +8,55 @@ import '../boot/boot_controller.dart';
 class SystemStatusScreen extends StatelessWidget {
   final BootResult result;
 
-  const SystemStatusScreen({super.key, required this.result});
+  /// Test-only override for widget tests proving the synthetic-crash trigger
+  /// is unavailable outside the gated 212 verification build. `null` (every
+  /// production call site) defers to [CrashVerificationGate.enabled].
+  final bool? crashVerificationTriggerEnabled;
+
+  const SystemStatusScreen({
+    super.key,
+    required this.result,
+    this.crashVerificationTriggerEnabled,
+  });
 
   static const Color _primary = Color(0xFF6B4EFF);
+
+  bool get _verificationEnabled =>
+      crashVerificationTriggerEnabled ?? CrashVerificationGate.enabled;
+
+  /// Confirmation for the 212 synthetic error (docs/CRASH_VERIFICATION_212.md
+  /// §3). Only the confirmed 'Send test error' action throws, and it throws
+  /// synchronously inside the button's gesture callback so the error reaches
+  /// `FlutterError.onError` and flows through the CrashReporter boundary
+  /// exactly like a real framework error. The `StateError` message survives
+  /// the sanitiser untouched, by design, as proof the pipeline preserves what
+  /// it is allowed to preserve.
+  void _confirmSyntheticError(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Send synthetic test error?'),
+        content: const Text(
+          'This sends exactly one synthetic engineering error to the '
+          'crash-reporting pipeline for the build-212 internal verification. '
+          'It contains no real personal or health information.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              throw StateError('synthetic crash verification 212');
+            },
+            child: const Text('Send test error'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _startAssessment(BuildContext context) {
     final controller = AssessmentController();
@@ -63,6 +110,21 @@ class SystemStatusScreen extends StatelessWidget {
             ],
             const SizedBox(height: 16),
             const _BuildRow(),
+            // The 212 synthetic-error control: rendered ONLY when the
+            // four-define CrashVerificationGate passes. Every other build
+            // emits nothing here — no placeholder, gesture or semantics node.
+            if (_verificationEnabled) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => _confirmSyntheticError(context),
+                icon: const Icon(Icons.science_outlined, size: 18),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB45309),
+                  side: const BorderSide(color: Color(0xFFB45309)),
+                ),
+                label: const Text('Send synthetic Sentry test error'),
+              ),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -112,24 +174,12 @@ class SystemStatusScreen extends StatelessWidget {
   }
 }
 
-/// Build-identity row with the controlled synthetic-crash trigger for the
-/// build-212 internal verification (docs/CRASH_VERIFICATION_212.md §3).
-///
-/// Long-pressing the row five times throws
-/// `StateError('synthetic crash verification 212')` — a message designed to
-/// survive the sanitiser untouched, as proof the pipeline preserves what it
-/// is allowed to preserve. The throw happens inside a gesture callback, so it
-/// reaches `FlutterError.onError` and flows through the CrashReporter
-/// boundary exactly like a real framework error. This trigger lives only on
-/// the 212 branch and is removed before any public build.
-class _BuildRow extends StatefulWidget {
+/// Display-only build-identity row. Carries no gesture handler: the 212
+/// synthetic-error control is the explicit gated button above, never a hidden
+/// interaction (docs/CRASH_VERIFICATION_212.md §3).
+class _BuildRow extends StatelessWidget {
   const _BuildRow();
 
-  @override
-  State<_BuildRow> createState() => _BuildRowState();
-}
-
-class _BuildRowState extends State<_BuildRow> {
   static const String _version = String.fromEnvironment(
     'APP_VERSION',
     defaultValue: 'dev',
@@ -139,23 +189,11 @@ class _BuildRowState extends State<_BuildRow> {
     defaultValue: '0',
   );
 
-  int _longPresses = 0;
-
-  void _onLongPress() {
-    _longPresses += 1;
-    if (_longPresses < 5) return;
-    _longPresses = 0;
-    throw StateError('synthetic crash verification 212');
-  }
-
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onLongPress: _onLongPress,
-      child: Text(
-        'Build $_version+$_build',
-        style: const TextStyle(color: Colors.grey, fontSize: 12),
-      ),
+    return Text(
+      'Build $_version+$_build',
+      style: const TextStyle(color: Colors.grey, fontSize: 12),
     );
   }
 }

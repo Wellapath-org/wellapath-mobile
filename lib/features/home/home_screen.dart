@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/build_environment.dart';
+import '../../core/crash/crash_verification_gate.dart';
 import '../../core/telemetry/contract/telemetry_event.dart';
 import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
+import '../boot/boot_controller.dart';
 import '../locator/locator_screen.dart';
+import '../status/system_status_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.crashVerificationDoorwayEnabled});
+
+  /// Test-only doorway override for widget tests. `null` (every production
+  /// call site) defers to [CrashVerificationGate.enabled], which is false in
+  /// any build not deliberately produced for the 212 internal verification.
+  final bool? crashVerificationDoorwayEnabled;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -21,6 +29,25 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _ink = Color(0xFF1A1A2E);
 
   bool _infoShown = false;
+
+  bool get _doorwayEnabled =>
+      widget.crashVerificationDoorwayEnabled ?? CrashVerificationGate.enabled;
+
+  /// The 212 verification doorway (docs/CRASH_VERIFICATION_212.md): an
+  /// explicit, visibly test-only card that pushes the existing
+  /// SystemStatusScreen. A plain push — Home stays underneath and back
+  /// returns to it — so normal navigation is unchanged. The card renders only
+  /// when [CrashVerificationGate] passes and is removed, with the synthetic
+  /// trigger, before any public build.
+  void _openSystemStatus() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const SystemStatusScreen(
+          result: BootResult(status: BootStatus.success),
+        ),
+      ),
+    );
+  }
 
   /// Opening the locator without an assessment still needs an urgency, since
   /// it drives which facility types are returned. `non_urgent` yields
@@ -212,6 +239,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: _onCallEmergency,
                             emphasised: true,
                           ),
+                          // The 212 verification doorway: rendered ONLY when
+                          // the four-define CrashVerificationGate passes.
+                          // Every other build emits nothing here — no
+                          // placeholder, spacing, gesture or semantics node.
+                          if (_doorwayEnabled) ...[
+                            const SizedBox(height: 12),
+                            _InternalVerificationCard(
+                              onOpen: _openSystemStatus,
+                            ),
+                          ],
                           const Spacer(),
                           // The disclaimer is on the home screen itself now, not only
                           // inside the assessment modal. Two of the three services skip
@@ -350,6 +387,70 @@ class _ServiceCard extends StatelessWidget {
                 Icons.chevron_right_rounded,
                 color: emphasised ? accent : const Color(0xFFB0B0BF),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The explicit, visibly test-only entry to [SystemStatusScreen] for the
+/// build-212 internal Sentry verification (docs/CRASH_VERIFICATION_212.md).
+///
+/// Deliberately NOT styled as a service card: amber-bordered and labelled as
+/// internal so it can never be mistaken for a product feature. It exists only
+/// when [CrashVerificationGate] passes and is removed before any public
+/// build.
+class _InternalVerificationCard extends StatelessWidget {
+  const _InternalVerificationCard({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  static const Color _amber = Color(0xFFB45309);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFFF7E6),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _amber.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.science_outlined, color: _amber, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Internal verification — System status',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _amber,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Local build 212 only',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _amber.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: _amber),
             ],
           ),
         ),

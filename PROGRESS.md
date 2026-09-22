@@ -4907,3 +4907,45 @@ build → symbol upload with SENTRY_RELEASE → synthetic crash → envelope
 audit → legacy-key assessment). Still true: no DSN in the repo, no
 event sent, no build 212, builds 210/211 and store declarations
 untouched.
+
+---
+
+# Build-212 trigger reachability defect + gated visible verification UI
+
+**Date:** 2026-09-22 · **Branch:** `build/212-internal-verification`
+
+Execution of docs/CRASH_VERIFICATION_212.md halted at step 3: the hidden
+5× long-press trigger (commit `4899642`) sat on `SystemStatusScreen`,
+which has been unreachable by normal navigation since E4.2 — its only
+remaining entries are the orphaned `BootScreen` and the assessment
+loading screen's engine-null error path. A hidden Home-logo long-press
+doorway was proposed and rejected as backdoor-shaped for a health app;
+hidden interactions are now ruled out entirely.
+
+**Remedy (this commit):** explicit, visible, compile-time-gated UI.
+New `CrashVerificationGate` (lib/core/crash/) passes only when ALL of
+`CRASH_VERIFICATION_TRIGGER_ENABLED=true` ·
+`CRASH_REPORTING_ENABLED=true` ·
+`CRASH_REPORTING_PRODUCTION_APPROVED=true` ·
+`CRASH_REPORTING_CONTEXT=internal-testing` hold; anything absent,
+malformed, different or partial fails closed and renders nothing. When
+the gate passes: Home shows an amber test-only card
+(`Internal verification — System status` / `Local build 212 only`)
+pushing the existing status screen, and the status screen shows a
+`Send synthetic Sentry test error` button whose confirmation dialog
+(states one synthetic engineering error, no real personal or health
+information) is the ONLY path to
+`StateError('synthetic crash verification 212')`, thrown synchronously
+in the confirm button's gesture callback so it travels the
+FlutterError.onError → CrashReporter path. The build row is
+display-only; the previous long-press code is deleted.
+
+**Verification:** `test/crash/crash_verification_gate_test.dart` — full
+2⁴ define matrix, 17 malformed-value cases, production-context
+rejection, default/partial builds render neither control, cancel emits
+nothing, confirm emits exactly the synthetic StateError, normal Home
+services unchanged. analyze clean · format clean · release gates 94
+passed · full suite **1,361 passed · 7 skipped · 0 failed**. No DSN or
+credential in any tracked file; no event sent; no build produced yet.
+The verification UI is removed in a reviewed cleanup commit before any
+distributable build (213+); build 212 remains local-verification-only.
