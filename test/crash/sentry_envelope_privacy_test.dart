@@ -62,6 +62,8 @@ void main() {
       expect(sanitised, isNotNull);
       final json = sanitised!.toJson();
       // Whatever else the SDK may add, only these keys may appear.
+      // `debug_meta` (minimal image allowlist, approved 2026-09-22) is
+      // asserted in its own group below.
       const approved = {
         'event_id',
         'timestamp',
@@ -72,6 +74,7 @@ void main() {
         'dist',
         'exception',
         'tags',
+        'debug_meta',
       };
       expect(
         json.keys.toSet().difference(approved),
@@ -89,6 +92,108 @@ void main() {
       final json = SentryEventSanitiser.sanitise(baseEvent())!.toJson();
       expect(json['release'], 'wellapath-mobile@0.2.0+208');
       expect(json['environment'], 'internal-beta');
+    });
+  });
+
+  group('debug_meta minimal image allowlist (approved 2026-09-22)', () {
+    DebugImage fullImage() => DebugImage(
+      type: 'elf',
+      imageAddr: '0x7000000000',
+      debugId: '098518b7-4711-cdf3-1ab8-0642b4c05cac',
+      codeId: 'b71885094711cdf31ab80642b4c05cac',
+      codeFile: 'libapp.so',
+      // Fields that must NOT survive:
+      debugFile: '/Users/$marker/build/symbols/app.android-arm64.symbols',
+      imageSize: 12345678,
+      arch: 'arm64',
+      name: marker,
+      imageVmAddr: '0x1000',
+    );
+
+    test('exactly the five approved fields survive, serialized', () {
+      final event = baseEvent();
+      event.debugMeta = DebugMeta(images: [fullImage()]);
+      final json = SentryEventSanitiser.sanitise(event)!.toJson();
+      final images = ((json['debug_meta'] as Map)['images'] as List)
+          .cast<Map>();
+      expect(images, hasLength(1));
+      const approved = {
+        'type',
+        'image_addr',
+        'debug_id',
+        'code_id',
+        'code_file',
+      };
+      expect(
+        images.first.keys.toSet().difference(approved),
+        isEmpty,
+        reason: 'unexpected debug image key: ${images.first.keys}',
+      );
+      expect(images.first['type'], 'elf');
+      expect(images.first['code_file'], 'libapp.so');
+      // The wire never carries the dropped fields or their values.
+      final wireText = wire(SentryEventSanitiser.sanitise(event));
+      expect(wireText, isNot(contains(marker)));
+      expect(wireText, isNot(contains('symbols')));
+      expect(wireText, isNot(contains('arm64')));
+    });
+
+    test('a real filesystem path in code_file is dropped, image kept', () {
+      final event = baseEvent();
+      event.debugMeta = DebugMeta(
+        images: [
+          DebugImage(
+            type: 'elf',
+            debugId: '098518b7-4711-cdf3-1ab8-0642b4c05cac',
+            codeFile: '/data/app/org.wellapath.app-$marker/libapp.so',
+          ),
+        ],
+      );
+      final json = SentryEventSanitiser.sanitise(event)!.toJson();
+      final image = ((json['debug_meta'] as Map)['images'] as List)
+          .cast<Map>()
+          .first;
+      expect(image.containsKey('code_file'), isFalse);
+      expect(
+        wire(SentryEventSanitiser.sanitise(event)),
+        isNot(contains(marker)),
+      );
+    });
+
+    test('an unapproved image type never survives', () {
+      final event = baseEvent();
+      event.debugMeta = DebugMeta(
+        images: [
+          DebugImage(type: 'pe', debugId: 'a' * 32),
+          DebugImage(type: 'wasm', debugId: 'b' * 32),
+        ],
+      );
+      final json = SentryEventSanitiser.sanitise(event)!.toJson();
+      expect(json.containsKey('debug_meta'), isFalse);
+    });
+
+    test('an image without a debug id never survives', () {
+      final event = baseEvent();
+      event.debugMeta = DebugMeta(
+        images: [DebugImage(type: 'elf', codeFile: 'libapp.so')],
+      );
+      final json = SentryEventSanitiser.sanitise(event)!.toJson();
+      expect(json.containsKey('debug_meta'), isFalse);
+    });
+
+    test('non-image debug_meta content (sdk info) never survives', () {
+      final event = baseEvent();
+      event.debugMeta = DebugMeta(
+        sdk: SdkInfo(sdkName: marker),
+        images: [fullImage()],
+      );
+      final wireText = wire(SentryEventSanitiser.sanitise(event));
+      expect(wireText, isNot(contains(marker)));
+    });
+
+    test('absent debug_meta stays absent', () {
+      final json = SentryEventSanitiser.sanitise(baseEvent())!.toJson();
+      expect(json.containsKey('debug_meta'), isFalse);
     });
   });
 

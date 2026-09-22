@@ -257,6 +257,19 @@ abstract final class CrashMonitoring {
     // `SentryEventSanitiser`.
     options.attachStacktrace = true;
 
+    // ── Symbolication: pure-Dart debug images ─────────────────────────────
+    // The Flutter layer sets this FALSE whenever a native binding exists,
+    // expecting the native images integration — which this file removes
+    // (native SDK never started; its envelopes would bypass beforeSend).
+    // The 212 audit proved the consequence: debug_meta.images arrived empty
+    // and 0 of 25 frames symbolicated despite correctly uploaded symbols.
+    // Re-enabling engages the SDK's pure-Dart LoadDartDebugImagesIntegration,
+    // which derives ONE image (type, load address, debug id, build id,
+    // constant code-file name) from the stack trace itself, no native code
+    // involved. The sanitiser passes through exactly those fields and
+    // nothing else — see SentryEventSanitiser._sanitiseDebugMeta.
+    options.enableDartSymbolication = true;
+
     // ── The fail-closed outbound boundary ─────────────────────────────────
     options.beforeSend = (event, hint) => SentryEventSanitiser.sanitise(event);
 

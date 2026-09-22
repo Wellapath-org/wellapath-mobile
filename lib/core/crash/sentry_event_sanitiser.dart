@@ -15,13 +15,19 @@
 ///    addresses — with filesystem paths scrubbed
 ///  * fatal / non-fatal severity, and the crash source
 ///  * app version, build, platform, release, environment
+///  * minimal debug images (approved 2026-09-22): per image exactly
+///    `type`, `image_addr`, `debug_id`, `code_id` and a constant
+///    `code_file` name — non-personal build identifiers, required for
+///    server-side symbolication of obfuscated builds. See
+///    [_sanitiseDebugMeta] for the rebuild.
 ///
 /// ### What may never leave
 ///
 /// User, request, breadcrumbs, contexts, tags outside the allowlist, extras,
-/// modules, threads, debug metadata, attachments, device identifiers, locale,
-/// timezone, network operator, assessment session IDs, telemetry event IDs,
-/// and every category of clinical data.
+/// modules, threads, debug metadata beyond the minimal image allowlist,
+/// attachments, device identifiers, locale, timezone, network operator,
+/// assessment session IDs, telemetry event IDs, and every category of
+/// clinical data.
 ///
 /// ### Hashing is not sanitisation
 ///
@@ -78,9 +84,10 @@ abstract final class SentryEventSanitiser {
         dist: event.dist,
         exceptions: exceptions,
         tags: _sanitiseTags(event.tags),
+        debugMeta: _sanitiseDebugMeta(event.debugMeta),
         // Everything below is deliberately omitted rather than copied:
         //   user, request, breadcrumbs, contexts, extra, modules, threads,
-        //   debugMeta, message, transaction, culprit, fingerprint, logger,
+        //   message, transaction, culprit, fingerprint, logger,
         //   serverName, sdk, type, unknown.
         // Omitting `sdk` costs a little provider-side diagnostics and removes
         // a field whose contents this app does not control.
@@ -89,6 +96,63 @@ abstract final class SentryEventSanitiser {
       // A sanitiser that throws must not let the raw event through.
       return null;
     }
+  }
+
+  /// Debug-image types the SDK's pure-Dart image derivation produces
+  /// (`LoadDartDebugImagesIntegration`, sentry 9.27.0). Anything else is not
+  /// a Dart app image and is dropped.
+  static const Set<String> kApprovedDebugImageTypes = {'elf', 'macho'};
+
+  /// The constant code-file names the SDK assigns per platform. Real
+  /// filesystem paths never match and are dropped.
+  static const Set<String> kApprovedDebugImageCodeFiles = {
+    'libapp.so', // Android
+    'App.Framework/App', // iOS / macOS
+    'data/app.so', // Windows
+  };
+
+  /// Minimal debug-image allowlist — approved 2026-09-22 as non-personal
+  /// build identifiers, the exact set `LoadDartDebugImagesIntegration`
+  /// constructs and Sentry's symbolicator requires to associate uploaded
+  /// symbols with an obfuscated build:
+  ///
+  ///   * `type`      — 'elf' / 'macho', a constant;
+  ///   * `image_addr`— the app image's load address, a hex address;
+  ///   * `debug_id`  — the build's debug identifier (UUID form of the ELF
+  ///                   build-id);
+  ///   * `code_id`   — the raw build-id;
+  ///   * `code_file` — one of three constant display names.
+  ///
+  /// Every image is REBUILT from those five fields; any other DebugImage
+  /// field (real paths, arch, vmaddr, sizes, names) and any non-image
+  /// DebugMeta content (sdk info, linker data) is discarded. Source
+  /// contents, variables, device identifiers and user data have no field
+  /// here to travel in.
+  static DebugMeta? _sanitiseDebugMeta(DebugMeta? debugMeta) {
+    final images = debugMeta?.images;
+    if (images == null || images.isEmpty) return null;
+    final safe = <DebugImage>[];
+    for (final image in images) {
+      final type = image.type;
+      if (!kApprovedDebugImageTypes.contains(type)) continue;
+      final debugId = image.debugId;
+      // An image with no debug id cannot associate symbols and is pure
+      // surface; drop it.
+      if (debugId == null || debugId.isEmpty) continue;
+      final codeFile = image.codeFile;
+      safe.add(
+        DebugImage(
+          type: type,
+          imageAddr: image.imageAddr,
+          debugId: debugId,
+          codeId: image.codeId,
+          codeFile: kApprovedDebugImageCodeFiles.contains(codeFile)
+              ? codeFile
+              : null,
+        ),
+      );
+    }
+    return safe.isEmpty ? null : DebugMeta(images: safe);
   }
 
   static Map<String, String>? _sanitiseTags(Map<String, String>? tags) {
