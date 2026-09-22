@@ -4949,3 +4949,41 @@ passed · full suite **1,361 passed · 7 skipped · 0 failed**. No DSN or
 credential in any tracked file; no event sent; no build produced yet.
 The verification UI is removed in a reviewed cleanup commit before any
 distributable build (213+); build 212 remains local-verification-only.
+
+---
+
+# Build-212 event-loss investigation (OPEN) + required pre-213 fix
+
+**Date:** 2026-09-22 · **Branch:** `build/212-internal-verification`
+
+One confirmed synthetic event was emitted in the installed 212 APK on
+`wellapath_lowend`; the Sentry UI shows **no received event** for
+`release:wellapath-mobile@0.3.0+212` / `environment:internal-testing`.
+Reassessed honestly: local evidence proves only that the confirmed
+dialog action executed — capture, init and transport are all silent in
+a release build (init failures swallowed, transport errors swallowed,
+`options.debug=false`, debugPrint invisible), so "sent" was never
+proven. An approved credential-safe empty-body envelope probe against
+the DSN's ingest endpoint returned **400 "empty request body"** —
+authentication passed, so the client key is ACTIVE and correctly
+associated; the fault is on-device initialisation or transport.
+Sanitiser ruled out as the drop point (captureException always yields a
+non-empty exceptions list; mechanism is not required for issue
+creation). Token scopes (release-ops only) block server-side outcome
+reads; founder to check Stats → Outcomes in the UI.
+
+**REQUIRED FIX BEFORE ANY BUILD ≥213:**
+`SentryCrashSink.removeAutomaticErrorIntegrations` matches integrations
+by `runtimeType.toString()`, which `--obfuscate` renames — in the 212
+binary NONE of the SDK's automatic error integrations were removed, so
+`FlutterErrorIntegration` et al. remained installed and every framework
+error would be captured twice. Replace the string match with `is`-type
+checks (obfuscation-safe) and add a test that fails under an
+obfuscation-simulating rename. Not the cause of the missing event
+(duplicates, not drops), but a real correctness defect.
+
+**Next (awaiting founder):** reconcile the probe with the UI Outcomes
+page; then, before any second event, the agreed safest step is a debug
+variant launched on the emulator ONLY to read the startup
+`Crash monitoring enabled/disabled/init failed` debugPrint line —
+app startup emits no event with sessions/tracing/native off.
