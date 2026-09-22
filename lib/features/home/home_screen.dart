@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/build_environment.dart';
+// LOCAL-VERIFICATION-ONLY import (build 214) — leaves with this branch.
+import '../../core/crash/crash_verification_gate.dart';
 import '../../core/telemetry/contract/telemetry_event.dart';
 import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
 import '../locator/locator_screen.dart';
+// LOCAL-VERIFICATION-ONLY imports (build 214) — leave with this branch.
+import '../boot/boot_controller.dart';
+import '../status/system_status_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.verificationDoorwayOverride});
+
+  /// Test seam only: the gate is compile-time, so widget tests cannot flip
+  /// it. `null` (every production construction) reads
+  /// [CrashVerificationGate.enabled].
+  final bool? verificationDoorwayOverride;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -21,6 +31,23 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Color _ink = Color(0xFF1A1A2E);
 
   bool _infoShown = false;
+
+  /// LOCAL-VERIFICATION-ONLY (build 214): whether the doorway card renders.
+  bool get _doorwayEnabled =>
+      widget.verificationDoorwayOverride ?? CrashVerificationGate.enabled;
+
+  /// LOCAL-VERIFICATION-ONLY (build 214): opens the existing status screen,
+  /// which carries the gated synthetic-error button.
+  void _openSystemStatus() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SystemStatusScreen(
+          result: BootResult(status: BootStatus.success),
+          verificationOverride: widget.verificationDoorwayOverride,
+        ),
+      ),
+    );
+  }
 
   /// Opening the locator without an assessment still needs an urgency, since
   /// it drives which facility types are returned. `non_urgent` yields
@@ -212,6 +239,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: _onCallEmergency,
                             emphasised: true,
                           ),
+                          // LOCAL-VERIFICATION-ONLY (build 214): the doorway
+                          // renders ONLY when the four-define gate passes.
+                          // Every other build emits nothing here — no
+                          // placeholder, spacing, gesture or semantics node.
+                          if (_doorwayEnabled) ...[
+                            const SizedBox(height: 12),
+                            _InternalVerificationCard(
+                              onOpen: _openSystemStatus,
+                            ),
+                          ],
                           const Spacer(),
                           // The disclaimer is on the home screen itself now, not only
                           // inside the assessment modal. Two of the three services skip
@@ -475,6 +512,65 @@ class _InfoModal extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// LOCAL-VERIFICATION-ONLY — NEVER MERGE, NEVER DISTRIBUTE.
+///
+/// The explicit, visibly test-only doorway to [SystemStatusScreen] for the
+/// build-214 controlled transport verification
+/// (docs/CRASH_VERIFICATION_214.md). Deliberately NOT styled as a service
+/// card: amber-bordered and labelled internal, so it can never be mistaken
+/// for a product feature.
+class _InternalVerificationCard extends StatelessWidget {
+  const _InternalVerificationCard({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFFFF4DC),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFB4780A)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: const Row(
+            children: [
+              Icon(Icons.science_outlined, color: Color(0xFF8A5B00)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Internal verification — System status',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8A5B00),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Local build 214 only',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF8A5B00)),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Color(0xFF8A5B00)),
+            ],
+          ),
+        ),
       ),
     );
   }
