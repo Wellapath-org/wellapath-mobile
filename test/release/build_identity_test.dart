@@ -56,14 +56,45 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'on 2026-09-21 (team 2SCUC2CBBS, org.wellapath.app). The signed '
       'Android AAB sha256 818d60b1…129d4 (62,090,832 B) was built but not '
       'uploaded. The number is burned on both platforms',
+  211:
+      'internal-testing build 0.3.0+211 (distributed 2026-09-21): iOS IPA '
+      'sha256 7c39f4f8… uploaded to TestFlight internal; signed Android AAB '
+      'sha256 690249ae… built. The number is burned',
+  212:
+      'LOCAL SENTRY VERIFICATION ONLY — never distributed, never to be '
+      'distributed. Release APKs built 2026-09-22 on the local-only branch '
+      'build/212-internal-verification for the crash-transport '
+      'investigation: sha256 b680fcf8… (superseded), 967f672b… (rebuilt at '
+      'the integration fix), df2d3e65… and 79550774… (diagnostic variants). '
+      'Every artifact stayed on one local emulator; the number is burned '
+      'because release wellapath-mobile@0.3.0+212 exists in Sentry',
+  213:
+      'LOCAL VERIFICATION ONLY — CONSUMED/BURNED, never distributed, never '
+      'to be distributed. One release APK built 2026-09-22 on the '
+      'local-only branch build/213-transport-verification (head 03aef47), '
+      'sha256 2662e1780af0c90bad370350fafb9c6df5e476fdf36fb670e0bd90d5d29'
+      'f5aac, release-signed, org.wellapath.app versionCode 213, installed '
+      'only on the wellapath_lowend emulator. Its ONE permitted synthetic '
+      'event was sent 2026-09-22T11:32:23Z, received and audited '
+      'fields-only: transport delivery, the §2 privacy inventory and the '
+      'release/tag identity PASSED; user.geo (scrub rule inoperative as '
+      'then saved), debug_meta (absent) and symbolication (unknown_image) '
+      'FAILED — see PROGRESS.md 2026-09-22 and '
+      'docs/CRASH_VERIFICATION_213.md on that branch. Uploaded arm64 '
+      'symbols debug ID 098518b7-0320-8f39-1ab8-06423ff754b9; release '
+      'wellapath-mobile@0.3.0+213 exists in Sentry, so the number is '
+      'burned',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 211 has never been distributed or uploaded: it appears in no tag, no CI
-/// release identifier, no rollback record and no registry entry above, and
-/// `git log --all -S'+211'` finds no prior use.
-const int kCurrentBuildNumber = 211;
+/// 214 is LOCAL VERIFICATION ONLY (docs/CRASH_VERIFICATION_214.md): it
+/// exists to prove the corrected geo scrub rule and the merged
+/// debug-image installation fix (PR #83) with exactly one controlled
+/// event, and must never be distributed. The first potentially
+/// distributable Sentry-enabled candidate is 215 or higher. 214 appears
+/// in no tag, no CI release identifier and no registry entry above.
+const int kCurrentBuildNumber = 214;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';
