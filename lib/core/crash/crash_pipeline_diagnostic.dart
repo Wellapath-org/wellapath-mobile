@@ -41,10 +41,22 @@ abstract final class CrashPipelineDiagnostic {
     'capture_returned_id_nonzero',
     'capture_returned_id_zero',
     'transport_send_returned',
+    // Transport-probe outcomes (crash_transport_probe.dart) — fixed
+    // classifications, never messages or exception text.
+    'probe_started',
+    'http_400_empty_body',
+    'http_401_or_403',
+    'timed_out',
+    'tls_failed_handshake',
+    'tls_failed_certificate',
+    'tls_failed_tls',
+    'connection_failed_socket',
+    'connection_failed_http',
+    'connection_failed_other',
   };
 
   static final RegExp _transportStage = RegExp(
-    r'^transport_send_called items=\d+$',
+    r'^(transport_send_called items=\d+|other_http_status_\dxx)$',
   );
 
   /// Pure gate logic, testable without rebuilding: the full verification

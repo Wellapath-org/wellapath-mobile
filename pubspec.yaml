@@ -64,6 +64,11 @@ dependencies:
   latlong2: ^0.9.0
   crypto: ^3.0.7
   sentry_flutter: ^9.0.0
+  # LOCAL-VERIFICATION-ONLY (212 branch): direct dependency on the SAME
+  # http package sentry already resolves (locked 1.6.0), so the transport
+  # probe uses the SDK-identical client stack. Removed with the diagnostic
+  # chain before any distributable build.
+  http: ^1.6.0
   unorm_dart: ^0.3.2
 
 dev_dependencies:

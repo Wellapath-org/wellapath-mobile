@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/crash/crash_pipeline_diagnostic.dart';
+import '../../core/crash/crash_transport_probe.dart';
 import '../../core/crash/crash_verification_gate.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
@@ -229,6 +232,24 @@ class _PipelineDiagnosticPanel extends StatelessWidget {
                       fontFamily: 'monospace',
                     ),
                   ),
+              const SizedBox(height: 8),
+              // One event-free empty-body POST over the SDK-identical HTTP
+              // stack; CrashTransportProbe enforces at most one request.
+              OutlinedButton(
+                onPressed: () => unawaited(CrashTransportProbe.run()),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF374151),
+                  side: const BorderSide(color: Color(0xFF9CA3AF)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                ),
+                child: const Text(
+                  'Run transport probe (no event)',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
             ],
           );
         },
