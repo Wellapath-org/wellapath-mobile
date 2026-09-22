@@ -23,6 +23,8 @@ import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 
+import 'crash_pipeline_diagnostic.dart';
+
 /// Where a sanitised report would go. The default implementation goes nowhere.
 abstract class CrashSink {
   /// Const so the disabled default sink stays a compile-time constant.
@@ -327,6 +329,8 @@ abstract final class CrashReporter {
 
     final previousOnError = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
+      // No-op unless the five-define pipeline diagnostic gate passes.
+      CrashPipelineDiagnostic.record('flutter_error_handler_entered');
       _report(
         details.exception,
         stackTrace: details.stack,
@@ -425,6 +429,8 @@ abstract final class CrashReporter {
     required bool isFatal,
     StackTrace? stackTrace,
   }) {
+    // No-op unless the five-define pipeline diagnostic gate passes.
+    CrashPipelineDiagnostic.record('crash_reporter_report_called');
     try {
       final report = SanitisedCrashReport(
         classification: CrashSanitiser.classify(error),

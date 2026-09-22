@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/crash/crash_pipeline_diagnostic.dart';
 import '../../core/crash/crash_verification_gate.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
@@ -13,10 +14,15 @@ class SystemStatusScreen extends StatelessWidget {
   /// production call site) defers to [CrashVerificationGate.enabled].
   final bool? crashVerificationTriggerEnabled;
 
+  /// Test-only override for the pipeline-diagnostic panel. `null` (every
+  /// production call site) defers to [CrashPipelineDiagnostic.isEnabled].
+  final bool? crashPipelineDiagnosticEnabled;
+
   const SystemStatusScreen({
     super.key,
     required this.result,
     this.crashVerificationTriggerEnabled,
+    this.crashPipelineDiagnosticEnabled,
   });
 
   static const Color _primary = Color(0xFF6B4EFF);
@@ -125,6 +131,14 @@ class SystemStatusScreen extends StatelessWidget {
                 label: const Text('Send synthetic Sentry test error'),
               ),
             ],
+            // Rendered ONLY in the five-define no-network diagnostic build:
+            // closed-vocabulary stage names and a numeric item count, nothing
+            // else. Every other build emits nothing here.
+            if (crashPipelineDiagnosticEnabled ??
+                CrashPipelineDiagnostic.isEnabled) ...[
+              const SizedBox(height: 16),
+              const _PipelineDiagnosticPanel(),
+            ],
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -171,6 +185,55 @@ class SystemStatusScreen extends StatelessWidget {
           labelStyle: TextStyle(color: Colors.white),
         );
     }
+  }
+}
+
+/// LOCAL-VERIFICATION-ONLY: live view of [CrashPipelineDiagnostic.stages].
+/// Renders closed-vocabulary stage names only — the recorder itself refuses
+/// anything outside its vocabulary, so nothing sensitive can appear here.
+class _PipelineDiagnosticPanel extends StatelessWidget {
+  const _PipelineDiagnosticPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF9CA3AF)),
+      ),
+      child: ValueListenableBuilder<List<String>>(
+        valueListenable: CrashPipelineDiagnostic.stages,
+        builder: (context, stages, _) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pipeline diagnostic — no-network build',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              if (stages.isEmpty)
+                const Text(
+                  '(no stages recorded yet)',
+                  style: TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                )
+              else
+                for (final stage in stages)
+                  Text(
+                    stage,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 

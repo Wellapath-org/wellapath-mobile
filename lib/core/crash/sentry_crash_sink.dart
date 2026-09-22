@@ -57,6 +57,7 @@ import 'package:sentry_flutter/src/integrations/screenshot_integration.dart';
 import 'package:sentry_flutter/src/integrations/widgets_binding_integration.dart';
 
 import 'crash_config.dart';
+import 'crash_pipeline_diagnostic.dart';
 import 'crash_reporter.dart';
 import 'sentry_event_sanitiser.dart';
 
@@ -105,22 +106,37 @@ class SentryCrashSink extends CrashSink {
 
     try {
       forwarded++;
+      // No-op unless the five-define pipeline diagnostic gate passes.
+      CrashPipelineDiagnostic.record('sentry_sink_capture_called');
       final capture = captureOverride;
       if (capture != null) {
         unawaited(capture(error, stackTrace, tags));
         return;
       }
-      unawaited(
-        Sentry.captureException(
-          error,
-          stackTrace: stackTrace,
-          withScope: (scope) {
-            for (final entry in tags.entries) {
-              scope.setTag(entry.key, entry.value);
-            }
-          },
-        ),
+      final Future<SentryId> captured = Sentry.captureException(
+        error,
+        stackTrace: stackTrace,
+        withScope: (scope) {
+          for (final entry in tags.entries) {
+            scope.setTag(entry.key, entry.value);
+          }
+        },
       );
+      if (CrashPipelineDiagnostic.isEnabled) {
+        // Diagnostic builds only: record whether the SDK client accepted the
+        // capture. Only the zero/nonzero classification is kept — never the
+        // identifier itself.
+        unawaited(
+          captured.then(
+            (SentryId id) => CrashPipelineDiagnostic.record(
+              id == const SentryId.empty()
+                  ? 'capture_returned_id_zero'
+                  : 'capture_returned_id_nonzero',
+            ),
+          ),
+        );
+      }
+      unawaited(captured);
     } catch (_) {
       // A provider failure must never propagate into the app. It cannot
       // prevent startup, block navigation, or change how the original error
@@ -258,7 +274,27 @@ abstract final class CrashMonitoring {
     options.attachStacktrace = true;
 
     // ── The fail-closed outbound boundary ─────────────────────────────────
-    options.beforeSend = (event, hint) => SentryEventSanitiser.sanitise(event);
+    options.beforeSend = (event, hint) {
+      // Both record calls are no-ops unless the five-define pipeline
+      // diagnostic gate passes; the sanitiser behaviour is unchanged.
+      CrashPipelineDiagnostic.record('before_send_invoked');
+      final sanitised = SentryEventSanitiser.sanitise(event);
+      CrashPipelineDiagnostic.record(
+        sanitised == null
+            ? 'before_send_returned_null'
+            : 'before_send_returned_event',
+      );
+      return sanitised;
+    };
+
+    // Diagnostic builds only: the SDK's transport is replaced BEFORE the
+    // client is created, so `HttpTransport` is never installed and no
+    // envelope can leave the device (the client's ClientReportTransport
+    // wrapper delegates to this recorder too). Every other build keeps the
+    // SDK's own transport untouched.
+    if (CrashPipelineDiagnostic.isEnabled) {
+      options.transport = RecordingTransport();
+    }
 
     removeAutomaticErrorIntegrations(options);
   }
