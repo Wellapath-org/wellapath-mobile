@@ -4987,3 +4987,29 @@ page; then, before any second event, the agreed safest step is a debug
 variant launched on the emulator ONLY to read the startup
 `Crash monitoring enabled/disabled/init failed` debugPrint line —
 app startup emits no event with sessions/tracing/native off.
+
+---
+
+# 212 rebuilt from the integration-removal fix (LOCAL ONLY — never distribute)
+
+**Date:** 2026-09-22 · **Commit:** `9b39fff` (is-type integration removal
++ regression tests; stale LoadImageListIntegration name corrected to
+LoadNativeDebugImagesIntegration). Verification: analyze clean · format
+clean · crash suite 132 · release gates 94 · full suite **1,366 passed ·
+7 skipped · 0 failed**.
+
+Release APK rebuilt with the identical five defines + obfuscation +
+split-debug-info: `org.wellapath.app` 0.3.0 (212), release-key signature
+valid (cert `94e7c574…3d836`), bundled `.env` byte-identical to tracked
+production. **APK sha256 `967f672b…7455e1` supersedes `b680fcf8…b44473`**
+(first 212 build, also never distributed). Neither 212 artifact may ever
+be uploaded to a store or tester channel.
+
+Debug IDs changed on all three ABIs (arm `…5580a986`, arm64
+`…23ac4b74`, x64 `…7172bea1`) — the symbols on Sentry belong to the
+superseded binary and DO NOT apply to the rebuilt one. A fresh
+symbols-only upload is required before the second synthetic event; both
+remain blocked pending founder approval. Debug initialization and
+emulator connectivity are proven; the release event-processing failure
+remains a leading hypothesis until a corrected release build
+successfully sends an audited event.
