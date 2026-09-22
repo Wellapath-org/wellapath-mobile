@@ -5013,3 +5013,51 @@ remain blocked pending founder approval. Debug initialization and
 emulator connectivity are proven; the release event-processing failure
 remains a leading hypothesis until a corrected release build
 successfully sends an audited event.
+
+---
+
+# Build-212 synthetic event DELIVERED and AUDITED (2026-09-22)
+
+One confirmed synthetic event, sent 2026-09-22T09:48:59Z from the
+outcome-diagnostic APK `df2d3e65…d5d2` (commit `d0211ac`), was received
+by Sentry (on-device stage panel: full chain through
+`response_received_2xx`; founder-supplied Event JSON audited, then
+deleted along with sentry.properties). Audit record — FIELDS ONLY:
+
+**PASS (privacy):** release `wellapath-mobile@0.3.0+212` · environment
+`internal-testing` · timestamp matches the confirm tap to the second ·
+client tags exactly {crash_source=flutter_framework,
+severity=non_fatal} (other tags are server promotions of allowed
+fields) · exception `StateError` with the synthetic message (the word
+"crash" was over-redacted to `[redacted]` — fail-safe direction, but
+contradicts the "survives untouched" doc; review the scrub rule or fix
+the docs pre-213) · user.ip_address ABSENT · request, breadcrumbs,
+extra, modules, threads, server_name, transaction, logger, attachments,
+session, replay, profile: ALL ABSENT · frames carry only
+instruction_addr/in_app/platform — no paths, no device data.
+
+**FINDINGS (server-side enrichment, founder decision pre-213):**
+`user.geo` (city/country_code/region/subdivision) is derived by Sentry
+from the connection IP at ingest even with IP storage prevented —
+city-level location on the event, outside the §2 inventory ·
+`contexts.trace` + `_dsc` (random trace ids + the DSN public key) come
+from the envelope header, not the sanitised event.
+
+**FAIL (symbolication):** 0 of 25 frames resolved; `debug_meta.images`
+is EMPTY, so the uploaded symbols (arm64 debug id
+`098518b7-4711-cdf3-1ab8-0642b4c05cac`, confirmed on the project) can
+never be associated. Structural, not accidental: §2 declares debug
+metadata may never leave the device, and the sanitiser drops it.
+Server-side symbolication of obfuscated builds is impossible under that
+rule. Pre-213 decision required: permit `debug_meta` (build
+identifiers, not personal data) or accept unsymbolicated crashes.
+
+**Transport caveat:** delivery used the explicitly constructed
+diagnostic transport (httpClient seam + explicit HttpTransport). The
+SDK's DEFAULT transport assembly — the path the two failed real
+attempts used — remains unproven and must not be enabled in 213 until
+independently fixed or replaced and reviewed.
+
+Remaining founder actions: delete the test event in Sentry · revoke the
+temporary CI token (nothing on disk references it any more) · assess
+disabling the legacy client key per docs/CRASH_VERIFICATION_212.md §4.5.
