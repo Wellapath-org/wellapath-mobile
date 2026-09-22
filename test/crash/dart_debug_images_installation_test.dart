@@ -114,6 +114,43 @@ void main() {
       expect(_countDartDebugImagesIntegrations(options), 1);
     });
 
+    test(
+      'debug/JIT precisely: the integration OBJECT is installed, but its '
+      'call() adds no event processor (runtime gates close, not the flag)',
+      () {
+        final options = SentryFlutterOptions();
+        // ignore: invalid_use_of_visible_for_testing_member
+        CrashMonitoring.applyPrivacyOptions(options);
+        options.dsn = 'https://k@h/1';
+
+        final integration = options.integrations
+            .whereType<LoadDartDebugImagesIntegration>()
+            .single;
+        expect(
+          options.eventProcessors
+              // ignore: invalid_use_of_internal_member
+              .whereType<LoadDartDebugImagesIntegrationEventProcessor>(),
+          isEmpty,
+        );
+
+        // Execute the integration exactly as Sentry.init's integration loop
+        // would. In a JIT test run isAppObfuscated()/isSplitDebugInfoBuild()
+        // are false, so the gate inside call() must close.
+        integration.call(Hub(options), options);
+
+        expect(
+          options.eventProcessors
+              // ignore: invalid_use_of_internal_member
+              .whereType<LoadDartDebugImagesIntegrationEventProcessor>(),
+          isEmpty,
+          reason:
+              'in JIT/debug the processor must not install; the no-op comes '
+              'from the runtime checks, not from the flag',
+        );
+        expect(options.enableDartSymbolication, isTrue);
+      },
+    );
+
     test('is idempotent across a second apply', () {
       final options = SentryFlutterOptions();
       // ignore: invalid_use_of_visible_for_testing_member
