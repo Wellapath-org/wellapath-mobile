@@ -648,3 +648,73 @@ engineering group. See
 No item remains blocking **I1 technical closure**. The outstanding **DPA**
 (item 2) gates *distribution* of Sentry-enabled builds beyond the authorized
 internal engineering group — not closure, and not I2.
+
+---
+
+## 15. Post-212 audit decisions (2026-09-22)
+
+The build-212 internal verification delivered and audited one synthetic
+event (PROGRESS.md). Founder decisions applied on the
+`fix/crash-transport-remediation` line:
+
+### 15.1 Transport
+
+The SDK's default transport assembly lost two controlled events in
+obfuscated release builds and is **replaced** by the first-party
+`WellaPathTransport` (`lib/core/crash/wellapath_transport.dart`) on the
+public `options.transport` seam. Production Sentry stays NO-GO for any
+build until this line is reviewed and merged; the default assembly must
+never be re-enabled without an independent fix and review.
+
+### 15.2 Minimal debug images (symbolication)
+
+Debug identifiers are approved as non-personal build identifiers. The
+sanitiser passes through, per image, exactly `type`, `image_addr`,
+`debug_id`, `code_id` and a constant `code_file` name — the set the
+SDK's pure-Dart `LoadDartDebugImagesIntegration` (9.27.0 source)
+constructs and the symbolicator requires. Everything else in
+`debug_meta` is discarded; enforcement and the serialized-envelope
+proof live in `SentryEventSanitiser._sanitiseDebugMeta` and
+`test/crash/sentry_envelope_privacy_test.dart`. `enableDartSymbolication`
+is re-enabled (the Flutter layer had disabled it whenever a native
+binding exists, which is why the audited event carried no images).
+
+### 15.3 Sentry-derived `user.geo` — NOT approved; server-side scrub required
+
+The 212 audit proved "Prevent Storing IP Addresses" does NOT prevent
+GeoIP enrichment: the stored event carried `user.geo`
+(city/country_code/region/subdivision) derived from the connection IP
+before the IP was discarded. **Founder UI steps** (project
+`wellapath-mobile`):
+
+1. Project Settings → Security & Privacy → **Advanced Data Scrubbing**
+   → Add Rule.
+2. Method: **Remove** · Data type: **Anything** · Source: **`$user.geo`**
+   (type the selector exactly; it targets the whole geo object).
+3. Save. Rules apply at ingest, before storage.
+
+**Verification plan:** on the next approved controlled event, download
+the raw Event JSON and confirm the `user` object contains no `geo` key
+(the audit script pattern from 2026-09-22 applies). Until verified,
+treat any stored event as potentially geo-enriched.
+
+### 15.4 Envelope trace metadata — recorded, not suppressed
+
+`contexts.trace` (random `trace_id`/`span_id`) and the envelope's `_dsc`
+header (trace id, release, environment, the DSN public key) are
+**transport-envelope metadata**, attached by the SDK outside the
+sanitised event body. They carry no personal, health or device data and
+are never product analytics. No supported SDK option removes them
+without forking envelope construction, and their absence is untested
+against ingest — per founder decision they are documented here and NOT
+suppressed speculatively.
+
+### 15.5 Synthetic-message redaction — documentation corrected
+
+The 212 event's message arrived as `synthetic [redacted] verification
+212`: the clinical stem list matches `rash` INSIDE words, so the word
+"crash" is redacted whole. This is the documented, intended over-redaction
+trade of the substring rule and is NOT being weakened. Any earlier
+wording claiming the synthetic message "survives the sanitiser
+untouched" is superseded: the message survives **in structure**, with
+the word "crash" expected to read `[redacted]`.

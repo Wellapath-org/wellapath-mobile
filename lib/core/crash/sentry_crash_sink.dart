@@ -29,11 +29,38 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:sentry_flutter/sentry_flutter.dart';
+
+// Implementation imports for the unwanted-integration types, so removal can
+// use `is` checks. `runtimeType.toString()` matching silently failed in the
+// obfuscated build-212 binary — `--obfuscate` renames every class, so no name
+// matched and every automatic integration stayed installed (PROGRESS.md,
+// 2026-09-22). Type checks survive renaming. These classes are not exported
+// publicly, so implementation imports are the only route; the paths are
+// pinned to the SDK version in [CrashMonitoring.sdkVersion] and break loudly
+// at compile time on an SDK upgrade instead of silently at runtime.
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/app_start/ui_load_attached/native_app_start_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/debug_print_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/flutter_error_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/load_contexts_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/native_load_debug_images_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/native_sdk_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/screenshot_integration.dart';
+// ignore: implementation_imports
+import 'package:sentry_flutter/src/integrations/widgets_binding_integration.dart';
 
 import 'crash_config.dart';
 import 'crash_reporter.dart';
 import 'sentry_event_sanitiser.dart';
+import 'wellapath_transport.dart';
 
 /// Forwards sanitised crashes to Sentry.
 class SentryCrashSink extends CrashSink {
@@ -232,6 +259,32 @@ abstract final class CrashMonitoring {
     // `SentryEventSanitiser`.
     options.attachStacktrace = true;
 
+    // ── Symbolication: pure-Dart debug images ─────────────────────────────
+    // The Flutter layer sets this FALSE whenever a native binding exists,
+    // expecting the native images integration — which this file removes
+    // (native SDK never started; its envelopes would bypass beforeSend).
+    // The 212 audit proved the consequence: debug_meta.images arrived empty
+    // and 0 of 25 frames symbolicated despite correctly uploaded symbols.
+    // Re-enabling engages the SDK's pure-Dart LoadDartDebugImagesIntegration,
+    // which derives ONE image (type, load address, debug id, build id,
+    // constant code-file name) from the stack trace itself, no native code
+    // involved. The sanitiser passes through exactly those fields and
+    // nothing else — see SentryEventSanitiser._sanitiseDebugMeta.
+    options.enableDartSymbolication = true;
+
+    // ── Transport ─────────────────────────────────────────────────────────
+    // The SDK's DEFAULT transport assembly lost two controlled events in
+    // obfuscated release builds and swallows its own failures; it is
+    // replaced, not trusted (founder decision 2026-09-22 — see
+    // wellapath_transport.dart for the full record). Setting the public
+    // `options.transport` seam here means the SentryClient factory skips its
+    // internal HttpTransport construction and wraps this transport in its
+    // client-report decorator, so reports still flow.
+    // The client is owned through the public `options.httpClient` seam so
+    // `SentryClient.close()` closes it — no leaked client on SDK shutdown.
+    options.httpClient = http.Client();
+    options.transport = WellaPathTransport(options);
+
     // ── The fail-closed outbound boundary ─────────────────────────────────
     options.beforeSend = (event, hint) => SentryEventSanitiser.sanitise(event);
 
@@ -248,25 +301,33 @@ abstract final class CrashMonitoring {
   /// gathering and discarding.
   @visibleForTesting
   static void removeAutomaticErrorIntegrations(SentryOptions options) {
-    const unwanted = {
-      'FlutterErrorIntegration',
-      'OnErrorIntegration',
-      'RunZonedGuardedIntegration',
-      'IsolateErrorIntegration',
-      'NativeSdkIntegration',
-      'LoadContextsIntegration',
-      'LoadImageListIntegration',
-      'NativeAppStartIntegration',
-      'ScreenshotIntegration',
-      'WidgetsBindingIntegration',
-      'DebugPrintIntegration',
-    };
     for (final integration in List<Integration>.of(options.integrations)) {
-      if (unwanted.contains(integration.runtimeType.toString())) {
+      if (isUnwantedIntegration(integration)) {
         options.removeIntegration(integration);
       }
     }
   }
+
+  /// Obfuscation-safe membership test for the unwanted set.
+  ///
+  /// `is` checks match subtypes too, so a renamed (obfuscated) or subclassed
+  /// instance is still removed. `LoadNativeDebugImagesIntegration` is the
+  /// SDK 9.x name of what the earlier string list called
+  /// `LoadImageListIntegration` — that stale name matched nothing even in
+  /// debug builds, so debug-image loading had never actually been removed.
+  @visibleForTesting
+  static bool isUnwantedIntegration(Integration integration) =>
+      integration is FlutterErrorIntegration ||
+      integration is OnErrorIntegration ||
+      integration is RunZonedGuardedIntegration ||
+      integration is IsolateErrorIntegration ||
+      integration is NativeSdkIntegration ||
+      integration is LoadContextsIntegration ||
+      integration is LoadNativeDebugImagesIntegration ||
+      integration is NativeAppStartIntegration ||
+      integration is ScreenshotIntegration ||
+      integration is WidgetsBindingIntegration ||
+      integration is DebugPrintIntegration;
 
   /// Non-sensitive status, safe to print in any build. **Never the DSN.**
   static Map<String, Object?> diagnostics() => {

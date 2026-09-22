@@ -64,6 +64,10 @@ dependencies:
   latlong2: ^0.9.0
   crypto: ^3.0.7
   sentry_flutter: ^9.0.0
+  # Same http package sentry already resolves (locked 1.6.0): the first-party
+  # crash transport (lib/core/crash/wellapath_transport.dart) posts envelopes
+  # with the SDK-identical client stack.
+  http: ^1.6.0
   unorm_dart: ^0.3.2
 
 dev_dependencies:
