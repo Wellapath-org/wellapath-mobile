@@ -5062,3 +5062,154 @@ Not done, per instruction: no merge, no build 214, no symbol upload, no
 event, no Sentry enablement, no store-declaration change, no
 distribution. The `$user.geo` scrub rule remains the open criterion-1
 item for the founder before the build-214 controlled verification.
+
+---
+
+# Build 214 controlled verification — EXECUTED; the three 213 failures are resolved; 3 deviations await founder ruling
+
+**Date:** 2026-09-23 · Branch head `f72289a` · Event sent (exactly one;
+the 214 event budget is spent) — tap bracketed
+2026-09-23T08:48:03.942Z – 08:48:04.040Z
+
+Execution per docs/CRASH_VERIFICATION_214.md. Founder-confirmed
+preconditions: scrub rule `Remove · Anything · $user.geo.**`; fresh
+build-214-only client key on `wellapath-mobile` (display name not yet
+recorded); upload token from an org Custom Integration with the CI
+permission only (integration name not yet recorded); Stable Jay
+disabled. DSN: EU (`de`) ingest, project id `4511905420345424`,
+public-key sha256 prefix `29d3ad1f297d` (recorded for future key
+comparison; no 213 DSN was retained). `sentry.properties` ignored, mode
+600, exactly org/project/auth_token.
+
+Obfuscated release APK 0.3.0+214, sha256
+`f45be13bc4f1564657e8142b1154c57e6c024d5824fefa19230adc7104a2d86f`,
+v2 release-signed (cert sha256 `94e7c574…9083d836`),
+org.wellapath.app versionCode 214, bundled `.env` byte-identical to
+tracked production, temp token absent from every APK file, shipped
+`libapp.so` carries no debug sections · symbols uploaded
+(`SENTRY_RELEASE=wellapath-mobile@0.3.0+214`, plugin exit 0, release
+created + finalized, no sources), new arm64 debug ID
+`098518b7-57d7-7fd7-1ab8-0642754b65d3` (arm `00455348-…0938951`,
+x86_64 `baa0493d-…ed65ff`) confirmed on the project 08:40:34Z BEFORE
+install · clean install on `wellapath_lowend` (no prior package),
+base.apk pull re-hash matched · navigation through the gated UI; one
+tap on "Send test error"; app stayed up (same process, same screen).
+Full suite at head **1,431 passed · 7 skipped · 0 failed**.
+Founder-supplied stored Event JSON audited fields-only; event
+`_dsc.public_key` fingerprint `29d3ad1f297d` = the 214 key.
+
+**Audit (registered five criteria):**
+
+1. **PASS in substance / WORDING DEVIATION — no geo value stored.**
+   All four `user.geo` leaves (city, country_code, region,
+   subdivision) are null, each with a `_meta` remark `project:0` / `x`
+   (removed by the project rule) and no original-length annotation.
+   The corrected `$user.geo.**` rule operated at ingest — first
+   operational proof. However the stored event still carries an empty
+   `user.geo` container (4 null leaves); the registered wording
+   "`user.geo` completely absent" is not literally met. `user` has no
+   other key; `ip_address` absent. Founder ruling needed.
+2. **PASS (client allowlist) / ENRICHMENT NOTED.** `debug_meta`
+   present, 1 image, `type=elf`, `code_file` = approved constant
+   `libapp.so`, `code_id` = the ELF build-id, `debug_id` =
+   `098518b7-57d7-7fd7-1ab8-0642754b65d3` (arm64, exact). All five
+   approved fields present. The stored image additionally carries
+   four symbolicator-added keys — `arch`, `candidates` (6: 4 public
+   sources notfound, 2 `sentry:project` ok), `debug_status=found`,
+   `features` (has_debug_info/has_symbols true, has_sources/
+   has_unwind_info false). These are server enrichment, not
+   client-transmitted; reading "limited to exactly five" as the
+   client payload needs founder confirmation. PR #83 fix proven live.
+3. **PASS — symbolication.** 26/26 frames `symbolicated`, 26/26
+   functions resolved to names (0 raw addresses), the trigger
+   (`SystemStatusScreen` / `_confirmSyntheticError`) and the Flutter
+   gesture path resolved; raw client stacktrace (25 frames) carried
+   only package/platform/in_app/data/instruction_addr. No source
+   exposure: `has_sources=false`, 0 `context_line` / `pre_context` /
+   `post_context` / `vars`. **FINDING (build hygiene):** symbolication
+   from the DWARF adds `filename`, `lineno` and `abs_path` on 26/26
+   frames; 21 `abs_path` values are absolute build-host paths — 20
+   under the Homebrew Flutter SDK, **1 (the app's own frame) under the
+   signing Mac's home directory, exposing the build engineer's macOS
+   username and worktree name.** Not end-user data; server-derived
+   (absent from the raw frames). Exceeds the §1 declared "file
+   basename / package path" shape.
+4. **PASS — §2 privacy inventory clean for end-user data.** Absent:
+   request, breadcrumbs, extra, threads, modules, spans, measurements,
+   server_name, logentry, transaction, attachments, replay_id; `sdk`
+   only name/version (sentry.dart.flutter 9.27.0, 0 integrations/
+   packages); `message` empty; `contexts` only `trace`
+   (span_id/status/trace_id/type) per §15.4; `_dsc` =
+   environment/org_id/public_key/release/trace_id plus null
+   `replay_id`/`transaction` (org_id is the Sentry org's numeric id,
+   not beyond §15.4 in substance). Zero occurrences of symptom,
+   assessment, answer, urgency, facility, clinic, latitude, longitude,
+   email, phone, bearer, authorization, cookie, token, password,
+   session, device_id, install, screenshot, view_hierarchy,
+   ip_address. The criterion-3 build-host path is the only
+   inventory-shape deviation.
+5. **PASS — identity exact.** Release `wellapath-mobile@0.3.0+214`,
+   environment `internal-testing`, dist `214`, exception type
+   `StateError`, value exactly
+   `Bad state: synthetic [redacted] verification 214`; client tags
+   exactly `crash_source=flutter_framework` + `severity=non_fatal`;
+   remaining keys (environment, interface_type, level, dist, release)
+   are server-derived promotions as in 213.
+
+Transport delivery live-proven by the received event; rate-limit
+backoff remains test-verified only (suite above), per the plan.
+
+**Verdict: all three 213 failure causes resolved live; no end-user
+personal, health or location data stored. 3 deviations await founder
+ruling:** (a) empty `user.geo` container vs "completely absent";
+(b) server-enriched image keys vs "exactly five fields"; (c)
+build-host absolute paths (one with the engineer's username) in
+symbolicated `abs_path`. Recommendation: **GO for build 215
+PREPARATION** conditional on the founder accepting (a)/(b) as
+substantive passes; (c) becomes a 215-prep work item (neutral build
+path/CI build or server-side path scrubbing, plus aligning the §1
+declared frame shape) alongside the five-field debug-image store
+disclosure. Not a GO for distribution.
+
+Cleanup done: `event_214.json` deleted and confirmed never tracked.
+Held pending founder review of this verdict (per instruction): the
+Sentry event, the CI token, the 214 client key and
+`sentry.properties`. No second event was or may be sent from 214;
+this branch is not merged or distributed; no build 215 exists; store
+declarations untouched. `ios/…/swiftpm/` remains untracked until final
+cleanup.
+
+---
+
+# Build 214 verdict RATIFIED and credentials cleaned up; record clarifications
+
+**Date:** 2026-09-23 (after the audit entry above, which is preserved
+byte-for-byte as written at 11:57 EAT and describes the state at THAT
+moment).
+
+**Founder ratification:** the build-214 verdict is **PASS 5/5**. The
+three deviations the audit held for ruling are resolved: (a) the
+null-valued `user.geo` scrub shell and (b) the four server-added
+debug-image keys are accepted as substantive passes (qualified
+representations); (c) the build-host `abs_path` finding is a MANDATORY
+neutral-path remediation item before any distribution on the 215 line.
+
+**Founder cleanup confirmation (supersedes the "Held pending founder
+review" line above):** the 214 test event was deleted (ordinary Delete,
+not Delete-and-Discard); the temporary CI token was revoked; the
+build-214 client key was disabled; the credential-bearing sessions were
+closed; no build-214 credential remains active locally.
+
+**Record clarifications for readers of merged develop:**
+
+* In the audit entry above, "this branch" denotes the abandoned
+  LOCAL-VERIFICATION-ONLY branch `build/214-transport-verification`,
+  which is never merged; the entry reached develop by cherry-pick onto
+  the evidence branch of PR #84.
+* "no build 215 exists" was true when written and remains true of
+  ARTIFACTS: no build-215 binary exists. Build number 215 now exists
+  only as the registered next candidate
+  (`kCurrentBuildNumber`/pubspec `0.3.0+215`, this PR).
+* `docs/CRASH_VERIFICATION_214.md`, cited as the executed procedure,
+  lives only on that abandoned branch by design. The durable, mergeable
+  record is `docs/CRASH_VERIFICATION_214_REPORT.md`.

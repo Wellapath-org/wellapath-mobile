@@ -11,22 +11,32 @@
 /// one file is the only thing that needs guarding.
 ///
 /// The registry below records every build number this project has ever
-/// attached to a distributable or distributed artifact. It is append-only:
-/// entries are added when a build goes out, never edited or removed.
+/// consumed — attached to a distributable or distributed artifact, or to a
+/// Sentry release from a local-only verification build. It is append-only:
+/// entries are added when a number is consumed, never edited or removed.
 library;
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Every build number known to have been attached to a build, with where the
-/// evidence comes from. Append-only.
+/// Every build number this project has ever CONSUMED, with where the
+/// evidence comes from. Append-only. Consumption means the number was
+/// attached to any artifact or external record — a distributed or
+/// distributable binary, OR a Sentry release created during a local-only
+/// verification. Burned local-only numbers (212–214) are recorded here
+/// even though they were never distributed and never may be, because a
+/// Sentry release bearing them exists and reuse would make two different
+/// artifacts indistinguishable in crash triage. The map keeps its
+/// historical name; read "Distributed" as "consumed".
 ///
 /// Two numbering namespaces exist and both are recorded, because a future
 /// reader who knows only one of them would pick a colliding number:
 ///
 ///  * **Platform build number** — `pubspec` `+N`, becoming Android
-///    `versionCode` and iOS `CFBundleVersion`. Only ever `1`.
+///    `versionCode` and iOS `CFBundleVersion`. Stayed `1` until the 0.3.0
+///    line; real versionCodes then advanced through 209–214 (see the
+///    entries below).
 ///  * **Crash-release identifier** — `APP_BUILD`, a `--dart-define` used to
 ///    tag Sentry releases in `.github/workflows/internal-beta-validation.yml`.
 ///    Reached `208`. It never touched `versionCode`, but it is a build number
@@ -56,14 +66,54 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'on 2026-09-21 (team 2SCUC2CBBS, org.wellapath.app). The signed '
       'Android AAB sha256 818d60b1…129d4 (62,090,832 B) was built but not '
       'uploaded. The number is burned on both platforms',
+  211:
+      'internal-testing build 0.3.0+211 (distributed 2026-09-21): iOS IPA '
+      'sha256 7c39f4f8… uploaded to TestFlight internal; signed Android AAB '
+      'sha256 690249ae… built. The number is burned',
+  212:
+      'LOCAL VERIFICATION ONLY — consumed/burned, never distributed, never '
+      'to be distributed. Release APKs built 2026-09-22 on the abandoned '
+      'local-only branch build/212-internal-verification for the '
+      'crash-transport investigation; release wellapath-mobile@0.3.0+212 '
+      'exists in Sentry, so the number is burned',
+  213:
+      'LOCAL VERIFICATION ONLY — consumed/burned, never distributed, never '
+      'to be distributed. One release APK built 2026-09-22 on the abandoned '
+      'local-only branch build/213-transport-verification; its one '
+      'controlled event was received and audited (transport/privacy/'
+      'identity passed; geo scrub, debug_meta and symbolication failed — '
+      'all three causes fixed by PR #83); release '
+      'wellapath-mobile@0.3.0+213 exists in Sentry, so the number is '
+      'burned',
+  214:
+      'LOCAL VERIFICATION ONLY — consumed/burned, never distributed and '
+      'never distributable. One release APK built 2026-09-23 on the '
+      'abandoned local-only branch build/214-transport-verification, '
+      'sha256 f45be13bc4f1564657e8142b1154c57e6c024d5824fefa19230adc7104a2'
+      'd86f, release-signed, org.wellapath.app versionCode 214, installed '
+      'only on the wellapath_lowend emulator; uploaded arm64 symbols debug '
+      'ID 098518b7-57d7-7fd7-1ab8-0642754b65d3. Its ONE permitted '
+      'synthetic event was sent 2026-09-23T08:48:04Z, received and audited '
+      'fields-only: final verdict PASS 5/5 with two qualified '
+      'representations (a null-valued user.geo scrub shell retained by '
+      'Sentry; four server-added debug-image keys beyond the five '
+      'client-transmitted fields) and one build-path finding (symbolicated '
+      'abs_path exposed the build engineer\'s username — neutral-path '
+      'remediation required before any distribution). See '
+      'docs/CRASH_VERIFICATION_214_REPORT.md. Release '
+      'wellapath-mobile@0.3.0+214 exists in Sentry, so the number is '
+      'burned',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 211 has never been distributed or uploaded: it appears in no tag, no CI
-/// release identifier, no rollback record and no registry entry above, and
-/// `git log --all -S'+211'` finds no prior use.
-const int kCurrentBuildNumber = 211;
+/// 215 has never been attached to anything: it appears in no tag, no CI
+/// release identifier, no rollback record, no Sentry release and no
+/// registry entry above. It is the earliest potentially distributable
+/// Sentry-enabled candidate, contingent on the build-path remediation and
+/// the store privacy-declaration update recorded in
+/// docs/CRASH_VERIFICATION_214_REPORT.md.
+const int kCurrentBuildNumber = 215;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';
