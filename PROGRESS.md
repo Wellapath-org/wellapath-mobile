@@ -5213,3 +5213,43 @@ closed; no build-214 credential remains active locally.
 * `docs/CRASH_VERIFICATION_214.md`, cited as the executed procedure,
   lives only on that abandoned branch by design. The durable, mergeable
   record is `docs/CRASH_VERIFICATION_214_REPORT.md`.
+
+---
+
+# PR-B: neutral build-path policy and mandatory symbol-artifact scanner
+
+**Date:** 2026-09-23 · Branch `chore/neutral-build-path` from develop
+`3f79d5b` — the neutral-path remediation the 214 audit made a mandatory
+precondition for any distributable build.
+
+* `docs/NEUTRAL_BUILD_POLICY.md` — every potentially distributable
+  build and symbol upload must originate from an approved non-personal
+  root (`/Users/Shared/wellapath-build-<n>`, documented CI/service
+  workspaces, or explicitly approved roots); developer home directories
+  are prohibited for distributable builds.
+* `scripts/scan_symbol_artifacts.dart` + engine — deterministic pure-
+  Dart scanner over the exact upload inputs: recursive, binary-safe
+  (Latin-1 byte scanning), chunk-boundary-safe (overlap window),
+  fail-closed (exit 2 for missing/unreadable/empty inputs, dominating
+  exit 1 = prohibited path; 0 only after a complete clean scan),
+  read-only, redaction-safe output (artifact, category, redacted match;
+  usernames never echoed). Rules: macOS/Linux/Windows personal homes
+  outside explicit allowlists, the wp-* verification worktree names
+  from the 212–214 investigation, configured personal names anywhere;
+  `/opt/homebrew/…`-style toolchain paths report as informational only.
+  Coverage is every symbolication artifact — Dart `.symbols`, native
+  libs and debug-symbol dirs, mapping files, iOS dSYM DWARF — not just
+  Android `.symbols`.
+* Runbook: docs/CRASH_MONITORING.md symbol-upload section now makes the
+  scan a mandatory pre-upload step with no bypass, output preserved as
+  evidence, re-run after every rebuild.
+* Tests: 21 in test/scripts/ — the three OS personal-path fixtures
+  (fictional identities only), worktree tokens, approved Shared/CI
+  roots, extra approved root, toolchain reporting, chunk-boundary and
+  binary detection, later-input failure, all fail-closed cases incl.
+  unreadable input and error-dominance, redaction proof, and a
+  before/after sha256 non-mutation proof.
+
+Scope held: no runtime code, dependency, version, Sentry or store
+change; no build hook (the scan is an explicit reviewed release step).
+No build 215, credentials, symbols, events or distribution.
