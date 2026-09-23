@@ -20,21 +20,18 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # ONE version drives all three platforms: Android versionName/versionCode,
 # iOS CFBundleShortVersionString/CFBundleVersion. Do not set them anywhere else.
 #
-# Build number 210 is the next unused value above every number this project
-# has ever attached to a build:
-#   * pubspec, all tags, all branches ......................... 1
-#   * BETA_ROLLBACK.md distributed beta (versionCode) ......... 1
-#   * internal-beta CI release identifier 0.2.0+208 ........... 208
-#   * signed internal-testing AABs/APK built at 0.3.0+209 ..... 209
-# 209 was attached to signed, distributable artifacts (never uploaded); the
-# application identifier and platform packaging changed after it, so 210 is a
-# fresh number for the org.wellapath.app identity.
+# Build number 215 is the next unused value above every number this project
+# has ever attached to a build. The authoritative, append-only registry of
+# consumed numbers — including the distributed 210/211 artifacts and the
+# burned local-verification-only numbers 212–214 — lives in
+# test/release/build_identity_test.dart, which fails the build on any
+# regression or reuse.
 #
 # Version name 0.3.0 continues the real release line (tags v0.1.0-beta.1,
 # v0.2.0-beta.1, v0.2.0-beta.2; CI identifier 0.2.0). See
 # test/release/build_identity_test.dart, which fails the build if this line
 # regresses or reuses a number.
-version: 0.3.0+211
+version: 0.3.0+215
 
 environment:
   sdk: ^3.11.3
