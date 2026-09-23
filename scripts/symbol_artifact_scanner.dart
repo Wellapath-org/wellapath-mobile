@@ -77,20 +77,17 @@ class ScanRules {
        approvedLinuxUsers = approvedLinuxUsers ?? defaultApprovedLinuxUsers,
        approvedWindowsUsers =
            approvedWindowsUsers ?? defaultApprovedWindowsUsers,
-       approvedRootPrefixes =
-           approvedRootPrefixes ?? defaultApprovedRootPrefixes,
+       // Copy-normalised: every root ends with '/' (component-boundary
+       // safety) and the caller's list — const or shared — is never mutated.
+       approvedRootPrefixes = List.unmodifiable([
+         for (final prefix
+             in approvedRootPrefixes ?? defaultApprovedRootPrefixes)
+           prefix.endsWith('/') ? prefix : '$prefix/',
+       ]),
        personalNames = {
          for (final name in personalNames ?? const <String>{})
            name.trim().toLowerCase(),
        }..removeWhere((name) => name.isEmpty) {
-    // Path-component-boundary safety: every approved root is normalised to
-    // end with '/', so '/Users/x/build' can never approve
-    // '/Users/x/build-evil'.
-    for (var i = 0; i < this.approvedRootPrefixes.length; i++) {
-      if (!this.approvedRootPrefixes[i].endsWith('/')) {
-        this.approvedRootPrefixes[i] = '${this.approvedRootPrefixes[i]}/';
-      }
-    }
     // Windows usernames are case-insensitive; compare lowercased.
     _approvedWindowsUsersLower = {
       for (final user in this.approvedWindowsUsers) user.toLowerCase(),
@@ -146,6 +143,8 @@ class ScanRules {
   final Set<String> approvedMacUsers;
   final Set<String> approvedLinuxUsers;
   final Set<String> approvedWindowsUsers;
+
+  /// Normalised (trailing '/'), unmodifiable copy.
   final List<String> approvedRootPrefixes;
 
   /// Explicitly configured personal identifiers (for the current developer's
@@ -163,21 +162,24 @@ const List<String> kToolchainPrefixes = [
   '/opt/flutter/',
 ];
 
-// The negative lookbehind keeps drive-letter-prefixed Windows paths
-// ('c:/Users/...') out of the macOS rule — they are judged by the Windows
-// rule, whose username comparison is case-insensitive.
+// A true drive prefix (a SINGLE letter + ':', e.g. 'c:') diverts the path
+// to the Windows rule. A scheme like 'file:' does NOT — its letter is
+// preceded by more letters — so 'file:/Users/...' stays a macOS-rule match
+// (nested lookbehind), keeping approved users/roots effective for it.
 final RegExp _macHome = RegExp(
-  r'(?<![A-Za-z]:)/Users/+([A-Za-z0-9._\-]{1,64})/',
+  r'(?<!(?<![A-Za-z])[A-Za-z]:)/Users/+([A-Za-z0-9._\-]{1,64})/',
 );
 final RegExp _linuxHome = RegExp(r'/home/+([A-Za-z0-9._\-]{1,64})/');
 final RegExp _windowsProfile = RegExp(
-  r'[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+([A-Za-z0-9._\- ]{1,64})[\\/]',
+  // The leading lookbehind requires a real single-letter drive: 'file:' and
+  // other URI schemes never match here (they belong to the POSIX rules).
+  r'(?<![A-Za-z])[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+([A-Za-z0-9._\- ]{1,64})[\\/]',
 );
 
 /// Local verification-worktree names from the 212–214 investigation. Their
 /// presence in an artifact means it was built inside a personal worktree.
 final RegExp _worktreeName = RegExp(
-  r'wp-(?:dist-[A-Za-z0-9]+|[A-Za-z0-9]+-verification|sentry\b|crash-[A-Za-z0-9\-]+|pr[a-z]\b)',
+  r'wp-(?:dist-[A-Za-z0-9]+|[A-Za-z0-9]+-verification|sentry\b|crash-[A-Za-z0-9\-]+|pr[a-z0-9\-]*\b)',
 );
 
 /// The longest string any BUILT-IN rule can match (the longest home-dir
@@ -262,17 +264,25 @@ Future<ScanOutcome> scanInputs(List<String> inputs, ScanRules rules) async {
         files.add(File(input));
       case FileSystemEntityType.directory:
         var regularFilesInDir = 0;
-        await for (final entity in Directory(
-          input,
-        ).list(recursive: true, followLinks: false)) {
-          if (entity is File) {
-            files.add(entity);
-            regularFilesInDir++;
-          } else if (entity is Link) {
-            addError('input contains a symlink (not scanned): ${entity.path}');
-          } else if (entity is! Directory) {
-            addError('input contains a special file: ${entity.path}');
+        try {
+          await for (final entity in Directory(
+            input,
+          ).list(recursive: true, followLinks: false)) {
+            if (entity is File) {
+              files.add(entity);
+              regularFilesInDir++;
+            } else if (entity is Link) {
+              addError(
+                'input contains a symlink (not scanned): ${entity.path}',
+              );
+            } else if (entity is! Directory) {
+              addError('input contains a special file: ${entity.path}');
+            }
           }
+        } on FileSystemException catch (e) {
+          // An unreadable subdirectory must fail CLOSED with a redacted
+          // message, never crash with a raw-path stack trace.
+          addError('input traversal failed: ${e.path} (${e.osError?.message})');
         }
         if (regularFilesInDir == 0) {
           addError('input directory contains no regular files: $input');
@@ -320,9 +330,16 @@ Future<void> _scanFile(
   // personal directory must not leak that directory through its own name.
   final artifactLabel = redactForDisplay(file.path, rules);
 
-  void add(String category, String redactedMatch, {required bool fatal}) {
-    final key = '$category|$redactedMatch';
-    if (seen.add(key)) {
+  // The dedup key carries the RAW matched text (never displayed), so two
+  // distinct personal homes of equal length remain two findings in the
+  // release evidence instead of collapsing into one redacted line.
+  void add(
+    String category,
+    String redactedMatch,
+    String rawKey, {
+    required bool fatal,
+  }) {
+    if (seen.add('$category|$rawKey')) {
       findings.add(
         Finding(
           artifact: artifactLabel,
@@ -334,7 +351,10 @@ Future<void> _scanFile(
     }
   }
 
-  final overlap = rules.maxMatchNeed;
+  // The byte overlap is 2x the rule set's need so that UTF-16LE (two bytes
+  // per character) wide-string patterns straddling a chunk edge are also
+  // fully visible in one window.
+  final overlap = 2 * rules.maxMatchNeed;
   final raf = await file.open();
   try {
     var carry = '';
@@ -355,6 +375,20 @@ Future<void> _scanFile(
       // final window judges to its end.
       final freshLimit = isFinal ? window.length : window.length - overlap;
       _scanWindow(window, freshLimit, rules, add);
+      // Wide-string pass: Windows PE/PDB artifacts embed paths as UTF-16LE,
+      // which Latin-1 narrow scanning cannot see (every character is
+      // interleaved with 0x00). Both byte alignments are projected down to
+      // narrow text (a non-ASCII wide char becomes \u0001, which matches
+      // nothing) and scanned with the same rules. Positions halve, so the
+      // fresh limit halves with them — conservative in the safe direction.
+      for (var phase = 0; phase < 2; phase++) {
+        final projected = _projectUtf16le(window, phase);
+        if (projected.isEmpty) continue;
+        final wideLimit = isFinal
+            ? projected.length
+            : (freshLimit - phase) ~/ 2;
+        _scanWindow(projected, wideLimit, rules, add);
+      }
       if (isFinal) break;
       carry = window.length > overlap
           ? window.substring(window.length - overlap)
@@ -365,12 +399,22 @@ Future<void> _scanFile(
   }
 }
 
-/// True when the home-directory match at [matchStart] is the beginning of an
-/// explicitly approved neutral root. Every rule pattern and every approved
-/// prefix starts at the same anchor (`/Users/` or `/home/`), so a plain
-/// prefix comparison at the match position is exact — no lookbehind needed,
-/// and the streaming overlap guarantees the full prefix is inside the
-/// window whenever the match is.
+/// Projects a Latin-1 window down to the narrow text a UTF-16LE encoding of
+/// it would represent, starting at byte [phase] (0 or 1): each byte pair
+/// (low, 0x00) becomes the low byte; any other pair becomes \u0001, which
+/// no rule can match.
+String _projectUtf16le(String window, int phase) {
+  final length = (window.length - phase) ~/ 2;
+  if (length <= 0) return '';
+  final codes = List<int>.filled(length, 0);
+  for (var i = 0; i < length; i++) {
+    final low = window.codeUnitAt(phase + 2 * i);
+    final high = window.codeUnitAt(phase + 2 * i + 1);
+    codes[i] = (high == 0 && low != 0) ? low : 1;
+  }
+  return String.fromCharCodes(codes);
+}
+
 bool _underApprovedRoot(String window, int matchStart, ScanRules rules) {
   for (final prefix in rules.approvedRootPrefixes) {
     if (window.startsWith(prefix, matchStart)) return true;
@@ -382,17 +426,25 @@ void _scanWindow(
   String window,
   int freshLimit,
   ScanRules rules,
-  void Function(String category, String redactedMatch, {required bool fatal})
+  void Function(
+    String category,
+    String redactedMatch,
+    String rawKey, {
+    required bool fatal,
+  })
   add,
 ) {
-  final lower = window.toLowerCase();
-
   for (final match in _macHome.allMatches(window)) {
     if (match.start >= freshLimit) continue; // re-judged next window
     final user = match.group(1)!;
     if (rules.approvedMacUsers.contains(user)) continue;
     if (_underApprovedRoot(window, match.start, rules)) continue;
-    add('personal_home_macos', '/Users/${_redactSegment(user)}/', fatal: true);
+    add(
+      'personal_home_macos',
+      '/Users/${_redactSegment(user)}/',
+      'mac|$user',
+      fatal: true,
+    );
   }
 
   for (final match in _linuxHome.allMatches(window)) {
@@ -400,7 +452,12 @@ void _scanWindow(
     final user = match.group(1)!;
     if (rules.approvedLinuxUsers.contains(user)) continue;
     if (_underApprovedRoot(window, match.start, rules)) continue;
-    add('personal_home_linux', '/home/${_redactSegment(user)}/', fatal: true);
+    add(
+      'personal_home_linux',
+      '/home/${_redactSegment(user)}/',
+      'linux|$user',
+      fatal: true,
+    );
   }
 
   for (final match in _windowsProfile.allMatches(window)) {
@@ -411,6 +468,7 @@ void _scanWindow(
     add(
       'personal_profile_windows',
       'C:\\Users\\${_redactSegment(user)}\\',
+      'win|${user.toLowerCase()}',
       fatal: true,
     );
   }
@@ -420,30 +478,34 @@ void _scanWindow(
     // Worktree tokens are project-internal, not personal; safe to show.
     // Note: home-directory allowlists and approved roots deliberately do
     // NOT exempt this rule — a worktree name is prohibited anywhere.
-    add('verification_worktree_name', match.group(0)!, fatal: true);
+    final token = match.group(0)!;
+    add('verification_worktree_name', token, 'wt|$token', fatal: true);
   }
 
   // Configured personal names ALWAYS fail — deliberately checked without
   // any allowlist or approved-root exemption, so a personal name that
-  // happens to equal a service account (e.g. 'runner') still fails.
-  for (final name in rules.personalNames) {
-    var from = 0;
-    while (true) {
-      final at = lower.indexOf(name, from);
-      if (at < 0 || at >= freshLimit) break;
-      add(
-        'configured_personal_name',
-        '[REDACTED-NAME:${name.length}]',
-        fatal: true,
-      );
-      from = at + 1;
+  // happens to equal a service account (e.g. 'runner') still fails. The
+  // lowercase copy is only made when names are configured, and one hit per
+  // name per window suffices (the dedup key is the name itself).
+  if (rules.personalNames.isNotEmpty) {
+    final lower = window.toLowerCase();
+    for (final name in rules.personalNames) {
+      final at = lower.indexOf(name);
+      if (at >= 0 && at < freshLimit) {
+        add(
+          'configured_personal_name',
+          '[REDACTED-NAME:${name.length}]',
+          'name|$name',
+          fatal: true,
+        );
+      }
     }
   }
 
   for (final prefix in kToolchainPrefixes) {
     final at = window.indexOf(prefix);
     if (at >= 0 && at < freshLimit) {
-      add('toolchain_path', prefix, fatal: false);
+      add('toolchain_path', prefix, 'tc|$prefix', fatal: false);
     }
   }
 }

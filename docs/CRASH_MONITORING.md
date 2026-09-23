@@ -425,10 +425,17 @@ immediately before EVERY symbol upload — local or CI, every rebuild —
 the exact upload inputs must pass the repository's symbol-artifact
 scanner:
 
+On a LOCAL neutral-root build (never a CI runner — `$USER` there is the
+service account `runner`, which must stay allowlisted):
+
 ```bash
 dart run scripts/scan_symbol_artifacts.dart \
   --personal-name="$USER" build/symbols/ <other exact upload inputs>
 ```
+
+In CI the same command runs WITHOUT `--personal-name` — the service
+account is non-personal by policy, and the home-directory rules still
+guard every path (docs/NEUTRAL_BUILD_POLICY.md §4).
 
 Any non-zero exit stops the release step (exit 1 = prohibited personal
 path detected; exit 2 = scan incomplete, fail closed). There is no

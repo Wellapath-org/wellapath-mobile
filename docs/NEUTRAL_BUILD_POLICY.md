@@ -97,7 +97,10 @@ Immediately before **every** symbol upload:
    directory).
 2. Run the scanner against **those exact inputs**, with
    `--personal-name` (or `WELLAPATH_PERSONAL_NAMES`) set to the local
-   builder's username when building outside CI.
+   builder's username when building outside CI. In CI, omit it: the
+   runner's account name is a non-personal service identity, and a
+   configured personal name deliberately overrides every allowlist —
+   configuring `runner` would fail every clean CI artifact.
 3. **Any non-zero exit stops the release step.** There is no bypass
    flag and no warning-only mode, deliberately; the scanner has none to
    offer.
