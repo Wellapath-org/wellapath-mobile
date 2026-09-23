@@ -250,6 +250,208 @@ void main() {
     );
   });
 
+  group('review regressions — rule and allowlist safety', () {
+    test(
+      'a personal name equal to an approved service account still fails',
+      () async {
+        final f = writeText('r1.symbols', '/home/runner/work/app/x');
+        final clean = await scan([f.path]);
+        expect(clean.exitCode, 0);
+        final outcome = await scan([
+          f.path,
+        ], rules: ScanRules(personalNames: {'runner'}));
+        expect(outcome.exitCode, 1, reason: 'explicit prohibition wins');
+        expect(
+          outcome.findings.any((x) => x.category == 'configured_personal_name'),
+          isTrue,
+        );
+      },
+    );
+
+    test('approved-root matching is component-boundary aware', () async {
+      final evil = writeText('r2.symbols', '/Users/bsvc/build-evil/lib.so');
+      final good = writeText('r3.symbols', '/Users/bsvc/build/lib.so');
+      // Root supplied WITHOUT trailing slash — normalised at construction.
+      final rules = ScanRules(
+        approvedRootPrefixes: [
+          ...ScanRules.defaultApprovedRootPrefixes,
+          '/Users/bsvc/build',
+        ],
+      );
+      expect((await scan([good.path], rules: rules)).exitCode, 0);
+      expect(
+        (await scan([evil.path], rules: rules)).exitCode,
+        1,
+        reason: '/Users/bsvc/build must not approve /Users/bsvc/build-evil',
+      );
+    });
+
+    test('windows usernames compare case-insensitively; mixed slashes and '
+        'drive case are matched', () async {
+      final ok = writeText('r4.pdb', r'c:/Users/RUNNERADMIN/work/x');
+      expect((await scan([ok.path])).exitCode, 0);
+      final bad = writeText('r5.pdb', r'c:/USERS/jdoe/src/x');
+      final outcome = await scan([bad.path]);
+      expect(outcome.exitCode, 1);
+      expect(outcome.findings.single.category, 'personal_profile_windows');
+    });
+
+    test(
+      'repeated separators and dot segments still match (fail-safe)',
+      () async {
+        for (final sample in ['/Users//jdoe/x', '/Users/./x', '/home/../x']) {
+          final f = writeText('r6.symbols', sample);
+          expect(
+            (await scan([f.path])).exitCode,
+            1,
+            reason: '$sample must fail',
+          );
+        }
+      },
+    );
+
+    test('a neutral root later in a personal path exempts nothing', () async {
+      final f = writeText('r7.symbols', '/Users/jdoe/x/Users/Shared/y');
+      final outcome = await scan([f.path]);
+      expect(outcome.exitCode, 1);
+      expect(outcome.findings.single.category, 'personal_home_macos');
+    });
+
+    test(
+      '--approve-user style allowlisting never suppresses worktree rules',
+      () async {
+        final f = writeText('r8.symbols', '/home/svcacct/wp-dist-1/lib.so');
+        final outcome = await scan(
+          [f.path],
+          rules: ScanRules(
+            approvedLinuxUsers: {
+              ...ScanRules.defaultApprovedLinuxUsers,
+              'svcacct',
+            },
+          ),
+        );
+        expect(outcome.exitCode, 1);
+        expect(outcome.findings.single.category, 'verification_worktree_name');
+      },
+    );
+  });
+
+  group('review regressions — streaming', () {
+    test('boundary sweep: the pattern is found at every offset around the '
+        'chunk edge', () async {
+      const needleText = '/Users/jdoe/s';
+      for (var delta = -needleText.length - 1; delta <= 2; delta++) {
+        final pad = kChunkSize + delta;
+        if (pad < 0) continue;
+        final f = write('sweep$delta.bin', [
+          ...List<int>.filled(pad, 0x41),
+          ...utf8.encode(needleText),
+          0x42,
+        ]);
+        final outcome = await scan([f.path]);
+        expect(
+          outcome.exitCode,
+          1,
+          reason: 'pattern at boundary offset $delta must be detected',
+        );
+      }
+    });
+
+    test('an arbitrarily long personal name straddling the boundary is '
+        'still detected', () async {
+      final longName = 'z${'q' * 300}z';
+      final f = write('longname.bin', [
+        ...List<int>.filled(kChunkSize - 150, 0x41),
+        ...utf8.encode(longName),
+        0x42,
+      ]);
+      final outcome = await scan([
+        f.path,
+      ], rules: ScanRules(personalNames: {longName}));
+      expect(outcome.exitCode, 1);
+      expect(
+        outcome.findings.single.redactedMatch,
+        '[REDACTED-NAME:${longName.length}]',
+      );
+    });
+
+    test('a long approved root straddling the boundary causes no false '
+        'positive', () async {
+      final root = '/Users/bsvc/${'d' * 200}/';
+      final f = write('longroot.bin', [
+        ...List<int>.filled(kChunkSize - 8, 0x41),
+        ...utf8.encode('${root}symbols/app.symbols'),
+        0x42,
+      ]);
+      final outcome = await scan(
+        [f.path],
+        rules: ScanRules(
+          approvedRootPrefixes: [
+            ...ScanRules.defaultApprovedRootPrefixes,
+            root,
+          ],
+        ),
+      );
+      expect(outcome.exitCode, 0, reason: '${outcome.findings}');
+    });
+  });
+
+  group('review regressions — output privacy and traversal', () {
+    test('the artifact label itself is redacted', () async {
+      final dir = Directory('${tmp.path}/Users/jdoe/build')
+        ..createSync(recursive: true);
+      final f = File('${dir.path}/app.symbols')
+        ..writeAsStringSync('/home/msmith/x');
+      final outcome = await scan([f.path]);
+      expect(outcome.exitCode, 1);
+      expect(outcome.findings.single.artifact, isNot(contains('jdoe')));
+      expect(outcome.findings.single.artifact, contains('[REDACTED:4]'));
+    });
+
+    test('missing-input error messages are redacted', () async {
+      final outcome = await scan(['${tmp.path}/Users/jdoe/missing.symbols']);
+      expect(outcome.exitCode, 2);
+      expect(outcome.inputErrors.single, isNot(contains('jdoe')));
+      expect(outcome.inputErrors.single, contains('[REDACTED:4]'));
+    });
+
+    test('a symlink inside an input directory fails closed', () async {
+      final target = writeText('t.symbols', '/Users/Shared/x');
+      Link('${tmp.path}/link.symbols').createSync(target.path);
+      final outcome = await scan([tmp.path]);
+      expect(outcome.exitCode, 2);
+      expect(outcome.inputErrors.any((e) => e.contains('symlink')), isTrue);
+    }, skip: Platform.isWindows);
+
+    test(
+      'a special file (fifo) fails closed instead of hanging',
+      () async {
+        final fifoPath = '${tmp.path}/pipe.symbols';
+        final made = Process.runSync('mkfifo', [fifoPath]);
+        expect(made.exitCode, 0);
+        writeText('regular.symbols', '/Users/Shared/x');
+        final outcome = await scan([tmp.path]);
+        expect(outcome.exitCode, 2);
+      },
+      skip: Platform.isWindows,
+    );
+
+    test(
+      'scan-incomplete dominates without losing prohibited evidence',
+      () async {
+        final dirty = writeText('ev.symbols', '/Users/jdoe/bad');
+        final outcome = await scan([dirty.path, '${tmp.path}/nope.symbols']);
+        expect(outcome.exitCode, 2, reason: 'incomplete dominates');
+        expect(outcome.hasFatalFindings, isTrue, reason: 'evidence retained');
+        expect(
+          outcome.findings.single.category,
+          'personal_home_macos',
+          reason: 'the prohibited finding is still reported',
+        );
+      },
+    );
+  });
+
   group('coverage is not limited to .symbols', () {
     test('dSYM DWARF, native .so and mapping files are all scanned', () async {
       final dsym = Directory(

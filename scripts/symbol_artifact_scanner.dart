@@ -82,7 +82,40 @@ class ScanRules {
        personalNames = {
          for (final name in personalNames ?? const <String>{})
            name.trim().toLowerCase(),
-       }..removeWhere((name) => name.isEmpty);
+       }..removeWhere((name) => name.isEmpty) {
+    // Path-component-boundary safety: every approved root is normalised to
+    // end with '/', so '/Users/x/build' can never approve
+    // '/Users/x/build-evil'.
+    for (var i = 0; i < this.approvedRootPrefixes.length; i++) {
+      if (!this.approvedRootPrefixes[i].endsWith('/')) {
+        this.approvedRootPrefixes[i] = '${this.approvedRootPrefixes[i]}/';
+      }
+    }
+    // Windows usernames are case-insensitive; compare lowercased.
+    _approvedWindowsUsersLower = {
+      for (final user in this.approvedWindowsUsers) user.toLowerCase(),
+    };
+    // The streaming overlap must exceed the longest thing any rule may need
+    // to see in one window: the longest built-in match, the longest approved
+    // root (right-context for the exemption) and the longest configured
+    // personal name. Derived, not assumed.
+    var need = kBuiltinMaxPatternLength;
+    for (final prefix in this.approvedRootPrefixes) {
+      if (prefix.length > need) need = prefix.length;
+    }
+    for (final name in this.personalNames) {
+      if (name.length > need) need = name.length;
+    }
+    maxMatchNeed = need + 16; // margin
+  }
+
+  late final Set<String> _approvedWindowsUsersLower;
+
+  /// The derived streaming overlap requirement for this rule set.
+  late final int maxMatchNeed;
+
+  bool isApprovedWindowsUser(String user) =>
+      _approvedWindowsUsersLower.contains(user.toLowerCase());
 
   /// `/Users/<name>/` segments that are non-personal by policy.
   /// `Shared` is the documented neutral build root; `runner` is the GitHub
@@ -103,6 +136,8 @@ class ScanRules {
 
   /// Whole-path prefixes approved as neutral build roots. A path matching
   /// one of these passes even if the per-user rules would otherwise object.
+  /// POSIX-style prefixes only; Windows exemptions go through
+  /// [approvedWindowsUsers]. Normalised to a trailing '/' at construction.
   static const List<String> defaultApprovedRootPrefixes = [
     '/Users/Shared/',
     '/home/runner/',
@@ -128,10 +163,15 @@ const List<String> kToolchainPrefixes = [
   '/opt/flutter/',
 ];
 
-final RegExp _macHome = RegExp(r'/Users/([A-Za-z0-9._\-]{1,64})/');
-final RegExp _linuxHome = RegExp(r'/home/([A-Za-z0-9._\-]{1,64})/');
+// The negative lookbehind keeps drive-letter-prefixed Windows paths
+// ('c:/Users/...') out of the macOS rule — they are judged by the Windows
+// rule, whose username comparison is case-insensitive.
+final RegExp _macHome = RegExp(
+  r'(?<![A-Za-z]:)/Users/+([A-Za-z0-9._\-]{1,64})/',
+);
+final RegExp _linuxHome = RegExp(r'/home/+([A-Za-z0-9._\-]{1,64})/');
 final RegExp _windowsProfile = RegExp(
-  r'[A-Za-z]:[\\/][Uu][Ss][Ee][Rr][Ss][\\/]([A-Za-z0-9._\- ]{1,64})[\\/]',
+  r'[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+([A-Za-z0-9._\- ]{1,64})[\\/]',
 );
 
 /// Local verification-worktree names from the 212–214 investigation. Their
@@ -140,9 +180,11 @@ final RegExp _worktreeName = RegExp(
   r'wp-(?:dist-[A-Za-z0-9]+|[A-Za-z0-9]+-verification|sentry\b|crash-[A-Za-z0-9\-]+|pr[a-z]\b)',
 );
 
-/// The longest string any rule can match; the streaming overlap must exceed
-/// it so no match can hide across a chunk boundary.
-const int kMaxPatternLength = 160;
+/// The longest string any BUILT-IN rule can match (the longest home-dir
+/// pattern is under 80 characters; worktree tokens are shorter). The real
+/// per-scan overlap is [ScanRules.maxMatchNeed], which also accounts for
+/// user-supplied approved roots and personal names — derived, never assumed.
+const int kBuiltinMaxPatternLength = 160;
 
 /// Streaming chunk size.
 const int kChunkSize = 64 * 1024;
@@ -166,6 +208,35 @@ class ScanOutcome {
 
 String _redactSegment(String segment) => '[REDACTED:${segment.length}]';
 
+/// Redacts any text destined for output: personal names, then every
+/// non-approved home-directory segment on all three platforms. Used for
+/// artifact labels and input-error messages, so a personal path can never
+/// leak through the scanner's own reporting — not even the path of the
+/// artifact being scanned or of a missing input.
+String redactForDisplay(String text, ScanRules rules) {
+  var out = text;
+  for (final name in rules.personalNames) {
+    final pattern = RegExp(RegExp.escape(name), caseSensitive: false);
+    out = out.replaceAll(pattern, '[REDACTED-NAME:${name.length}]');
+  }
+  out = out.replaceAllMapped(_macHome, (m) {
+    final user = m.group(1)!;
+    if (rules.approvedMacUsers.contains(user)) return m.group(0)!;
+    return '/Users/${_redactSegment(user)}/';
+  });
+  out = out.replaceAllMapped(_linuxHome, (m) {
+    final user = m.group(1)!;
+    if (rules.approvedLinuxUsers.contains(user)) return m.group(0)!;
+    return '/home/${_redactSegment(user)}/';
+  });
+  out = out.replaceAllMapped(_windowsProfile, (m) {
+    final user = m.group(1)!;
+    if (rules.isApprovedWindowsUser(user)) return m.group(0)!;
+    return 'C:\\Users\\${_redactSegment(user)}\\';
+  });
+  return out;
+}
+
 /// Scans [inputs] (files and/or directories) against [rules].
 Future<ScanOutcome> scanInputs(List<String> inputs, ScanRules rules) async {
   final findings = <Finding>[];
@@ -176,6 +247,13 @@ Future<ScanOutcome> scanInputs(List<String> inputs, ScanRules rules) async {
     return ScanOutcome(findings, ['no inputs given'], 0);
   }
 
+  void addError(String message) =>
+      inputErrors.add(redactForDisplay(message, rules));
+
+  // Nothing reachable from a supplied input is silently skipped: symlinks,
+  // broken links and special files (FIFOs, sockets, devices — which could
+  // also hang a read) fail the scan closed. Directory traversal never
+  // follows links, so link cycles cannot recurse.
   final files = <File>[];
   for (final input in inputs) {
     final type = FileSystemEntity.typeSync(input, followLinks: false);
@@ -190,32 +268,42 @@ Future<ScanOutcome> scanInputs(List<String> inputs, ScanRules rules) async {
           if (entity is File) {
             files.add(entity);
             regularFilesInDir++;
+          } else if (entity is Link) {
+            addError('input contains a symlink (not scanned): ${entity.path}');
+          } else if (entity is! Directory) {
+            addError('input contains a special file: ${entity.path}');
           }
         }
         if (regularFilesInDir == 0) {
-          inputErrors.add('input directory contains no regular files: $input');
+          addError('input directory contains no regular files: $input');
         }
+      case FileSystemEntityType.link:
+        addError('input is a symlink: $input');
       case FileSystemEntityType.notFound:
-        inputErrors.add('input missing: $input');
+        addError('input missing: $input');
       default:
-        inputErrors.add('input is not a regular file or directory: $input');
+        addError('input is not a regular file or directory: $input');
     }
   }
   if (files.isEmpty && inputErrors.isEmpty) {
-    inputErrors.add('input set resolved to zero regular files');
+    addError('input set resolved to zero regular files');
   }
 
   for (final file in files) {
     try {
-      final length = await file.length();
-      if (length == 0) {
-        inputErrors.add('input file is empty: ${file.path}');
+      final stat = file.statSync();
+      if (stat.type != FileSystemEntityType.file) {
+        addError('input is not a regular file: ${file.path}');
+        continue;
+      }
+      if (stat.size == 0) {
+        addError('input file is empty: ${file.path}');
         continue;
       }
       await _scanFile(file, rules, findings);
       scannedFiles++;
     } on FileSystemException catch (e) {
-      inputErrors.add('input unreadable: ${file.path} (${e.osError?.message})');
+      addError('input unreadable: ${file.path} (${e.osError?.message})');
     }
   }
 
@@ -228,13 +316,16 @@ Future<void> _scanFile(
   List<Finding> findings,
 ) async {
   final seen = <String>{};
+  // The artifact label itself is redacted: an artifact scanned from inside a
+  // personal directory must not leak that directory through its own name.
+  final artifactLabel = redactForDisplay(file.path, rules);
 
   void add(String category, String redactedMatch, {required bool fatal}) {
     final key = '$category|$redactedMatch';
     if (seen.add(key)) {
       findings.add(
         Finding(
-          artifact: file.path,
+          artifact: artifactLabel,
           category: category,
           redactedMatch: redactedMatch,
           fatal: fatal,
@@ -243,18 +334,30 @@ Future<void> _scanFile(
     }
   }
 
+  final overlap = rules.maxMatchNeed;
   final raf = await file.open();
   try {
     var carry = '';
     while (true) {
       final bytes = await raf.read(kChunkSize);
-      if (bytes.isEmpty) break;
-      // Latin-1: byte-preserving, so binary content cannot break the scan
-      // and every byte participates in matching.
-      final window = carry + String.fromCharCodes(bytes);
-      _scanWindow(window, rules, add);
-      carry = window.length > kMaxPatternLength
-          ? window.substring(window.length - kMaxPatternLength)
+      final isFinal = bytes.isEmpty;
+      final window = isFinal
+          ? carry
+          // Latin-1: byte-preserving one-byte-per-code-unit decoding, so
+          // binary content cannot break the scan, byte positions are exact
+          // and ASCII path patterns are always visible.
+          : carry + String.fromCharCodes(bytes);
+      if (window.isEmpty) break;
+      // Deferral: a match starting inside the trailing overlap region may
+      // lack right context (a longer approved root, the rest of a name), so
+      // it is NOT judged in this window — the tail is carried over and the
+      // match is re-seen with full context in the next window. Only the
+      // final window judges to its end.
+      final freshLimit = isFinal ? window.length : window.length - overlap;
+      _scanWindow(window, freshLimit, rules, add);
+      if (isFinal) break;
+      carry = window.length > overlap
+          ? window.substring(window.length - overlap)
           : window;
     }
   } finally {
@@ -277,6 +380,7 @@ bool _underApprovedRoot(String window, int matchStart, ScanRules rules) {
 
 void _scanWindow(
   String window,
+  int freshLimit,
   ScanRules rules,
   void Function(String category, String redactedMatch, {required bool fatal})
   add,
@@ -284,6 +388,7 @@ void _scanWindow(
   final lower = window.toLowerCase();
 
   for (final match in _macHome.allMatches(window)) {
+    if (match.start >= freshLimit) continue; // re-judged next window
     final user = match.group(1)!;
     if (rules.approvedMacUsers.contains(user)) continue;
     if (_underApprovedRoot(window, match.start, rules)) continue;
@@ -291,6 +396,7 @@ void _scanWindow(
   }
 
   for (final match in _linuxHome.allMatches(window)) {
+    if (match.start >= freshLimit) continue;
     final user = match.group(1)!;
     if (rules.approvedLinuxUsers.contains(user)) continue;
     if (_underApprovedRoot(window, match.start, rules)) continue;
@@ -298,8 +404,10 @@ void _scanWindow(
   }
 
   for (final match in _windowsProfile.allMatches(window)) {
+    if (match.start >= freshLimit) continue;
     final user = match.group(1)!;
-    if (rules.approvedWindowsUsers.contains(user)) continue;
+    // Windows usernames are case-insensitive.
+    if (rules.isApprovedWindowsUser(user)) continue;
     add(
       'personal_profile_windows',
       'C:\\Users\\${_redactSegment(user)}\\',
@@ -308,22 +416,33 @@ void _scanWindow(
   }
 
   for (final match in _worktreeName.allMatches(window)) {
+    if (match.start >= freshLimit) continue;
     // Worktree tokens are project-internal, not personal; safe to show.
+    // Note: home-directory allowlists and approved roots deliberately do
+    // NOT exempt this rule — a worktree name is prohibited anywhere.
     add('verification_worktree_name', match.group(0)!, fatal: true);
   }
 
+  // Configured personal names ALWAYS fail — deliberately checked without
+  // any allowlist or approved-root exemption, so a personal name that
+  // happens to equal a service account (e.g. 'runner') still fails.
   for (final name in rules.personalNames) {
-    if (lower.contains(name)) {
+    var from = 0;
+    while (true) {
+      final at = lower.indexOf(name, from);
+      if (at < 0 || at >= freshLimit) break;
       add(
         'configured_personal_name',
         '[REDACTED-NAME:${name.length}]',
         fatal: true,
       );
+      from = at + 1;
     }
   }
 
   for (final prefix in kToolchainPrefixes) {
-    if (window.contains(prefix)) {
+    final at = window.indexOf(prefix);
+    if (at >= 0 && at < freshLimit) {
       add('toolchain_path', prefix, fatal: false);
     }
   }
