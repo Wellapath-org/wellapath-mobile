@@ -18,7 +18,10 @@ class HomeScreen extends StatefulWidget {
 
   /// Test seam only: the gate is compile-time, so widget tests cannot flip
   /// it. `null` (every production construction) reads
-  /// [CrashVerificationGate.enabled].
+  /// [CrashVerificationGate.enabled]. Annotated so the analyzer rejects any
+  /// future non-test caller passing `true` and bypassing the fail-closed
+  /// gate.
+  @visibleForTesting
   final bool? verificationDoorwayOverride;
 
   @override
@@ -41,9 +44,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSystemStatus() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SystemStatusScreen(
+        // No boot ran for this entry, so the status screen is told not to
+        // present the placeholder as a measured result; and the gate is
+        // read there from the same compile-time defines, never threaded
+        // from here.
+        builder: (_) => const SystemStatusScreen(
           result: BootResult(status: BootStatus.success),
-          verificationOverride: widget.verificationDoorwayOverride,
+          statusMeasured: false,
         ),
       ),
     );

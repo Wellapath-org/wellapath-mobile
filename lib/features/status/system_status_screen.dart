@@ -11,13 +11,24 @@ class SystemStatusScreen extends StatelessWidget {
 
   /// Test seam only: the verification gate is compile-time, so widget tests
   /// cannot flip it. `null` (every production construction) reads
-  /// [CrashVerificationGate.enabled].
+  /// [CrashVerificationGate.enabled]. Annotated so the analyzer rejects any
+  /// future non-test caller passing `true` and bypassing the fail-closed
+  /// gate.
+  @visibleForTesting
   final bool? verificationOverride;
+
+  /// Whether [result] is a real boot outcome. The build-214 doorway opens
+  /// this screen without running a boot, and a fabricated green "Online"
+  /// chip on the very screen the verification procedure uses would misreport
+  /// system state to the operator. `false` renders a neutral, honest label
+  /// instead of a status chip.
+  final bool statusMeasured;
 
   const SystemStatusScreen({
     super.key,
     required this.result,
     this.verificationOverride,
+    this.statusMeasured = true,
   });
 
   /// LOCAL-VERIFICATION-ONLY (build 214): whether the synthetic-error
@@ -102,7 +113,14 @@ class SystemStatusScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildStatusChip(),
+            if (statusMeasured)
+              _buildStatusChip()
+            else
+              const Chip(
+                label: Text('Status not measured for this entry'),
+                backgroundColor: Color(0xFFE5E7EB),
+                labelStyle: TextStyle(color: Color(0xFF374151)),
+              ),
             // LOCAL-VERIFICATION-ONLY (build 214): visible, labelled, and
             // rendered only when the four-define gate passes. Every other
             // build emits nothing here.

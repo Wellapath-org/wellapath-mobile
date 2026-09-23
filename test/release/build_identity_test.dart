@@ -26,12 +26,20 @@ import 'package:flutter_test/flutter_test.dart';
 /// reader who knows only one of them would pick a colliding number:
 ///
 ///  * **Platform build number** — `pubspec` `+N`, becoming Android
-///    `versionCode` and iOS `CFBundleVersion`. Only ever `1`.
+///    `versionCode` and iOS `CFBundleVersion`. It was `1` for the whole
+///    original release line, then moved to the shared numbering from `209`
+///    onward: `209`–`213` below are all platform build numbers carried by
+///    real signed artifacts (distributed, uploaded, or built local-only).
 ///  * **Crash-release identifier** — `APP_BUILD`, a `--dart-define` used to
 ///    tag Sentry releases in `.github/workflows/internal-beta-validation.yml`.
-///    Reached `208`. It never touched `versionCode`, but it is a build number
-///    this project has published against itself, and reusing it would make two
-///    different artifacts indistinguishable in crash triage.
+///    Reached `208` before the two namespaces converged. `208` never touched
+///    `versionCode`, but it is a build number this project has published
+///    against itself, and reusing it would make two different artifacts
+///    indistinguishable in crash triage.
+///
+/// Since `209` a single number is therefore burned in BOTH namespaces at
+/// once: an entry below may record a `versionCode`, a Sentry release, or
+/// both, and a candidate must clear every entry regardless of which.
 const Map<int, String> kKnownDistributedBuilds = <int, String>{
   1:
       'pubspec 1.0.0+1 — all history, all tags (v0.1.0-beta.1, v0.2.0-beta.1, '
@@ -92,8 +100,13 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
 /// exists to prove the corrected geo scrub rule and the merged
 /// debug-image installation fix (PR #83) with exactly one controlled
 /// event, and must never be distributed. The first potentially
-/// distributable Sentry-enabled candidate is 215 or higher. 214 appears
-/// in no tag, no CI release identifier and no registry entry above.
+/// distributable Sentry-enabled candidate is 215 or higher.
+///
+/// Verified unused before it was claimed — the registry alone is not
+/// enough, because 212 and 213 were burned on local branches that were
+/// never merged: `git log --all -S'+214'` finds no prior use on any
+/// branch or tag, no tag carries 214, and no CI workflow references it
+/// (checked 2026-09-23).
 const int kCurrentBuildNumber = 214;
 
 /// The version name this candidate ships.

@@ -7,26 +7,46 @@
 /// this single gate. One gate, one removal: the branch is abandoned
 /// unmerged and the trigger goes with it.
 ///
-/// The gate passes only when ALL four build-time defines hold:
+/// ### The gate is the reporter's own answer, not a second opinion
+///
+/// 214 may send exactly ONE event, and the procedure forbids a retry
+/// whatever happens. So the trigger must never be reachable in a build that
+/// cannot deliver that event correctly. Re-deriving the reporter's rules
+/// here would be two places to keep in step; instead the gate ASKS
+/// [CrashConfig] and additionally requires:
 ///
 ///  1. `CRASH_VERIFICATION_TRIGGER_ENABLED=true` — the dedicated opt-in;
 ///     nothing else reads it, and no documented build command outside the
 ///     214 procedure sets it;
-///  2. `CRASH_REPORTING_ENABLED=true` — a trigger without a reporter proves
-///     nothing;
-///  3. `CRASH_REPORTING_PRODUCTION_APPROVED=true` — the founder-approval
-///     key the 214 build carries;
-///  4. `CRASH_REPORTING_CONTEXT=internal-testing` — the closed-vocabulary
-///     label; a production-context build must never expose the trigger.
+///  2. `CrashConfig.enabled` — which already requires
+///     `CRASH_REPORTING_ENABLED=true`, a **structurally valid `SENTRY_DSN`**
+///     and, because the bundled `.env` is production, the founder-approval
+///     key `CRASH_REPORTING_PRODUCTION_APPROVED=true`;
+///  3. the resolved environment label is exactly [kExpectedEnvironment] —
+///     a production-context build can never expose the trigger;
+///  4. the resolved release is exactly [kExpectedRelease] — a build that
+///     forgot `APP_VERSION`/`APP_BUILD` would stamp
+///     `wellapath-mobile@0.0.0+0` and spend the one-event budget on an
+///     event that fails audit criterion 5.
 ///
-/// Absent, malformed, partial or different values fail CLOSED: an ordinary
-/// build, a production build and every partial combination render neither
-/// control. Values are trimmed and case-normalised exactly as `CrashConfig`
-/// treats the same defines, so the gate can never disagree with the
-/// reporter about what a build is.
+/// (2)–(4) read the same resolved values the SDK is configured with, so a
+/// visible trigger means the next confirmed tap produces a correctly
+/// identified event or no UI at all. Absent, malformed or partial defines
+/// fail CLOSED: an ordinary build, a production build and every partial
+/// combination render nothing.
 library;
 
+import 'crash_config.dart';
+
 abstract final class CrashVerificationGate {
+  /// The exact Sentry environment label build 214's events must carry.
+  static const String kExpectedEnvironment = 'internal-testing';
+
+  /// The exact Sentry release build 214's events must carry. Bound to this
+  /// branch's build number on purpose: a 213 or 215 identity must not open
+  /// the 214 trigger.
+  static const String kExpectedRelease = 'wellapath-mobile@0.3.0+214';
+
   /// The resolved gate for this binary, evaluated once from the
   /// compile-time defines. Widget code reads this; tests exercise
   /// [evaluate] directly with an explicit map.
@@ -34,17 +54,33 @@ abstract final class CrashVerificationGate {
 
   /// Pure gate logic over an explicit define map, so the full matrix is
   /// testable without rebuilding the binary.
-  static bool evaluate(Map<String, String> defines) {
-    String read(String key) => (defines[key] ?? '').trim().toLowerCase();
+  ///
+  /// [bundledIsProduction] is forwarded to [CrashConfig.fromEnvironment] so
+  /// tests state the bundled-environment assumption explicitly instead of
+  /// depending on whether dotenv happens to be loaded.
+  static bool evaluate(
+    Map<String, String> defines, {
+    bool? bundledIsProduction,
+  }) {
+    final trigger = (defines['CRASH_VERIFICATION_TRIGGER_ENABLED'] ?? '')
+        .trim()
+        .toLowerCase();
+    if (trigger != 'true') return false;
 
-    return read('CRASH_VERIFICATION_TRIGGER_ENABLED') == 'true' &&
-        read('CRASH_REPORTING_ENABLED') == 'true' &&
-        read('CRASH_REPORTING_PRODUCTION_APPROVED') == 'true' &&
-        read('CRASH_REPORTING_CONTEXT') == 'internal-testing';
+    // The reporter's own resolution — same defines, same rules, one source.
+    final config = CrashConfig.fromEnvironment(
+      defines: defines,
+      bundledIsProduction: bundledIsProduction,
+    );
+
+    return config.enabled &&
+        config.environment == kExpectedEnvironment &&
+        config.release == kExpectedRelease;
   }
 
-  /// Compile-time defines. Each key is spelled out because
-  /// `String.fromEnvironment` resolves only for a const key.
+  /// Compile-time defines. Every key [CrashConfig] consults is spelled out
+  /// alongside the trigger, because `String.fromEnvironment` resolves only
+  /// for a const key.
   static const Map<String, String> _dartDefines = {
     'CRASH_VERIFICATION_TRIGGER_ENABLED': String.fromEnvironment(
       'CRASH_VERIFICATION_TRIGGER_ENABLED',
@@ -52,11 +88,15 @@ abstract final class CrashVerificationGate {
     'CRASH_REPORTING_ENABLED': String.fromEnvironment(
       'CRASH_REPORTING_ENABLED',
     ),
+    'SENTRY_DSN': String.fromEnvironment('SENTRY_DSN'),
     'CRASH_REPORTING_PRODUCTION_APPROVED': String.fromEnvironment(
       'CRASH_REPORTING_PRODUCTION_APPROVED',
     ),
     'CRASH_REPORTING_CONTEXT': String.fromEnvironment(
       'CRASH_REPORTING_CONTEXT',
     ),
+    'APP_ENV': String.fromEnvironment('APP_ENV'),
+    'APP_VERSION': String.fromEnvironment('APP_VERSION'),
+    'APP_BUILD': String.fromEnvironment('APP_BUILD'),
   };
 }
