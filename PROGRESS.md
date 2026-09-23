@@ -5178,3 +5178,38 @@ Sentry event, the CI token, the 214 client key and
 this branch is not merged or distributed; no build 215 exists; store
 declarations untouched. `ios/…/swiftpm/` remains untracked until final
 cleanup.
+
+---
+
+# Build 214 verdict RATIFIED and credentials cleaned up; record clarifications
+
+**Date:** 2026-09-23 (after the audit entry above, which is preserved
+byte-for-byte as written at 11:57 EAT and describes the state at THAT
+moment).
+
+**Founder ratification:** the build-214 verdict is **PASS 5/5**. The
+three deviations the audit held for ruling are resolved: (a) the
+null-valued `user.geo` scrub shell and (b) the four server-added
+debug-image keys are accepted as substantive passes (qualified
+representations); (c) the build-host `abs_path` finding is a MANDATORY
+neutral-path remediation item before any distribution on the 215 line.
+
+**Founder cleanup confirmation (supersedes the "Held pending founder
+review" line above):** the 214 test event was deleted (ordinary Delete,
+not Delete-and-Discard); the temporary CI token was revoked; the
+build-214 client key was disabled; the credential-bearing sessions were
+closed; no build-214 credential remains active locally.
+
+**Record clarifications for readers of merged develop:**
+
+* In the audit entry above, "this branch" denotes the abandoned
+  LOCAL-VERIFICATION-ONLY branch `build/214-transport-verification`,
+  which is never merged; the entry reached develop by cherry-pick onto
+  the evidence branch of PR #84.
+* "no build 215 exists" was true when written and remains true of
+  ARTIFACTS: no build-215 binary exists. Build number 215 now exists
+  only as the registered next candidate
+  (`kCurrentBuildNumber`/pubspec `0.3.0+215`, this PR).
+* `docs/CRASH_VERIFICATION_214.md`, cited as the executed procedure,
+  lives only on that abandoned branch by design. The durable, mergeable
+  record is `docs/CRASH_VERIFICATION_214_REPORT.md`.

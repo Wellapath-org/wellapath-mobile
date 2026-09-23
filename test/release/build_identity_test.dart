@@ -11,22 +11,32 @@
 /// one file is the only thing that needs guarding.
 ///
 /// The registry below records every build number this project has ever
-/// attached to a distributable or distributed artifact. It is append-only:
-/// entries are added when a build goes out, never edited or removed.
+/// consumed — attached to a distributable or distributed artifact, or to a
+/// Sentry release from a local-only verification build. It is append-only:
+/// entries are added when a number is consumed, never edited or removed.
 library;
 
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Every build number known to have been attached to a build, with where the
-/// evidence comes from. Append-only.
+/// Every build number this project has ever CONSUMED, with where the
+/// evidence comes from. Append-only. Consumption means the number was
+/// attached to any artifact or external record — a distributed or
+/// distributable binary, OR a Sentry release created during a local-only
+/// verification. Burned local-only numbers (212–214) are recorded here
+/// even though they were never distributed and never may be, because a
+/// Sentry release bearing them exists and reuse would make two different
+/// artifacts indistinguishable in crash triage. The map keeps its
+/// historical name; read "Distributed" as "consumed".
 ///
 /// Two numbering namespaces exist and both are recorded, because a future
 /// reader who knows only one of them would pick a colliding number:
 ///
 ///  * **Platform build number** — `pubspec` `+N`, becoming Android
-///    `versionCode` and iOS `CFBundleVersion`. Only ever `1`.
+///    `versionCode` and iOS `CFBundleVersion`. Stayed `1` until the 0.3.0
+///    line; real versionCodes then advanced through 209–214 (see the
+///    entries below).
 ///  * **Crash-release identifier** — `APP_BUILD`, a `--dart-define` used to
 ///    tag Sentry releases in `.github/workflows/internal-beta-validation.yml`.
 ///    Reached `208`. It never touched `versionCode`, but it is a build number
