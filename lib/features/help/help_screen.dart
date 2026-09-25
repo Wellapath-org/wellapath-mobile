@@ -27,9 +27,7 @@ import 'help_content.dart';
 import 'support_chat_intro_screen.dart';
 
 class HelpScreen extends StatelessWidget {
-  const HelpScreen({super.key, this.showAppBar = true});
-
-  final bool showAppBar;
+  const HelpScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -42,14 +40,14 @@ class HelpScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Brand.surface,
-      appBar: showAppBar
-          ? AppBar(
-              backgroundColor: Brand.surface,
-              surfaceTintColor: Colors.transparent,
-              elevation: 0,
-              title: const Text('Help and support', style: Brand.title),
-            )
-          : null,
+      // Always present: this screen is only ever pushed, so removing the app
+      // bar would remove the only way back out of the route.
+      appBar: AppBar(
+        backgroundColor: Brand.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Help and support', style: Brand.title),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(

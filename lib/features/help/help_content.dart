@@ -9,8 +9,8 @@
 /// the app and what it can and cannot do. The emergency article tells people
 /// to call emergency services; it does not triage, list symptoms, or advise
 /// on a condition. Any change that adds clinical content needs clinical
-/// review — the guard in `test/help/help_content_test.dart` catches the
-/// obvious accidents.
+/// review — the shared guard in `test/support/content_guard.dart`, applied by
+/// `test/help/help_offline_test.dart`, catches the obvious accidents.
 library;
 
 class HelpArticle {
@@ -162,7 +162,4 @@ abstract final class HelpContent {
       ],
     ),
   ];
-
-  static HelpArticle byId(String id) =>
-      articles.firstWhere((article) => article.id == id);
 }

@@ -21,10 +21,7 @@ import '../onboarding/onboarding_screen.dart';
 import 'learn_content.dart';
 
 class LearnScreen extends StatelessWidget {
-  const LearnScreen({super.key, this.today});
-
-  /// Injectable for tests; production uses the current date.
-  final DateTime? today;
+  const LearnScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -115,6 +112,10 @@ class _MythDeckState extends State<_MythDeck> {
     final MythCard card = _card;
     final bool? given = _answeredFact;
     final bool correct = given == card.isFact;
+    final String verdict = 'it is ${card.isFact ? 'a fact' : 'a myth'}.';
+    final String outcome = correct
+        ? 'Correct — $verdict'
+        : 'Not quite — $verdict';
 
     return Container(
       padding: const EdgeInsets.all(Brand.space4),
@@ -147,30 +148,49 @@ class _MythDeckState extends State<_MythDeck> {
               ],
             )
           else ...[
-            Row(
-              children: [
-                // Outcome is carried by an icon and a word, never by colour
-                // alone.
-                Icon(
-                  correct ? Icons.check_circle_rounded : Icons.info_rounded,
-                  size: 20,
-                  color: correct ? Brand.successText : Brand.warningText,
-                ),
-                const SizedBox(width: Brand.space2),
-                Expanded(
-                  child: Text(
-                    correct
-                        ? 'Correct — it is ${card.isFact ? 'a fact' : 'a myth'}.'
-                        : 'Not quite — it is ${card.isFact ? 'a fact' : 'a myth'}.',
-                    style: Brand.bodyStrong.copyWith(
-                      color: correct ? Brand.successText : Brand.warningText,
-                    ),
+            // One announcement, in the order a listener needs it: the answer
+            // they gave, then whether it was right, then why. Without this
+            // the answer buttons vanish and a screen-reader user is left
+            // with an outcome and no record of what they chose.
+            Semantics(
+              container: true,
+              liveRegion: true,
+              excludeSemantics: true,
+              label:
+                  'You answered ${given ? 'Fact' : 'Myth'}. '
+                  '$outcome ${card.explanation}',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      // Outcome is carried by an icon and a word, never by
+                      // colour alone.
+                      Icon(
+                        correct
+                            ? Icons.check_circle_rounded
+                            : Icons.info_rounded,
+                        size: 20,
+                        color: correct ? Brand.successText : Brand.warningText,
+                      ),
+                      const SizedBox(width: Brand.space2),
+                      Expanded(
+                        child: Text(
+                          outcome,
+                          style: Brand.bodyStrong.copyWith(
+                            color: correct
+                                ? Brand.successText
+                                : Brand.warningText,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: Brand.space2),
+                  Text(card.explanation, style: Brand.body),
+                ],
+              ),
             ),
-            const SizedBox(height: Brand.space2),
-            Text(card.explanation, style: Brand.body),
             const SizedBox(height: Brand.space2),
             Align(
               alignment: Alignment.centerLeft,

@@ -126,30 +126,35 @@ abstract final class LearnContent {
   ];
 
   /// "Myth or fact?" — all about the product, never about a condition.
+  ///
+  /// Wording approved by the founder 2026-09-25. The statement is the
+  /// misconception; the explanation is what the app asserts as true, so the
+  /// explanation is what the diagnosis tripwire reads.
   static const List<MythCard> myths = [
     MythCard(
       id: 'myth_diagnosis',
       statement: 'WellaPath can tell you what illness you have.',
       isFact: false,
       explanation:
-          'It gives guidance on what to do next, not a diagnosis. Naming an '
-          'illness is a job for a clinician.',
+          'WellaPath provides guidance about what to do next, not a '
+          'diagnosis. A diagnosis should come from a qualified healthcare '
+          'professional after an appropriate assessment.',
     ),
     MythCard(
       id: 'myth_offline',
       statement: 'You need the internet to check your symptoms.',
       isFact: false,
       explanation:
-          'After the first setup the questions and guidance run offline. '
-          'Only the clinic map needs a connection.',
+          'After the first setup, symptom checking and its guidance can work '
+          'offline. The clinic map still requires an internet connection.',
     ),
     MythCard(
       id: 'myth_answers_sent',
       statement: 'Your symptom answers are sent to WellaPath.',
       isFact: false,
       explanation:
-          'They are worked out on your device and are not sent to us or '
-          'stored on a server.',
+          'Your answers are processed on your device. They are not sent to '
+          "WellaPath or stored on WellaPath's servers.",
     ),
     MythCard(
       id: 'myth_emergency',
@@ -158,22 +163,24 @@ abstract final class LearnContent {
           'questions first.',
       isFact: false,
       explanation:
-          'No. If you think it is an emergency, call emergency services '
-          'straight away — do not wait to finish anything.',
+          'No. If you think it is an emergency, call emergency services on '
+          '112 immediately. Do not wait to finish the symptom check.',
     ),
     MythCard(
       id: 'fact_account',
-      statement: 'You can use WellaPath without making an account.',
+      statement: 'You can use WellaPath without creating an account.',
       isFact: true,
       explanation:
-          'There is no sign-up and no profile. Nothing identifies you to us.',
+          'WellaPath does not require sign-up or a personal profile. Your '
+          'symptom answers are not used to identify you.',
     ),
     MythCard(
       id: 'fact_two_minutes',
-      statement: 'A symptom check takes about two minutes.',
+      statement: 'A symptom check usually takes about two minutes.',
       isFact: true,
       explanation:
-          'A few short questions, then guidance. You can stop at any point.',
+          'Answer a few short questions and WellaPath will provide guidance '
+          'about what to do next. You can stop at any time.',
     ),
   ];
 

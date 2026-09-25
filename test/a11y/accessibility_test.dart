@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wellapath_mobile/features/feedback/feedback_screen.dart';
 import 'package:wellapath_mobile/features/help/help_screen.dart';
 import 'package:wellapath_mobile/features/home/home_screen.dart';
+import 'package:wellapath_mobile/features/learn/learn_content.dart';
 import 'package:wellapath_mobile/features/learn/learn_screen.dart';
 import 'package:wellapath_mobile/features/onboarding/onboarding_screen.dart';
 import 'package:wellapath_mobile/shared/theme/brand.dart';
@@ -88,6 +89,51 @@ void main() {
         expect(
           await _pumpAt(tester, const FeedbackScreen(), textScale: scale),
           isNull,
+        );
+      });
+
+      testWidgets('the feedback outcome at ${scale}x keeps Close reachable', (
+        tester,
+      ) async {
+        // Reported in review: only step 1 was ever rendered at large text,
+        // so a 606px overflow on the outcome step went unnoticed — and it
+        // pushed the only way out of the screen off the bottom.
+        await _pumpAt(tester, const FeedbackScreen(), textScale: scale);
+        for (final String label in [
+          'Needs improvement',
+          'Accessibility',
+          'Send feedback',
+        ]) {
+          final Finder target = find.text(label);
+          if (target.evaluate().isEmpty) {
+            await tester.scrollUntilVisible(
+              target,
+              120,
+              scrollable: find.byType(Scrollable).first,
+            );
+          }
+          await tester.ensureVisible(target);
+          await tester.pump();
+          await tester.tap(target);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 400));
+        }
+
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'the outcome must not overflow at ${scale}x text',
+        );
+        expect(find.text('Feedback is not open yet'), findsOneWidget);
+
+        // Close is pinned, not scrolled away with the message.
+        final Finder close = find.text('Close');
+        expect(close, findsOneWidget);
+        final Rect box = tester.getRect(close);
+        expect(
+          box.bottom,
+          lessThanOrEqualTo(800),
+          reason: 'Close must stay on screen at ${scale}x text',
         );
       });
     }
@@ -215,6 +261,30 @@ void main() {
         ),
         findsWidgets,
       );
+    });
+
+    testWidgets('the answer, the result and the reason announce in order', (
+      tester,
+    ) async {
+      // The buttons disappear once answered, so the announcement has to carry
+      // the choice the reader made — otherwise a screen-reader user hears a
+      // verdict with nothing to attach it to.
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpAt(tester, const Scaffold(body: LearnScreen()), textScale: 1);
+
+      final MythCard first = LearnContent.myths.first;
+      await tester.tap(find.text('Fact').first);
+      await tester.pump();
+
+      final String expected =
+          'You answered Fact. '
+          '${first.isFact ? 'Correct' : 'Not quite'} — it is '
+          '${first.isFact ? 'a fact' : 'a myth'}. ${first.explanation}';
+      expect(find.bySemanticsLabel(expected), findsOneWidget);
+
+      // One node, so the three parts cannot be read out of order or twice.
+      expect(find.bySemanticsLabel(first.explanation), findsNothing);
+      handle.dispose();
     });
   });
 }

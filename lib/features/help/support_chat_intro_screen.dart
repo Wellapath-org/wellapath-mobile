@@ -25,7 +25,7 @@ class SupportChatIntroScreen extends StatelessWidget {
     super.key,
     this.hours = 'Monday to Friday, 9am – 5pm EAT',
     this.responseTime = 'Usually within one working day',
-    this.canStartChat = false,
+    this.onStart,
   });
 
   /// Published operating hours. Shown before anyone starts a conversation,
@@ -33,9 +33,11 @@ class SupportChatIntroScreen extends StatelessWidget {
   final String hours;
   final String responseTime;
 
-  /// Whether the backend is live. False means the start control is absent —
-  /// not greyed out — so the screen never offers something it cannot do.
-  final bool canStartChat;
+  /// What starting a conversation does, supplied by whoever has a live
+  /// backend. Null means the start control is absent — not greyed out, and
+  /// not wired to nothing — so the screen can never offer a control that
+  /// does not work.
+  final VoidCallback? onStart;
 
   @override
   Widget build(BuildContext context) {
@@ -120,12 +122,12 @@ class SupportChatIntroScreen extends StatelessWidget {
               ),
             ),
 
-            if (canStartChat) ...[
+            if (onStart != null) ...[
               const SizedBox(height: Brand.space6),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () {},
+                  onPressed: onStart,
                   style: FilledButton.styleFrom(
                     backgroundColor: Brand.primary,
                     minimumSize: const Size.fromHeight(52),

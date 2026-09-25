@@ -61,39 +61,35 @@ void main() {
     });
 
     test('no article gives clinical advice', () {
-      // Help explains the product. Naming conditions, symptoms or treatments
-      // would be clinical content and needs clinical review first.
-      const forbidden = [
-        'malaria',
-        'typhoid',
-        'cholera',
-        'fever',
-        'headache',
-        'cough',
-        'rash',
-        'dosage',
-        'antibiotic',
-        'you should take',
-        'you may have',
-      ];
+      // Help explains the product. The same tripwire the Learn deck uses,
+      // from the same file — a narrower copy here was how the two drifted
+      // apart in the first place.
       for (final article in HelpContent.articles) {
         final String text =
-            '${article.title} ${article.summary} ${article.paragraphs.join(' ')}'
-                .toLowerCase();
+            '${article.title} ${article.summary} '
+            '${article.paragraphs.join(' ')}';
         expect(
           affirmativeDiagnosisClaim(text),
           isNull,
           reason:
               'help article "${article.id}" claims to diagnose; only a '
-              'denial may ship without clinical review',
+              'governed denial or an attribution to a clinician may ship '
+              'without clinical review',
         );
-        for (final String term in forbidden) {
-          expect(
-            text.contains(term),
-            isFalse,
-            reason: 'help article "${article.id}" contains "$term"',
-          );
-        }
+        expect(
+          conditionVocabularyHit(text),
+          isNull,
+          reason: 'help article "${article.id}" names a condition or symptom',
+        );
+        // "It cannot ... prescribe treatment" is legitimate: the act is
+        // named only to deny it. Offering one would fail here.
+        expect(
+          unnegatedClinicalAction(text),
+          isNull,
+          reason:
+              'help article "${article.id}" offers a clinical act rather '
+              'than denying it',
+        );
       }
     });
 
@@ -169,11 +165,21 @@ void main() {
     testWidgets('the start control appears only when a backend exists', (
       tester,
     ) async {
-      await _pump(tester, const SupportChatIntroScreen(canStartChat: true));
+      bool started = false;
+      // The caller supplies the action; the screen never invents one.
+      await _pump(
+        tester,
+        SupportChatIntroScreen(onStart: () => started = true),
+      );
       await _reveal(tester, find.text('Start a conversation'));
       expect(find.text('Start a conversation'), findsOneWidget);
       // Still nothing to type into during the MVP.
       expect(find.byType(TextField), findsNothing);
+
+      // And the control does what the caller asked, rather than nothing.
+      await tester.tap(find.text('Start a conversation'));
+      await tester.pump();
+      expect(started, isTrue);
     });
   });
 }

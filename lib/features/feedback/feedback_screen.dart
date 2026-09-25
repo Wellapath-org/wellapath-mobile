@@ -321,13 +321,23 @@ class _Outcome extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // The outcome scrolls and Close stays pinned. A fixed Column with
+          // a Spacer overflowed at large text sizes and pushed the only way
+          // out of the screen off the bottom.
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                const SizedBox(height: Brand.space4),
+                Center(child: Wella(size: 120, mood: mood)),
+                const SizedBox(height: Brand.space6),
+                Text(title, style: Brand.display),
+                const SizedBox(height: Brand.space2),
+                Text(body, style: Brand.body),
+              ],
+            ),
+          ),
           const SizedBox(height: Brand.space4),
-          Center(child: Wella(size: 120, mood: mood)),
-          const SizedBox(height: Brand.space6),
-          Text(title, style: Brand.display),
-          const SizedBox(height: Brand.space2),
-          Text(body, style: Brand.body),
-          const Spacer(),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(

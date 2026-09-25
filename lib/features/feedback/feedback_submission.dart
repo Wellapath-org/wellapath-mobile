@@ -13,7 +13,7 @@
 ///
 /// [FeedbackPayload] is the whole of it: a rating, a category, an optional
 /// comment, the app version and the platform. Deliberately absent, and
-/// asserted absent by `test/feedback/feedback_payload_test.dart`: assessment
+/// asserted absent by `test/feedback/feedback_flow_test.dart`: assessment
 /// answers, clinical results, location, device identifiers, user
 /// identifiers, timestamps precise enough to single someone out, and
 /// anything resembling a health record.
