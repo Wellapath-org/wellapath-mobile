@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/widgets/first_launch_offline_screen.dart';
 import '../boot/boot_controller.dart';
-import '../home/home_screen.dart';
+import '../shell/app_shell.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -130,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) =>
-            seenOnboarding ? const HomeScreen() : const OnboardingScreen(),
+            seenOnboarding ? const AppShell() : const OnboardingScreen(),
       ),
     );
   }

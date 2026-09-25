@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/config/build_environment.dart';
+import '../../shared/motion/motion.dart';
+import '../../shared/theme/brand.dart';
+import '../../shared/widgets/wella.dart';
 import '../../core/telemetry/contract/telemetry_event.dart';
 import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
+import '../learn/learn_screen.dart';
 import '../locator/locator_screen.dart';
+import '../shell/app_shell.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,10 +21,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const Color _primary = Color(0xFF6B4EFF);
-  static const Color _emergencyRed = Color(0xFFDC2626);
-  static const Color _ink = Color(0xFF1A1A2E);
-
   bool _infoShown = false;
 
   /// Opening the locator without an assessment still needs an urgency, since
@@ -126,199 +127,382 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Switches to the Learn tab when the shell is above us; falls back to
+  /// pushing Learn as its own route when this screen is used standalone.
+  void _onHowItWorks() {
+    final ShellScope? shell = ShellScope.maybeOf(context);
+    if (shell != null) {
+      shell.select(ShellTab.learn);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: LearnScreen()),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.white, Color(0xFF3D1F9E)],
-            stops: [0.35, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          // Scrollable with a minimum height of the viewport: on a tall
-          // screen the Spacer pushes the disclaimer to the bottom as
-          // designed, and on a short one the content scrolls instead of
-          // clipping. Measured clipping the disclaimer mid-sentence on a
-          // 720x1280 device — and that copy is LOCKED PRINCIPLE #1, so it
-          // must never be the thing that gets cut off.
-          child: LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const SizedBox(height: 8),
-                          Center(
-                            child: Image.asset(
-                              'assets/images/logo_icon.png',
-                              width: 40,
-                              height: 40,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          const Text(
-                            'Hello and welcome!',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Color(0xFF4A4A5A),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'How can we help you today?',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              height: 1.25,
-                              color: _ink,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          _ServiceCard(
-                            icon: Icons.checklist_rounded,
-                            accent: _primary,
-                            title: 'Check your symptoms',
-                            subtitle:
-                                'Answer a few questions and see how urgent it is.',
-                            onTap: _onStart,
-                          ),
-                          const SizedBox(height: 12),
-                          _ServiceCard(
-                            icon: Icons.location_on_rounded,
-                            accent: _primary,
-                            title: 'Find a clinic',
-                            subtitle:
-                                'See hospitals and clinics sorted by distance.',
-                            onTap: _onFindClinic,
-                          ),
-                          const SizedBox(height: 12),
-                          _ServiceCard(
-                            icon: Icons.call_rounded,
-                            accent: _emergencyRed,
-                            title: 'Call emergency — 112',
-                            subtitle:
-                                'Opens your dialer. No assessment needed.',
-                            onTap: _onCallEmergency,
-                            emphasised: true,
-                          ),
-                          const Spacer(),
-                          // The disclaimer is on the home screen itself now, not only
-                          // inside the assessment modal. Two of the three services skip
-                          // the assessment entirely, so a user can reach care without
-                          // ever opening that modal — and LOCKED PRINCIPLE #1 requires
-                          // WellaPath never read as a diagnosis engine.
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 4, top: 12),
-                            child: Text(
-                              'WellaPath helps you decide what to do next. It '
-                              'is not a diagnosis and not a substitute for '
-                              'emergency services.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 1.45,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                          // Internal-build marker: nonclinical, always visible
-                          // on internal/staging builds so a tester (and a
-                          // store reviewer) can tell this build is not
-                          // production. Never shown on a production build.
-                          if (BuildEnvironment.isInternal())
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                BuildEnvironment.kInternalBuildMarker,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white54,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            )
-                          else
-                            const SizedBox(height: 12),
-                        ],
-                      ),
+      backgroundColor: Brand.surface,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                children: [
+                  const _Greeting(),
+                  const SizedBox(height: 16),
+
+                  // The primary action, given the weight the brief asks for: one
+                  // large card, its own illustration, and a plain sentence saying
+                  // what happens next.
+                  EntranceFade(child: _PrimaryActionCard(onTap: _onStart)),
+                  const SizedBox(height: 14),
+
+                  // Emergency: always visible, never the loudest thing on screen.
+                  // A permanently alarming home screen trains people to ignore the
+                  // one colour that should mean "act now", so this is a tinted card
+                  // with a red accent rather than a full red panel. The ACTION is
+                  // unchanged — it opens the dialer with 112 entered.
+                  EntranceFade(
+                    delay: const Duration(milliseconds: 90),
+                    child: _EmergencyCard(onTap: _onCallEmergency),
+                  ),
+                  const SizedBox(height: 14),
+
+                  EntranceFade(
+                    delay: const Duration(milliseconds: 170),
+                    child: _SecondaryAction(
+                      icon: Icons.location_on_outlined,
+                      title: 'Find a clinic',
+                      subtitle: 'See hospitals and clinics sorted by distance.',
+                      onTap: _onFindClinic,
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+                  const SizedBox(height: 10),
+                  EntranceFade(
+                    delay: const Duration(milliseconds: 240),
+                    child: _SecondaryAction(
+                      icon: Icons.lightbulb_outline_rounded,
+                      title: 'How WellaPath works',
+                      subtitle:
+                          'A one-minute tour, and what it does with your answers.',
+                      onTap: _onHowItWorks,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // LOCKED PRINCIPLE #1. Two of the three services skip the
+            // assessment entirely, so a user can reach care without ever
+            // seeing the modal that carries this wording. It is PINNED below
+            // the scroll area rather than placed at the end of it: in a
+            // scrolling list this line would sit below the fold on a small
+            // screen, and the one sentence that says "this is not a
+            // diagnosis" must never be the thing a user has to go looking
+            // for.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+              child: Column(
+                children: [
+                  const Text(
+                    'WellaPath helps you decide what to do next. It is not a '
+                    'diagnosis and not a substitute for emergency services.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.45,
+                      color: Brand.inkSoft,
+                    ),
+                  ),
+                  // Internal-build marker: nonclinical, always visible on
+                  // internal/staging builds so a tester (and a store
+                  // reviewer) can tell this build is not production. Never
+                  // shown on a production build.
+                  if (BuildEnvironment.isInternal()) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      BuildEnvironment.kInternalBuildMarker,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Brand.inkSoft,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// One of the three home services. White on the gradient so it reads against
-/// both the pale top and the deep purple bottom.
-class _ServiceCard extends StatelessWidget {
-  const _ServiceCard({
+/// Warm greeting: Wella, then the question, then a short line of reassurance.
+class _Greeting extends StatelessWidget {
+  const _Greeting();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const EntranceFade(
+          duration: Duration(milliseconds: 520),
+          child: Wella(size: 58, mood: WellaMood.waving),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: EntranceFade(
+            delay: Duration(milliseconds: 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello',
+                  style: TextStyle(fontSize: 14.5, color: Brand.inkSoft),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'How can WellaPath help you today?',
+                  style: TextStyle(
+                    fontSize: 22,
+                    height: 1.25,
+                    fontWeight: FontWeight.w800,
+                    color: Brand.ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The one card that should catch the eye first.
+class _PrimaryActionCard extends StatelessWidget {
+  const _PrimaryActionCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      semanticLabel: 'Check your symptoms',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Brand.primary, Brand.primaryDeep],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Brand.primary.withValues(alpha: 0.28),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.checklist_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'About 2 minutes',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Check your symptoms',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Answer a few simple questions to understand what to do next.',
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.5,
+                color: Colors.white.withValues(alpha: 0.94),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              height: Brand.minTapTarget,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(Brand.radiusControl),
+              ),
+              child: const Text(
+                'Start',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Brand.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Emergency help: visible at a glance, calm until it is needed.
+class _EmergencyCard extends StatelessWidget {
+  const _EmergencyCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      semanticLabel: 'Need urgent help? Call emergency services on 112',
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 72),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          color: Brand.emergencyTint,
+          borderRadius: BorderRadius.circular(Brand.radiusCard),
+          border: Border.all(color: Brand.emergency.withValues(alpha: 0.38)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: Brand.emergency,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.call_rounded,
+                color: Colors.white,
+                size: 21,
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Need urgent help?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Brand.emergency,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Call emergency services on 112.',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.4,
+                      color: Brand.inkSoft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Brand.emergency),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A quiet row for the supporting actions.
+class _SecondaryAction extends StatelessWidget {
+  const _SecondaryAction({
     required this.icon,
-    required this.accent,
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.emphasised = false,
   });
 
   final IconData icon;
-  final Color accent;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  /// The emergency card. Distinct by accent colour and a tinted border rather
-  /// than a solid red fill — it must stand out without reading as an alarm on
-  /// a screen the user sees every time they open the app.
-  final bool emphasised;
-
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      elevation: 1,
-      shadowColor: Colors.black.withValues(alpha: 0.15),
+      color: Brand.surface,
+      borderRadius: BorderRadius.circular(Brand.radiusCard),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(Brand.radiusCard),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: emphasised
-                  ? accent.withValues(alpha: 0.45)
-                  : const Color(0xFFE8E8EF),
-              width: emphasised ? 1.5 : 1,
-            ),
+            borderRadius: BorderRadius.circular(Brand.radiusCard),
+            border: Border.all(color: Brand.border),
           ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+                  color: Brand.primaryTint,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: accent, size: 22),
+                child: Icon(icon, color: Brand.primary, size: 21),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -327,29 +511,25 @@ class _ServiceCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: emphasised ? accent : const Color(0xFF1A1A2E),
+                        color: Brand.ink,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        fontSize: 13,
-                        height: 1.35,
-                        color: Color(0xFF6B6B7B),
+                        fontSize: 13.5,
+                        height: 1.4,
+                        color: Brand.inkSoft,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: emphasised ? accent : const Color(0xFFB0B0BF),
-              ),
+              const Icon(Icons.chevron_right_rounded, color: Brand.inkSoft),
             ],
           ),
         ),
@@ -362,8 +542,6 @@ class _InfoModal extends StatelessWidget {
   final VoidCallback onOkay;
 
   const _InfoModal({required this.onOkay});
-
-  static const Color _primary = Color(0xFF6B4EFF);
 
   @override
   Widget build(BuildContext context) {
@@ -390,7 +568,7 @@ class _InfoModal extends StatelessWidget {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: _primary,
+                color: Brand.primary,
               ),
             ),
             const SizedBox(height: 16),
@@ -412,7 +590,7 @@ class _InfoModal extends StatelessWidget {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: _primary,
+                color: Brand.primary,
               ),
             ),
             const SizedBox(height: 8),
@@ -435,7 +613,7 @@ class _InfoModal extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onOkay,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _primary,
+                  backgroundColor: Brand.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -462,7 +640,7 @@ class _InfoModal extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 7, right: 10),
-            child: CircleAvatar(radius: 3, backgroundColor: _primary),
+            child: CircleAvatar(radius: 3, backgroundColor: Brand.primary),
           ),
           Expanded(
             child: Text(
