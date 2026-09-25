@@ -355,17 +355,6 @@ class _PrimaryActionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: Brand.space2),
-                // Time expectation as plain text on the same rule as the
-                // title, not a floating pill.
-                const Text(
-                  'About 2 minutes',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: Brand.space2),
@@ -376,6 +365,26 @@ class _PrimaryActionCard extends StatelessWidget {
                 height: 1.45,
                 color: Colors.white,
               ),
+            ),
+            const SizedBox(height: Brand.space2),
+            // The time expectation gets its own line rather than sharing the
+            // title's row: at a large system font the two competed for width
+            // and the title broke mid-word ("sy / mptom / s").
+            const Row(
+              children: [
+                Icon(Icons.schedule_rounded, size: 15, color: Colors.white),
+                SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'About 2 minutes',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: Brand.space3),
             Container(
