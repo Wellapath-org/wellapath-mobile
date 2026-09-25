@@ -102,7 +102,7 @@ void main() {
     ) async {
       await _pumpHome(tester);
       expect(
-        find.text('Health facilities, sorted by distance.'),
+        find.text('Health facilities, sorted by distance'),
         findsOneWidget,
       );
       // Not inside a horizontal carousel.
@@ -163,7 +163,7 @@ void main() {
 
     testWidgets('says what the control will do', (tester) async {
       await _pumpHome(tester);
-      expect(find.text('Calls emergency services on 112.'), findsOneWidget);
+      expect(find.text('Call emergency services on 112'), findsOneWidget);
     });
 
     testWidgets('carries no pulsing or flashing animation', (tester) async {

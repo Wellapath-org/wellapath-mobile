@@ -166,7 +166,7 @@ void main() {
       );
       expect(
         find.bySemanticsLabel(
-          'Need urgent help? Calls emergency services on 112',
+          'Need urgent help? Call emergency services on 112',
         ),
         findsOneWidget,
       );

@@ -10,6 +10,33 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wellapath_mobile/features/learn/learn_content.dart';
 
+/// Diagnosis words are only acceptable as a DENIAL — "does not diagnose",
+/// "not a diagnosis". That is the CDSS disclaimer, and it is the opposite
+/// of clinical content. An affirmative use ("we diagnose", "your diagnosis
+/// is") is exactly what must never ship without clinical review.
+///
+/// Returns the offending excerpt, or null when every occurrence is negated.
+String? affirmativeDiagnosisClaim(String text) {
+  final String lower = text.toLowerCase();
+  const List<String> negations = [
+    'not ',
+    'never ',
+    'cannot ',
+    "can't ",
+    'without ',
+    'no ',
+  ];
+  for (final Match m in RegExp('diagnos').allMatches(lower)) {
+    final int from = m.start - 40 < 0 ? 0 : m.start - 40;
+    final String before = lower.substring(from, m.start);
+    if (!negations.any(before.contains)) {
+      final int to = m.end + 30 > lower.length ? lower.length : m.end + 30;
+      return text.substring(from, to);
+    }
+  }
+  return null;
+}
+
 void main() {
   test('the deck is non-empty and has stable unique ids', () {
     expect(LearnContent.cards, isNotEmpty);
@@ -44,15 +71,18 @@ void main() {
       'treatment',
       'you should take',
       'you may have',
-      // Claiming to diagnose. The CDSS disclaimer phrase "not a diagnosis"
-      // is the opposite of clinical content and is expected to appear.
-      'diagnosis of',
-      'diagnose',
       'we think you',
     ];
 
     for (final card in LearnContent.cards) {
       final text = '${card.title} ${card.body}'.toLowerCase();
+      expect(
+        affirmativeDiagnosisClaim(text),
+        isNull,
+        reason:
+            'Learn card "${card.id}" claims to diagnose. Only a denial '
+            '("does not diagnose") may ship without clinical review.',
+      );
       for (final term in forbidden) {
         expect(
           text.contains(term),
@@ -62,6 +92,29 @@ void main() {
               'Clinical content requires clinical review before it ships.',
         );
       }
+    }
+  });
+
+  test('the diagnosis guard still catches an affirmative claim', () {
+    // The narrowing permits denials only. These must all still be caught.
+    for (final String claim in [
+      'WellaPath will diagnose your illness',
+      'Your diagnosis is ready',
+      'We diagnose common conditions',
+    ]) {
+      expect(
+        affirmativeDiagnosisClaim(claim),
+        isNotNull,
+        reason: '"$claim" must be rejected',
+      );
+    }
+    // And denials are allowed.
+    for (final String denial in [
+      'It does not diagnose an illness',
+      'Guidance, not a diagnosis',
+      'WellaPath cannot diagnose you',
+    ]) {
+      expect(affirmativeDiagnosisClaim(denial), isNull, reason: denial);
     }
   });
 

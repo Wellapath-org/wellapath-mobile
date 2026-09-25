@@ -183,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _ActionRow(
                       icon: Icons.location_on_outlined,
                       title: 'Find a clinic',
-                      subtitle: 'Health facilities, sorted by distance.',
+                      subtitle: 'Health facilities, sorted by distance',
                       onTap: _onFindClinic,
                     ),
                   ),
@@ -420,7 +420,7 @@ class _EmergencyRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return PressableScale(
       onTap: onTap,
-      semanticLabel: 'Need urgent help? Calls emergency services on 112',
+      semanticLabel: 'Need urgent help? Call emergency services on 112',
       child: Container(
         constraints: const BoxConstraints(minHeight: 68),
         padding: const EdgeInsets.symmetric(
@@ -454,7 +454,7 @@ class _EmergencyRow extends StatelessWidget {
                   // behaviour is deliberately unchanged — labelling a dialer
                   // as a reading screen would mislead someone in a hurry.
                   Text(
-                    'Calls emergency services on 112.',
+                    'Call emergency services on 112',
                     style: Brand.caption.copyWith(color: Brand.emergencyText),
                   ),
                 ],

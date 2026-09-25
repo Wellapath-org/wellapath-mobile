@@ -51,72 +51,77 @@ class MythCard {
 
 abstract final class LearnContent {
   /// The deck. Order is stable; [forDate] indexes into it.
+  ///
+  /// Wording approved by the founder 2026-09-25. Changing a word here is a
+  /// content change, not a refactor: it needs the same read-through.
   static const List<LearnCard> cards = [
     LearnCard(
       id: 'how_it_works',
       topic: 'How WellaPath works',
-      title: 'Three steps, on your phone',
+      title: 'Three simple steps, on your phone',
       body:
-          'You say what is bothering you, answer a few questions, and get '
-          'guidance on what to do next. The work happens on this device.',
+          'Tell WellaPath what is bothering you, answer a few questions, and '
+          'receive guidance about what to do next. The assessment runs on '
+          'your device.',
     ),
     LearnCard(
       id: 'when_to_check',
       topic: 'When to use symptom checking',
-      title: 'Good for deciding what to do next',
+      title: 'When you are unsure what to do next',
       body:
-          'Use it when you are unsure whether to wait, visit a clinic, or '
-          'seek urgent care. If you already know you need help now, call '
+          'Use symptom checking when you are unsure whether to wait, visit a '
+          'clinic or seek urgent help. If you need help immediately, use '
           'emergency services instead.',
     ),
     LearnCard(
       id: 'on_device',
       topic: 'Your information',
-      title: 'Your answers stay on your phone',
+      title: 'Your answers stay on your device',
       body:
-          'WellaPath works out its guidance on your device. Your answers are '
-          'not sent to us and are not stored on a server.',
+          'WellaPath processes the assessment on your device. Your answers '
+          'are not sent to WellaPath or stored on our servers.',
     ),
     LearnCard(
       id: 'can_and_cannot',
       topic: 'What WellaPath can and cannot do',
       title: 'Guidance, not a diagnosis',
       body:
-          'It helps you decide what to do next. It does not name what is '
-          'wrong with you, and it does not replace a doctor.',
+          'WellaPath helps you decide what to do next. It does not diagnose '
+          'an illness and does not replace a qualified healthcare '
+          'professional.',
     ),
     LearnCard(
       id: 'prepare',
       topic: 'Before you start',
-      title: 'Have a quiet minute',
+      title: 'Take a quiet moment',
       body:
-          'Answering takes about two minutes. Knowing when things started, '
-          'and whether anything has changed, makes your answers easier to '
-          'give.',
+          'The questions take about two minutes. It may help to think about '
+          'when the problem started and whether anything has changed.',
     ),
     LearnCard(
       id: 'find_clinic',
       topic: 'How to use the clinic locator',
       title: 'Finding care',
       body:
-          'Find a clinic lists health facilities sorted by distance. You can '
-          'allow location access, or search by area name instead.',
+          'The clinic locator lists health facilities by distance. You can '
+          'allow location access or search using an area name.',
     ),
     LearnCard(
       id: 'offline',
-      topic: 'Using it offline',
-      title: 'It works without a connection',
+      topic: 'Using WellaPath offline',
+      title: 'Core guidance works offline',
       body:
-          'After the first setup, the questions, guidance and everything in '
-          'Learn work offline. Only the clinic map needs the internet.',
+          'After the initial setup, symptom checking and Learn can work '
+          'without an internet connection. The clinic map still requires a '
+          'connection.',
     ),
     LearnCard(
       id: 'urgent_interrupt',
       topic: 'Urgent answers',
-      title: 'It can stop and tell you to get help now',
+      title: 'When urgent help may be needed',
       body:
-          'If your answers point to something urgent, WellaPath stops the '
-          'questions and shows emergency guidance straight away.',
+          'If your answers suggest that you may need urgent help, WellaPath '
+          'stops the questions and shows emergency guidance immediately.',
     ),
   ];
 

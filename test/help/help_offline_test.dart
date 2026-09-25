@@ -8,6 +8,33 @@ import 'package:wellapath_mobile/features/help/help_content.dart';
 import 'package:wellapath_mobile/features/help/help_screen.dart';
 import 'package:wellapath_mobile/features/help/support_chat_intro_screen.dart';
 
+/// Diagnosis words are only acceptable as a DENIAL — "does not diagnose",
+/// "not a diagnosis". That is the CDSS disclaimer, and it is the opposite
+/// of clinical content. An affirmative use ("we diagnose", "your diagnosis
+/// is") is exactly what must never ship without clinical review.
+///
+/// Returns the offending excerpt, or null when every occurrence is negated.
+String? affirmativeDiagnosisClaim(String text) {
+  final String lower = text.toLowerCase();
+  const List<String> negations = [
+    'not ',
+    'never ',
+    'cannot ',
+    "can't ",
+    'without ',
+    'no ',
+  ];
+  for (final Match m in RegExp('diagnos').allMatches(lower)) {
+    final int from = m.start - 40 < 0 ? 0 : m.start - 40;
+    final String before = lower.substring(from, m.start);
+    if (!negations.any(before.contains)) {
+      final int to = m.end + 30 > lower.length ? lower.length : m.end + 30;
+      return text.substring(from, to);
+    }
+  }
+  return null;
+}
+
 Future<void> _pump(WidgetTester tester, Widget child) async {
   tester.view.physicalSize = const Size(360 * 3, 800 * 3);
   tester.view.devicePixelRatio = 3;
@@ -73,12 +100,18 @@ void main() {
         'antibiotic',
         'you should take',
         'you may have',
-        'diagnose',
       ];
       for (final article in HelpContent.articles) {
         final String text =
             '${article.title} ${article.summary} ${article.paragraphs.join(' ')}'
                 .toLowerCase();
+        expect(
+          affirmativeDiagnosisClaim(text),
+          isNull,
+          reason:
+              'help article "${article.id}" claims to diagnose; only a '
+              'denial may ship without clinical review',
+        );
         for (final String term in forbidden) {
           expect(
             text.contains(term),
