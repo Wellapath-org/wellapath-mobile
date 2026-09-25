@@ -420,6 +420,31 @@ no Gradle plugin is added. When CI takes this over:
   `internal-beta-validation.yml`, after the build
 * the token is **never** passed to a `--dart-define` and never enters the APK
 
+**MANDATORY since the 214 build-path finding (docs/NEUTRAL_BUILD_POLICY.md):**
+immediately before EVERY symbol upload — local or CI, every rebuild —
+the exact upload inputs must pass the repository's symbol-artifact
+scanner:
+
+On a LOCAL neutral-root build (never a CI runner — `$USER` there is the
+service account `runner`, which must stay allowlisted):
+
+```bash
+dart run scripts/scan_symbol_artifacts.dart \
+  --personal-name="$USER" build/symbols/ <other exact upload inputs>
+```
+
+In CI the same command runs WITHOUT `--personal-name` — the service
+account is non-personal by policy, and the home-directory rules still
+guard every path (docs/NEUTRAL_BUILD_POLICY.md §4).
+
+Any non-zero exit stops the release step (exit 1 = prohibited personal
+path detected; exit 2 = scan incomplete, fail closed). There is no
+bypass flag and no warning-only mode. The redaction-safe output is
+preserved as release evidence, and the scan is re-run after every
+rebuild because debug IDs and embedded paths change with each build.
+Distributable builds themselves must originate from an approved neutral
+build root — never a personal home directory — per the policy document.
+
 ### Dashboard receipt — PASSED
 
 Confirmed by human inspection of the Sentry dashboard following protected
