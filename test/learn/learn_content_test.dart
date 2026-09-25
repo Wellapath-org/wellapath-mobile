@@ -10,32 +10,7 @@ library;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wellapath_mobile/features/learn/learn_content.dart';
 
-/// Diagnosis words are only acceptable as a DENIAL — "does not diagnose",
-/// "not a diagnosis". That is the CDSS disclaimer, and it is the opposite
-/// of clinical content. An affirmative use ("we diagnose", "your diagnosis
-/// is") is exactly what must never ship without clinical review.
-///
-/// Returns the offending excerpt, or null when every occurrence is negated.
-String? affirmativeDiagnosisClaim(String text) {
-  final String lower = text.toLowerCase();
-  const List<String> negations = [
-    'not ',
-    'never ',
-    'cannot ',
-    "can't ",
-    'without ',
-    'no ',
-  ];
-  for (final Match m in RegExp('diagnos').allMatches(lower)) {
-    final int from = m.start - 40 < 0 ? 0 : m.start - 40;
-    final String before = lower.substring(from, m.start);
-    if (!negations.any(before.contains)) {
-      final int to = m.end + 30 > lower.length ? lower.length : m.end + 30;
-      return text.substring(from, to);
-    }
-  }
-  return null;
-}
+import '../support/content_guard.dart';
 
 void main() {
   test('the deck is non-empty and has stable unique ids', () {
@@ -101,6 +76,8 @@ void main() {
       'WellaPath will diagnose your illness',
       'Your diagnosis is ready',
       'We diagnose common conditions',
+      // A denial in one sentence must not license a claim in the next.
+      'We do not store your answers. We diagnose your illness.',
     ]) {
       expect(
         affirmativeDiagnosisClaim(claim),
@@ -113,6 +90,9 @@ void main() {
       'It does not diagnose an illness',
       'Guidance, not a diagnosis',
       'WellaPath cannot diagnose you',
+      // A warning to the reader, negated at the start of a long sentence.
+      'Do not include your name, phone number, symptoms, diagnosis or '
+          'other personal health information.',
     ]) {
       expect(affirmativeDiagnosisClaim(denial), isNull, reason: denial);
     }

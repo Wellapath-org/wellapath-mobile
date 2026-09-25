@@ -35,6 +35,14 @@ class HelpArticle {
 }
 
 abstract final class HelpContent {
+  /// Wording approved by the founder 2026-09-25, verbatim.
+  ///
+  /// Three accuracy constraints came with that approval and are honoured
+  /// here: no claim that "each answer narrows things down" (unverified
+  /// against the clinical engine), no promise that an area search returns
+  /// "the same facilities" (unproven by any test), and no instruction to
+  /// reduce the system text size — the app adapts to the reader's
+  /// accessibility settings, not the other way round.
   static const List<HelpArticle> articles = [
     HelpArticle(
       id: 'emergency',
@@ -45,101 +53,112 @@ abstract final class HelpContent {
         'If you think you or someone else is in immediate danger, call '
             'emergency services on 112 now. Do not wait to finish a symptom '
             'check, and do not use this app instead of calling.',
-        'WellaPath can stop a symptom check part way through and tell you to '
-            'seek urgent help. That is a prompt to act, not a diagnosis.',
-        'Support and feedback are never a route for an emergency. Nobody '
-            'monitors them, and they do not reach a clinician.',
+        'WellaPath may stop a symptom check partway through and tell you to '
+            'seek urgent help. This is a prompt to act, not a diagnosis.',
+        'Support and feedback are not monitored for emergencies and may not '
+            'receive an immediate response. Never use them to request '
+            'emergency help.',
       ],
     ),
     HelpArticle(
       id: 'symptom_checking',
       title: 'How symptom checking works',
-      summary: 'What the questions do and what you get at the end.',
+      summary: 'What the questions do and what you receive at the end.',
       paragraphs: [
-        'You choose what is bothering you, then answer a few short '
-            'questions. Each answer narrows things down, so the guidance at '
-            'the end reflects what you actually told it.',
-        'The whole thing runs on your phone and takes about two minutes. You '
-            'can stop at any point; nothing is kept when you do.',
-        'What you get is guidance on what to do next — whether to look after '
-            'yourself, see someone, or seek urgent care. It is not a '
-            'diagnosis and it does not replace a doctor.',
+        'Choose what is bothering you and answer a few short questions. '
+            'WellaPath uses your answers to provide guidance about what to do '
+            'next.',
+        'The assessment runs on your phone and usually takes about two '
+            'minutes. You can stop at any time. Your answers are not saved '
+            'after you leave the symptom check.',
+        'The result is guidance about whether to care for yourself, visit a '
+            'healthcare professional or seek urgent help. It is not a '
+            'diagnosis and does not replace a qualified healthcare '
+            'professional.',
       ],
     ),
     HelpArticle(
       id: 'find_clinic',
       title: 'How to find a clinic',
-      summary: 'Using the locator, with or without location access.',
+      summary: 'Using the clinic locator with or without location access.',
       paragraphs: [
-        'Find a clinic lists health facilities sorted by distance, closest '
-            'first. You can open it from the home screen at any time — you '
-            'do not need to do a symptom check first.',
-        'If you allow location access, the list is sorted around where you '
-            'are. Your location is used on the device for that sorting and '
-            'is not sent to WellaPath.',
-        'If you prefer not to share location, you can search by area name '
-            'instead. The results are the same facilities.',
+        'Find a clinic lists health facilities by distance. You can open it '
+            'from the Home screen without completing a symptom check.',
+        'If you allow location access, your location is used on your device '
+            'to sort the facilities. WellaPath does not receive or store your '
+            'location.',
+        'If you prefer not to allow location access, you can search using an '
+            'area name.',
+        'Displaying the clinic map requires map information from the map '
+            'provider.',
       ],
     ),
     HelpArticle(
       id: 'why_internet',
-      title: 'Why some things need the internet',
-      summary: 'What works offline, and what does not.',
+      title: 'Why some features need the internet',
+      summary: 'What works offline and what requires a connection.',
       paragraphs: [
-        'Symptom checking, your guidance, Learn and this Help section all '
-            'work offline once the app has finished its first setup.',
-        'The clinic map needs a connection, because the map images come from '
-            'a map provider as you look at them.',
-        'The very first launch also needs a brief connection so the app can '
-            'fetch its configuration. After that it keeps working without '
-            'one.',
+        'After the app completes its first setup, symptom checking, its '
+            'guidance, Learn and this Help section can work without an '
+            'internet connection.',
+        'The clinic map requires a connection because its map information is '
+            'loaded while you use it.',
+        'The first launch requires a brief connection so WellaPath can '
+            'complete its setup. Afterward, the core guidance can continue '
+            'working offline.',
       ],
     ),
     HelpArticle(
       id: 'can_and_cannot',
       title: 'What WellaPath can and cannot do',
-      summary: 'The limits, in plain words.',
+      summary: 'WellaPath\'s limits, in plain language.',
       paragraphs: [
-        'It can help you decide what to do next, list health facilities by '
-            'distance, and tell you when something looks urgent.',
-        'It cannot examine you, name your illness, prescribe anything, or '
-            'replace a consultation. It does not know your history, and it '
-            'has no access to your medical records.',
-        'If your own judgement says something is seriously wrong, act on '
-            'that, whatever the app says.',
+        'WellaPath can help you decide what to do next, list health '
+            'facilities by distance and tell you when your answers suggest '
+            'that urgent help may be needed.',
+        'It cannot examine you, diagnose an illness, prescribe treatment or '
+            'replace a consultation with a qualified healthcare professional.',
+        'It only uses the answers you provide during the current symptom '
+            'check. It does not have access to your medical records.',
+        'If you believe that something is seriously wrong, seek appropriate '
+            'help even if the app has not told you to do so.',
       ],
     ),
     HelpArticle(
       id: 'not_working',
       title: 'If the app is not working',
-      summary: 'Simple steps when something goes wrong.',
+      summary: 'Simple steps to try when something goes wrong.',
       paragraphs: [
-        'Close the app fully and open it again. Most temporary problems '
-            'clear this way.',
-        'If the clinic map is blank, check your connection — the map is the '
-            'one part that needs one.',
-        'If a screen looks wrong or text is cut off, try reducing the system '
-            'text size a little, then report it through feedback when that '
-            'becomes available.',
-        'If the app will not start at all, reinstalling it is safe: there is '
-            'nothing of yours stored inside it to lose.',
+        'Close WellaPath fully and open it again. This may resolve a '
+            'temporary problem.',
+        'If the clinic map is blank, check your internet connection.',
+        'If text is cut off or a screen is difficult to use, keep your '
+            'preferred system text size and report the problem through an '
+            'available feedback or support channel.',
+        'If the app will not start, make sure you have an internet '
+            'connection before reinstalling it. Reinstalling may repeat the '
+            'first-time setup, but there is no WellaPath account or server '
+            'profile to lose.',
       ],
     ),
     HelpArticle(
       id: 'privacy_safety',
       title: 'Privacy and safety',
-      summary: 'What is kept, what is sent, and what is not.',
+      summary: 'What is processed, what is sent and what is not.',
       paragraphs: [
-        'Your symptom answers and the guidance you get are worked out on '
-            'this device. They are not sent to WellaPath and not stored on a '
-            'server.',
-        'There is no account, no sign-up and no profile. Nothing in the app '
-            'identifies you to us.',
-        'Location, if you allow it, is used on the device to sort facilities '
-            'by distance. Viewing the clinic map requests map images from the '
-            'map provider.',
-        'Please do not put your name, phone number, symptoms or any health '
-            'information into feedback or support messages.',
+        'Your symptom answers and guidance are processed on your device. '
+            'They are not sent to WellaPath or stored on WellaPath\'s '
+            'servers.',
+        'The current MVP does not require an account, sign-up or personal '
+            'profile. WellaPath does not use your symptom answers to identify '
+            'you.',
+        'If you allow location access, your location is used on your device '
+            'to sort facilities by distance. WellaPath does not receive or '
+            'store it. Viewing the clinic map requires requests to the map '
+            'provider.',
+        'Do not include your name, phone number, symptoms, diagnosis or '
+            'other personal health information in feedback or support '
+            'messages.',
       ],
     ),
   ];
