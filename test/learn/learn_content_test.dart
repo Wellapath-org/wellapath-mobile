@@ -94,25 +94,55 @@ void main() {
     }
   });
 
-  test(
-    'a negation that has moved on to another claim does not license one',
-    () {
-      // Reported in review: a sentence-wide negation check passed both of
-      // these. The negation must still govern the word when it is reached.
-      for (final String claim in [
-        'WellaPath is not a substitute for a doctor, and it will diagnose '
-            'your illness.',
-        'There is no account, and WellaPath can diagnose your condition.',
-        'Your answers are never stored, but WellaPath will diagnose you.',
-      ]) {
-        expect(
-          affirmativeDiagnosisClaim(claim),
-          isNotNull,
-          reason: '"$claim" must be rejected',
-        );
-      }
-    },
-  );
+  test('a negation elsewhere in the sentence does not license a claim', () {
+    // Every one of these passed an earlier version of the guard. They are the
+    // reason it is now an allowlist of approved shapes rather than a negation
+    // detector: the ways one clause can end and another begin are
+    // open-ended, so each separator only added another leak to patch.
+    for (final String claim in [
+      // ...a conjunction
+      'WellaPath is not a substitute for a doctor, and it will diagnose '
+          'your illness.',
+      'There is no account, and WellaPath can diagnose your condition.',
+      'Your answers are never stored, but WellaPath will diagnose you.',
+      'You do not need an account, so WellaPath can diagnose your condition.',
+      'WellaPath does not store your answers, yet it will diagnose your '
+          'illness.',
+      'WellaPath does not store answers because it diagnoses locally.',
+      'It cannot examine you while it diagnoses your illness.',
+      // ...punctuation that is not a sentence end
+      'WellaPath does not store your answers; it diagnoses your illness.',
+      'WellaPath does not store your answers — it diagnoses your illness.',
+      // ...a negation with no negating relationship to the word at all
+      'No account is needed to get your diagnosis of the problem.',
+    ]) {
+      expect(
+        affirmativeDiagnosisClaim(claim),
+        isNotNull,
+        reason: '"$claim" must be rejected',
+      );
+    }
+  });
+
+  test('an approved attribution fails if the product claims the role', () {
+    expect(
+      affirmativeDiagnosisClaim(
+        'A diagnosis should come from WellaPath and your doctor.',
+      ),
+      isNotNull,
+    );
+  });
+
+  test('the natural attribution phrasing is not a false positive', () {
+    // Raised in review: this is correct CDSS copy, and it was being sent to
+    // clinical review for nothing.
+    expect(
+      affirmativeDiagnosisClaim(
+        'Only a qualified doctor can give you a diagnosis.',
+      ),
+      isNull,
+    );
+  });
 
   test('naming a clinician does not license a claim by the product', () {
     for (final String claim in [
@@ -147,6 +177,9 @@ void main() {
       'Check the dosage before you take it',
       'We can prescribe what you need',
       'It does not examine you, and it will suggest a treatment',
+      // The same leak the diagnosis guard had, reported against this check.
+      'WellaPath does not store data, so it can suggest a treatment.',
+      'It does not examine you; it will suggest a treatment.',
     ]) {
       expect(
         unnegatedClinicalAction(claim),
@@ -154,6 +187,22 @@ void main() {
         reason: '"$claim" must be rejected',
       );
     }
+  });
+
+  test('a condition word matches on word boundaries, not substrings', () {
+    // Raised in review: "crash" contains "rash", so "if the app crashes" was
+    // reported as naming a symptom — in the one Help article most likely to
+    // use the word, with a failure message that would mislead whoever hit it.
+    for (final String innocent in [
+      'If the app crashes, reinstall it.',
+      'Close WellaPath fully and open it again.',
+    ]) {
+      expect(conditionVocabularyHit(innocent), isNull, reason: innocent);
+    }
+    // The deliberate prefixes still reach the words they were written for.
+    expect(conditionVocabularyHit('A rash appeared'), 'rash');
+    expect(conditionVocabularyHit('vomiting started'), 'vomit');
+    expect(conditionVocabularyHit('signs of pregnancy'), 'pregnan');
   });
 
   group('the myth deck', () {

@@ -8,6 +8,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wellapath_mobile/features/feedback/feedback_screen.dart';
@@ -284,6 +285,44 @@ void main() {
 
       // One node, so the three parts cannot be read out of order or twice.
       expect(find.bySemanticsLabel(first.explanation), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('the result is announced, not just made findable', (
+      tester,
+    ) async {
+      // Raised in review: the result node is created by the answer, and a
+      // node that merely appears is not reliably spoken — so a findable
+      // label proves nothing about what a reader actually hears.
+      final List<String> announced = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockDecodedMessageHandler<
+        dynamic
+      >(SystemChannels.accessibility, (dynamic message) async {
+        final Map<dynamic, dynamic> event = message as Map<dynamic, dynamic>;
+        if (event['type'] == 'announce') {
+          final Map<dynamic, dynamic> data =
+              event['data'] as Map<dynamic, dynamic>;
+          announced.add(data['message'] as String);
+        }
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockDecodedMessageHandler<dynamic>(
+              SystemChannels.accessibility,
+              null,
+            ),
+      );
+
+      final SemanticsHandle handle = tester.ensureSemantics();
+      await _pumpAt(tester, const Scaffold(body: LearnScreen()), textScale: 1);
+      await tester.tap(find.text('Myth').first);
+      await tester.pump();
+
+      final MythCard first = LearnContent.myths.first;
+      expect(announced, hasLength(1));
+      expect(announced.single, startsWith('You answered Myth. '));
+      expect(announced.single, endsWith(first.explanation));
       handle.dispose();
     });
   });

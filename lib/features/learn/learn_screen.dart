@@ -13,6 +13,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../shared/motion/motion.dart';
 import '../../shared/theme/brand.dart';
@@ -100,7 +101,28 @@ class _MythDeckState extends State<_MythDeck> {
 
   MythCard get _card => LearnContent.myths[_index % LearnContent.myths.length];
 
-  void _answer(bool fact) => setState(() => _answeredFact = fact);
+  /// What a screen reader should say once an answer is given: the choice
+  /// made, the verdict, then the reason.
+  String _announcementFor(MythCard card, bool given) {
+    final bool correct = given == card.isFact;
+    return 'You answered ${given ? 'Fact' : 'Myth'}. '
+        '${correct ? 'Correct' : 'Not quite'} — it is '
+        '${card.isFact ? 'a fact' : 'a myth'}. ${card.explanation}';
+  }
+
+  void _answer(bool fact) {
+    final MythCard answered = _card;
+    setState(() => _answeredFact = fact);
+    // Announced explicitly rather than relying on a live region. The result
+    // node is *created* by this answer, and a node that appears is not
+    // reliably spoken; worse, the answer buttons leave the tree in the same
+    // frame, so accessibility focus is destroyed and jumps elsewhere.
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      _announcementFor(answered, fact),
+      Directionality.of(context),
+    );
+  }
 
   void _next() => setState(() {
     _index += 1;
@@ -148,17 +170,14 @@ class _MythDeckState extends State<_MythDeck> {
               ],
             )
           else ...[
-            // One announcement, in the order a listener needs it: the answer
-            // they gave, then whether it was right, then why. Without this
-            // the answer buttons vanish and a screen-reader user is left
-            // with an outcome and no record of what they chose.
+            // One node, in the order a listener needs it: the answer they
+            // gave, then whether it was right, then why. This is what a
+            // reader lands on when navigating back to the result; the
+            // announcement above is what they hear when it appears.
             Semantics(
               container: true,
-              liveRegion: true,
               excludeSemantics: true,
-              label:
-                  'You answered ${given ? 'Fact' : 'Myth'}. '
-                  '$outcome ${card.explanation}',
+              label: _announcementFor(card, given),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
