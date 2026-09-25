@@ -9,7 +9,9 @@ import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
+import '../help/help_screen.dart';
 import '../learn/learn_screen.dart';
+import '../learn/wella_today_card.dart';
 import '../locator/locator_screen.dart';
 import '../shell/app_shell.dart';
 
@@ -129,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Switches to the Learn tab when the shell is above us; falls back to
   /// pushing Learn as its own route when this screen is used standalone.
-  void _onHowItWorks() {
+  void _onLearn() {
     final ShellScope? shell = ShellScope.maybeOf(context);
     if (shell != null) {
       shell.select(ShellTab.learn);
@@ -142,6 +144,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _onHelp() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const HelpScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,92 +160,82 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                padding: const EdgeInsets.fromLTRB(
+                  Brand.gutter,
+                  Brand.space1,
+                  Brand.gutter,
+                  Brand.space4,
+                ),
                 children: [
                   const _Greeting(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: Brand.space4),
 
-                  // The primary action, given the weight the brief asks for: one
-                  // large card, its own illustration, and a plain sentence saying
-                  // what happens next.
+                  // 1 — the strongest action on the screen.
                   EntranceFade(child: _PrimaryActionCard(onTap: _onStart)),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: Brand.space3),
 
-                  // Emergency: always visible, never the loudest thing on screen.
-                  // A permanently alarming home screen trains people to ignore the
-                  // one colour that should mean "act now", so this is a tinted card
-                  // with a red accent rather than a full red panel. The ACTION is
-                  // unchanged — it opens the dialer with 112 entered.
+                  // 2 — the locator stays a first-class home action. It is
+                  // never demoted into Learn, More or a carousel: people
+                  // arrive needing a clinic as often as they arrive needing
+                  // questions.
                   EntranceFade(
-                    delay: const Duration(milliseconds: 90),
-                    child: _EmergencyCard(onTap: _onCallEmergency),
-                  ),
-                  const SizedBox(height: 14),
-
-                  EntranceFade(
-                    delay: const Duration(milliseconds: 170),
-                    child: _SecondaryAction(
+                    delay: const Duration(milliseconds: 80),
+                    child: _ActionRow(
                       icon: Icons.location_on_outlined,
                       title: 'Find a clinic',
-                      subtitle: 'See hospitals and clinics sorted by distance.',
+                      subtitle: 'Health facilities, sorted by distance',
                       onTap: _onFindClinic,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: Brand.space2),
+
+                  // 3 — always visible, never alarming. Tinted surface and a
+                  // red accent rather than a red panel: a home screen that
+                  // shouts all day teaches people to ignore the one colour
+                  // that should mean "act now". The action is unchanged —
+                  // it opens the dialer with 112 entered.
+                  EntranceFade(
+                    delay: const Duration(milliseconds: 140),
+                    child: _EmergencyRow(onTap: _onCallEmergency),
+                  ),
+                  const SizedBox(height: Brand.space5),
+
+                  // 4 — one calm reason to come back.
+                  const EntranceFade(
+                    delay: Duration(milliseconds: 200),
+                    child: WellaTodayCard(),
+                  ),
+                  const SizedBox(height: Brand.space3),
+
+                  // 5 and 6.
                   EntranceFade(
                     delay: const Duration(milliseconds: 240),
-                    child: _SecondaryAction(
+                    child: _ActionRow(
                       icon: Icons.lightbulb_outline_rounded,
-                      title: 'How WellaPath works',
-                      subtitle:
-                          'A one-minute tour, and what it does with your answers.',
-                      onTap: _onHowItWorks,
+                      title: 'Learn',
+                      subtitle: 'How WellaPath works, in one minute.',
+                      onTap: _onLearn,
+                    ),
+                  ),
+                  const SizedBox(height: Brand.space2),
+                  EntranceFade(
+                    delay: const Duration(milliseconds: 280),
+                    child: _ActionRow(
+                      icon: Icons.help_outline_rounded,
+                      title: 'Help and support',
+                      subtitle: 'Answers that work offline.',
+                      onTap: _onHelp,
                     ),
                   ),
                 ],
               ),
             ),
-            // LOCKED PRINCIPLE #1. Two of the three services skip the
-            // assessment entirely, so a user can reach care without ever
-            // seeing the modal that carries this wording. It is PINNED below
-            // the scroll area rather than placed at the end of it: in a
-            // scrolling list this line would sit below the fold on a small
-            // screen, and the one sentence that says "this is not a
-            // diagnosis" must never be the thing a user has to go looking
-            // for.
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-              child: Column(
-                children: [
-                  const Text(
-                    'WellaPath helps you decide what to do next. It is not a '
-                    'diagnosis and not a substitute for emergency services.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      height: 1.45,
-                      color: Brand.inkSoft,
-                    ),
-                  ),
-                  // Internal-build marker: nonclinical, always visible on
-                  // internal/staging builds so a tester (and a store
-                  // reviewer) can tell this build is not production. Never
-                  // shown on a production build.
-                  if (BuildEnvironment.isInternal()) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      BuildEnvironment.kInternalBuildMarker,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Brand.inkSoft,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+            // LOCKED PRINCIPLE #1. Two of the actions above skip the
+            // assessment entirely, so someone can reach care without ever
+            // seeing the sheet that carries this wording. Pinned below the
+            // scroll area, never inside it: the one sentence that says "this
+            // is not a diagnosis" must not be something you scroll to find.
+            const _Disclaimer(),
           ],
         ),
       ),
@@ -245,39 +243,67 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Warm greeting: Wella, then the question, then a short line of reassurance.
+class _Disclaimer extends StatelessWidget {
+  const _Disclaimer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Brand.gutter,
+        Brand.space2,
+        Brand.gutter,
+        Brand.space2,
+      ),
+      child: Column(
+        children: [
+          Text(
+            'WellaPath helps you decide what to do next. It is not a '
+            'diagnosis and not a substitute for emergency services.',
+            textAlign: TextAlign.center,
+            style: Brand.caption.copyWith(fontSize: 12.5),
+          ),
+          // Internal-build marker: nonclinical, always visible on
+          // internal/staging builds so a tester (and a store reviewer) can
+          // tell this build is not production.
+          if (BuildEnvironment.isInternal()) ...[
+            const SizedBox(height: Brand.space2),
+            Text(
+              BuildEnvironment.kInternalBuildMarker,
+              textAlign: TextAlign.center,
+              style: Brand.caption.copyWith(fontSize: 11, letterSpacing: 0.3),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Wella, then the question. Nothing else competes at the top of the screen.
 class _Greeting extends StatelessWidget {
   const _Greeting();
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const EntranceFade(
           duration: Duration(milliseconds: 520),
-          child: Wella(size: 58, mood: WellaMood.waving),
+          child: Wella(size: 54, mood: WellaMood.waving),
         ),
-        const SizedBox(width: 12),
-        const Expanded(
+        const SizedBox(width: Brand.space3),
+        Expanded(
           child: EntranceFade(
-            delay: Duration(milliseconds: 100),
+            delay: const Duration(milliseconds: 100),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Hello',
-                  style: TextStyle(fontSize: 14.5, color: Brand.inkSoft),
-                ),
-                SizedBox(height: 4),
+                Text('Hello', style: Brand.caption),
+                const SizedBox(height: 2),
                 Text(
                   'How can WellaPath help you today?',
-                  style: TextStyle(
-                    fontSize: 22,
-                    height: 1.25,
-                    fontWeight: FontWeight.w800,
-                    color: Brand.ink,
-                  ),
+                  style: Brand.display.copyWith(fontSize: 21),
                 ),
               ],
             ),
@@ -288,7 +314,9 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-/// The one card that should catch the eye first.
+/// The primary action. A flat, confident purple surface — no gradient, no
+/// glow, no shadow theatre. It carries a title, a plain explanation, an
+/// honest time estimate and a visible Start control.
 class _PrimaryActionCard extends StatelessWidget {
   const _PrimaryActionCard({required this.onTap});
 
@@ -298,82 +326,67 @@ class _PrimaryActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return PressableScale(
       onTap: onTap,
-      semanticLabel: 'Check your symptoms',
+      semanticLabel: 'Check your symptoms. About 2 minutes. Start',
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+        padding: const EdgeInsets.all(Brand.space4),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Brand.primary, Brand.primaryDeep],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: Brand.primary.withValues(alpha: 0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          color: Brand.primary,
+          borderRadius: BorderRadius.circular(Brand.radiusSurface),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.checklist_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                const Icon(
+                  Icons.checklist_rounded,
+                  color: Colors.white,
+                  size: 24,
                 ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'About 2 minutes',
+                const SizedBox(width: Brand.space2),
+                const Expanded(
+                  child: Text(
+                    'Check your symptoms',
                     style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 19,
+                      height: 1.25,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: Brand.space2),
             const Text(
-              'Check your symptoms',
+              'Answer a few simple questions to understand what to do next.',
               style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
+                fontSize: 14.5,
+                height: 1.45,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 7),
-            Text(
-              'Answer a few simple questions to understand what to do next.',
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.5,
-                color: Colors.white.withValues(alpha: 0.94),
-              ),
+            const SizedBox(height: Brand.space2),
+            // The time expectation gets its own line rather than sharing the
+            // title's row: at a large system font the two competed for width
+            // and the title broke mid-word ("sy / mptom / s").
+            const Row(
+              children: [
+                Icon(Icons.schedule_rounded, size: 15, color: Colors.white),
+                SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'About 2 minutes',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: Brand.space3),
             Container(
               height: Brand.minTapTarget,
               alignment: Alignment.center,
@@ -397,9 +410,9 @@ class _PrimaryActionCard extends StatelessWidget {
   }
 }
 
-/// Emergency help: visible at a glance, calm until it is needed.
-class _EmergencyCard extends StatelessWidget {
-  const _EmergencyCard({required this.onTap});
+/// Emergency help: unmistakable, never frightening. No pulse, no flash.
+class _EmergencyRow extends StatelessWidget {
+  const _EmergencyRow({required this.onTap});
 
   final VoidCallback onTap;
 
@@ -409,54 +422,45 @@ class _EmergencyCard extends StatelessWidget {
       onTap: onTap,
       semanticLabel: 'Need urgent help? Call emergency services on 112',
       child: Container(
-        constraints: const BoxConstraints(minHeight: 72),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        constraints: const BoxConstraints(minHeight: 68),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Brand.space4,
+          vertical: Brand.space3,
+        ),
         decoration: BoxDecoration(
-          color: Brand.emergencyTint,
-          borderRadius: BorderRadius.circular(Brand.radiusCard),
-          border: Border.all(color: Brand.emergency.withValues(alpha: 0.38)),
+          color: Brand.emergencySurface,
+          borderRadius: BorderRadius.circular(Brand.radiusSurface),
+          border: Border.all(color: Brand.emergency),
         ),
         child: Row(
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(
-                color: Brand.emergency,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.call_rounded,
-                color: Colors.white,
-                size: 21,
-              ),
+            const Icon(
+              Icons.emergency_outlined,
+              color: Brand.emergency,
+              size: 24,
             ),
-            const SizedBox(width: 14),
-            const Expanded(
+            const SizedBox(width: Brand.space3),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Need urgent help?',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Brand.emergency,
-                    ),
+                    style: Brand.cardTitle.copyWith(color: Brand.emergencyText),
                   ),
-                  SizedBox(height: 3),
+                  const SizedBox(height: 2),
+                  // Says what the tap does. The brief suggested "View
+                  // emergency guidance", but this control dials 112 and its
+                  // behaviour is deliberately unchanged — labelling a dialer
+                  // as a reading screen would mislead someone in a hurry.
                   Text(
-                    'Call emergency services on 112.',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      height: 1.4,
-                      color: Brand.inkSoft,
-                    ),
+                    'Call emergency services on 112',
+                    style: Brand.caption.copyWith(color: Brand.emergencyText),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Brand.emergency),
+            const Icon(Icons.chevron_right_rounded, color: Brand.emergencyText),
           ],
         ),
       ),
@@ -464,9 +468,9 @@ class _EmergencyCard extends StatelessWidget {
   }
 }
 
-/// A quiet row for the supporting actions.
-class _SecondaryAction extends StatelessWidget {
-  const _SecondaryAction({
+/// A quiet supporting row. One shape for every secondary action.
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -482,50 +486,31 @@ class _SecondaryAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Brand.surface,
-      borderRadius: BorderRadius.circular(Brand.radiusCard),
+      borderRadius: BorderRadius.circular(Brand.radiusSurface),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(Brand.radiusCard),
+        borderRadius: BorderRadius.circular(Brand.radiusSurface),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 72),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          constraints: const BoxConstraints(minHeight: 68),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Brand.space4,
+            vertical: Brand.space3,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Brand.radiusCard),
+            borderRadius: BorderRadius.circular(Brand.radiusSurface),
             border: Border.all(color: Brand.border),
           ),
           child: Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Brand.primaryTint,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: Brand.primary, size: 21),
-              ),
-              const SizedBox(width: 14),
+              Icon(icon, color: Brand.primary, size: 24),
+              const SizedBox(width: Brand.space3),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Brand.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        height: 1.4,
-                        color: Brand.inkSoft,
-                      ),
-                    ),
+                    Text(title, style: Brand.cardTitle),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: Brand.caption),
                   ],
                 ),
               ),

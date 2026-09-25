@@ -180,29 +180,48 @@ class _TopBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Flexible so the skip control always fits: at 360dp with a large
-          // system font the fixed wordmark pushed the button off-screen.
-          const Flexible(
-            child: Text(
-              'wellapath',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: Brand.ink,
-                letterSpacing: -0.2,
+          // The wordmark is decoration; "Skip for now" is a control. When
+          // the system font is turned up far enough that both cannot fit
+          // (measured: they overflow a 360dp bar by 49px at 2x), the
+          // decoration gives way rather than the control being pushed off
+          // screen or the label being ellipsised into nonsense.
+          if (MediaQuery.textScalerOf(context).scale(17) < 27)
+            const Flexible(
+              child: Text(
+                'wellapath',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Brand.ink,
+                  letterSpacing: -0.2,
+                ),
               ),
-            ),
-          ),
-          TextButton(
-            onPressed: onSkip,
-            style: TextButton.styleFrom(
-              foregroundColor: Brand.inkSoft,
-              minimumSize: const Size(64, Brand.minTapTarget),
-            ),
-            child: Text(
-              skipLabel,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            )
+          else
+            const SizedBox.shrink(),
+          Flexible(
+            child: TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                foregroundColor: Brand.inkSoft,
+                minimumSize: const Size(64, Brand.minTapTarget),
+              ),
+              child: Text(
+                // At a large system font "Skip for now" alone is wider than
+                // the bar (measured: 49px over at 2x). The label shortens to
+                // a word that still says exactly what the control does,
+                // rather than being ellipsised into "Skip for n…".
+                MediaQuery.textScalerOf(context).scale(15) >= 24
+                    ? (skipLabel == 'Close' ? 'Close' : 'Skip')
+                    : skipLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -437,8 +456,8 @@ class _IntentCard extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 68),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? Brand.primaryTint : Brand.surface,
-          borderRadius: BorderRadius.circular(Brand.radiusCard),
+          color: selected ? Brand.primarySurface : Brand.surface,
+          borderRadius: BorderRadius.circular(Brand.radiusSurface),
           border: Border.all(
             color: selected ? Brand.primary : Brand.border,
             width: selected ? 2 : 1,
@@ -670,8 +689,8 @@ class _TrustCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: emphasis ? Brand.emergencyTint : Brand.surfaceMuted,
-        borderRadius: BorderRadius.circular(Brand.radiusCard),
+        color: emphasis ? Brand.emergencySurface : Brand.surfaceMuted,
+        borderRadius: BorderRadius.circular(Brand.radiusSurface),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

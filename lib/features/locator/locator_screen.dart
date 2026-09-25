@@ -979,16 +979,26 @@ class _LocatorScreenState extends State<LocatorScreen> {
           ),
         ],
       ),
+      // Layout-only hardening: the pill is placed inside a Stack slot whose
+      // width it does not control, and at 360dp the loading variant
+      // ("Finding available facilities" plus its spinner) overflowed that
+      // slot by 61px. Flexible lets the label use the room it has and
+      // ellipsise beyond it, so the badge degrades instead of painting a
+      // yellow-and-black overflow bar across the map.
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[icon, const SizedBox(width: 8)],
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _primary,
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _primary,
+              ),
             ),
           ),
         ],

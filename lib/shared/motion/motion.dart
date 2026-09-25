@@ -90,6 +90,11 @@ class _EntranceFadeState extends State<EntranceFade>
     return AnimatedBuilder(
       animation: _curve,
       builder: (context, child) => Opacity(
+        // Assistive technology reads the content from the first frame, even
+        // while it is still fading in. Without this, a zero-opacity subtree
+        // is dropped from the semantics tree and a screen-reader user hears
+        // nothing until the animation finishes.
+        alwaysIncludeSemantics: true,
         opacity: _curve.value,
         child: Transform.translate(
           offset: Offset(0, widget.offset * (1 - _curve.value)),

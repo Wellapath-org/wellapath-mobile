@@ -79,7 +79,8 @@ void main() {
     await tester.tap(find.text('Learn'));
     await _settle(tester);
     expect(find.byType(LearnScreen), findsOneWidget);
-    expect(find.text('LEARN IN ONE MINUTE'), findsOneWidget);
+    expect(find.text('MYTH OR FACT?'), findsOneWidget);
+    expect(find.text('TOPICS'), findsOneWidget);
 
     await tester.tap(find.text('More'));
     await _settle(tester);
@@ -125,12 +126,10 @@ void main() {
     expect(find.byType(LearnScreen), findsOneWidget);
   });
 
-  testWidgets('home\'s How WellaPath works switches to the Learn tab', (
-    tester,
-  ) async {
+  testWidgets('home\'s Learn row switches to the Learn tab', (tester) async {
     await _pumpShell(tester);
-    await _scrollTo(tester, find.text('How WellaPath works'));
-    await tester.tap(find.text('How WellaPath works'));
+    await _scrollTo(tester, find.text('Learn').first);
+    await tester.tap(find.text('Learn').first);
     await _settle(tester);
 
     // Switched tabs rather than stacking a second copy on top.
@@ -174,17 +173,14 @@ void main() {
     expect(find.text('Meet Wella'), findsOneWidget);
   });
 
-  testWidgets('the Learn card of the day is deterministic by date', (
-    tester,
-  ) async {
-    final card = LearnContent.forDate(DateTime(2026, 9, 25));
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: LearnScreen(today: DateTime(2026, 9, 25))),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 700));
-    expect(find.text(card.title), findsWidgets);
+  testWidgets('Learn lists every bundled topic', (tester) async {
+    await _pumpShell(tester, tab: ShellTab.learn);
+    // The date-rotated card moved to Home as Wella Today; Learn shows the
+    // whole deck as topics.
+    for (final LearnCard card in LearnContent.cards.take(3)) {
+      await _scrollTo(tester, find.text(card.title));
+      expect(find.text(card.title), findsOneWidget);
+    }
   });
 
   testWidgets('every tap target meets the 48dp minimum', (tester) async {
