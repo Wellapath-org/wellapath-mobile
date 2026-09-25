@@ -97,7 +97,7 @@ class _AppShellState extends State<AppShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         backgroundColor: Brand.surface,
-        indicatorColor: Brand.primaryTint,
+        indicatorColor: Brand.primarySurface,
         surfaceTintColor: Colors.transparent,
         elevation: 3,
         height: 68,

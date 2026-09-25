@@ -428,14 +428,18 @@ void main() {
       expect(outcome.inputErrors.any((e) => e.contains('symlink')), isTrue);
     }, skip: Platform.isWindows);
 
-    test('a special file (fifo) fails closed instead of hanging', () async {
-      final fifoPath = '${tmp.path}/pipe.symbols';
-      final made = Process.runSync('mkfifo', [fifoPath]);
-      expect(made.exitCode, 0);
-      writeText('regular.symbols', '/Users/Shared/x');
-      final outcome = await scan([tmp.path]);
-      expect(outcome.exitCode, 2);
-    }, skip: Platform.isWindows);
+    test(
+      'a special file (fifo) fails closed instead of hanging',
+      () async {
+        final fifoPath = '${tmp.path}/pipe.symbols';
+        final made = Process.runSync('mkfifo', [fifoPath]);
+        expect(made.exitCode, 0);
+        writeText('regular.symbols', '/Users/Shared/x');
+        final outcome = await scan([tmp.path]);
+        expect(outcome.exitCode, 2);
+      },
+      skip: Platform.isWindows,
+    );
 
     test(
       'scan-incomplete dominates without losing prohibited evidence',

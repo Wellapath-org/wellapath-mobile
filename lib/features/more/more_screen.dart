@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import '../../core/config/build_environment.dart';
 import '../../shared/motion/motion.dart';
 import '../../shared/theme/brand.dart';
+import '../help/help_screen.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -73,14 +74,26 @@ class MoreScreen extends StatelessWidget {
               body:
                   'Your symptom answers are worked out on this device and are '
                   'never sent to WellaPath. Location, if you allow it, is used '
-                  'on the device to sort nearby facilities. Viewing the clinic '
+                  'on the device to sort facilities by distance. Viewing the clinic '
                   'map requests map tiles from the map provider.',
             ),
           ),
           const SizedBox(height: 14),
 
           EntranceFade(
-            delay: const Duration(milliseconds: 200),
+            delay: const Duration(milliseconds: 190),
+            child: _ActionRow(
+              icon: Icons.help_outline_rounded,
+              label: 'Help and support',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const HelpScreen()),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          EntranceFade(
+            delay: const Duration(milliseconds: 240),
             child: _ActionRow(
               icon: Icons.replay_rounded,
               label: 'Replay introduction',
@@ -134,7 +147,7 @@ class _Panel extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Brand.surfaceMuted,
-        borderRadius: BorderRadius.circular(Brand.radiusCard),
+        borderRadius: BorderRadius.circular(Brand.radiusSurface),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,15 +201,15 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Brand.surface,
-      borderRadius: BorderRadius.circular(Brand.radiusCard),
+      borderRadius: BorderRadius.circular(Brand.radiusSurface),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(Brand.radiusCard),
+        borderRadius: BorderRadius.circular(Brand.radiusSurface),
         child: Container(
           constraints: const BoxConstraints(minHeight: 60),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Brand.radiusCard),
+            borderRadius: BorderRadius.circular(Brand.radiusSurface),
             border: Border.all(color: Brand.border),
           ),
           child: Row(

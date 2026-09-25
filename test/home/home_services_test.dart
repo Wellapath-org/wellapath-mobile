@@ -39,17 +39,17 @@ void main() {
   ) async {
     await _pumpHome(tester);
 
-    // Above the fold on a small phone: the greeting, the primary action and
-    // emergency help.
+    // The three essentials are above the fold; home_priorities_test.dart
+    // asserts that positionally.
     expect(find.text('Check your symptoms'), findsOneWidget);
-    expect(find.text('Need urgent help?'), findsOneWidget);
     expect(find.text('Find a clinic'), findsOneWidget);
+    expect(find.text('Need urgent help?'), findsOneWidget);
 
-    // The fourth card is one short scroll away, which is fine — what must
-    // never require scrolling is the disclaimer and the primary action.
-    await tester.scrollUntilVisible(find.text('How WellaPath works'), 120);
+    // The everyday layer sits below them, one short scroll away.
+    await tester.scrollUntilVisible(find.text('Help and support'), 120);
     await tester.pump();
-    expect(find.text('How WellaPath works'), findsOneWidget);
+    expect(find.text('Learn'), findsOneWidget);
+    expect(find.text('Help and support'), findsOneWidget);
 
     // Nothing that leads nowhere: the prototype's search, filter, "Talk to
     // Us" and "Why Us" are deliberately absent until they do something.
@@ -81,9 +81,10 @@ void main() {
 
     for (final String title in <String>[
       'Check your symptoms',
-      'Need urgent help?',
       'Find a clinic',
-      'How WellaPath works',
+      'Need urgent help?',
+      'Learn',
+      'Help and support',
     ]) {
       await tester.scrollUntilVisible(find.text(title), 120);
       await tester.pump();
@@ -117,7 +118,8 @@ void main() {
     final Text emergencyTitle = tester.widget<Text>(
       find.text('Need urgent help?'),
     );
-    expect(emergencyTitle.style?.color, Brand.emergency);
+    // The darker step, so the words clear 4.5:1 on the tinted surface.
+    expect(emergencyTitle.style?.color, Brand.emergencyText);
 
     // The emergency card is a tinted surface with a red accent, NOT a
     // full-bleed red panel: a permanently alarming home screen teaches people
@@ -131,7 +133,7 @@ void main() {
           .last,
     );
     final BoxDecoration decoration = card.decoration! as BoxDecoration;
-    expect(decoration.color, Brand.emergencyTint);
+    expect(decoration.color, Brand.emergencySurface);
   });
 
   testWidgets('emergency names the number it will dial', (

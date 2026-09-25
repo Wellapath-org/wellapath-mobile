@@ -6,10 +6,13 @@ work can be reviewed without building the app.
 Captured on the `wellapath_lowend` emulator (360x640 logical — a small
 Android screen) from the branch's debug build, `APP_BUILD=ui-preview`.
 
+The video and GIF that were here have been removed: they added ~2.2MB to a
+23MB repository for review material with a short life. Recordings are
+attached to the pull request instead. Still images stay, because they are
+small and are referenced from both PR descriptions.
+
 | File | Screen |
 | --- | --- |
-| `walkthrough.mp4` | The whole flow: onboarding, home, Learn, More, and Android back returning to Home |
-| `walkthrough.gif` | The same screens as a slideshow, for inline viewing |
 | `onboard1_welcome.png` | Meet Wella |
 | `onboard2_intent.png` | What brings you here? (navigation-only choices) |
 | `onboard3_journey.png` | Three simple steps |
