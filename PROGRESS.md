@@ -5429,9 +5429,40 @@ Content: bundled `.env` byte-identical to the tracked production file; 0
 internal-verification UI strings all absent from `App.framework/App`. Zero
 `--dart-define` of any kind was passed.
 
-**Upload pending.** The archive is staged in Xcode's Organizer library as
-`2026-09-25/WellaPath 0.3.0 (215).xcarchive`. Distribution is a founder GUI
-action; this session cannot drive Xcode's menu bar (`System Events` returns
-`-1719` for Xcode's menu bar). To be appended when known: Organizer result
-and timestamp, App Store Connect processing result, internal-tester
-availability, and confirmation that build 211 remains available.
+**UPLOADED to App Store Connect — "Upload succeeded"** at
+**2026-09-25T14:18:57Z** (started 14:17:10Z), exit 0. Route, now recorded so
+nobody has to reconstruct it again: the archive staged in Xcode's Organizer
+library (`2026-09-25/WellaPath 0.3.0 (215).xcarchive`, verified recursively
+identical to the scanned archive) was exported with
+
+```
+xcodebuild -exportArchive -archivePath <archive> \
+  -exportOptionsPlist ExportOptionsUpload.plist \
+  -exportPath build/ios/upload215 -allowProvisioningUpdates
+```
+
+where `ExportOptionsUpload.plist` is Flutter's own generated export options
+with `destination = upload` and `testFlightInternalTestingOnly = true`
+(`method app-store-connect`, `signingStyle automatic`, `teamID 2SCUC2CBBS`,
+`uploadSymbols true`). Authentication is the Apple ID signed into Xcode —
+**no App Store Connect API key, app-specific password or new credential was
+used or created.** This is the "authenticated Xcode flow" that uploaded
+builds 210 and 211; "Upload succeeded" is `xcodebuild`'s own message.
+
+`testFlightInternalTestingOnly = true` is a deliberate tightening over the
+211 export: it marks the build internal-only at App Store Connect so it
+cannot be submitted for Beta App Review or external testing. That matches
+the founder's classification of 215 and is permanent for this build.
+
+One warning, identical to build 211's: *"Upload Symbols Failed. The archive
+did not include a dSYM for the Sentry.framework with the UUIDs
+[9BDFB481-BE21-3390-B2E1-8FE0E69D2612]."* Sentry's prebuilt SPM framework
+ships without a dSYM; crash reporting is disabled in this build and no
+Sentry symbols are needed, so the warning is moot. No ITMS error or other
+warning was raised — `ITSAppUsesNonExemptEncryption=false` is a source
+declaration, so no export-compliance prompt appeared.
+
+**Still to be appended, from the console (this session has no App Store
+Connect access):** processing result, that it appears as `0.3.0 (215)`,
+internal-tester availability, and confirmation that build 211 remains
+available and unexpired.
