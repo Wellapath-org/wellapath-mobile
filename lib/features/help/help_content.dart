@@ -43,6 +43,11 @@ abstract final class HelpContent {
   /// "the same facilities" (unproven by any test), and no instruction to
   /// reduce the system text size — the app adapts to the reader's
   /// accessibility settings, not the other way round.
+  ///
+  /// General Help does not point anyone at Feedback or Support while both are
+  /// disabled (founder decision, 2026-09-25). The warning about what not to
+  /// type lives inside those interfaces instead, above the input, where it is
+  /// read at the moment it applies.
   static const List<HelpArticle> articles = [
     HelpArticle(
       id: 'emergency',
@@ -55,9 +60,8 @@ abstract final class HelpContent {
             'check, and do not use this app instead of calling.',
         'WellaPath may stop a symptom check partway through and tell you to '
             'seek urgent help. This is a prompt to act, not a diagnosis.',
-        'Support and feedback are not monitored for emergencies and may not '
-            'receive an immediate response. Never use them to request '
-            'emergency help.',
+        'Do not use any in-app message or feedback option for an emergency. '
+            'Call 112 instead.',
       ],
     ),
     HelpArticle(
@@ -133,8 +137,8 @@ abstract final class HelpContent {
             'temporary problem.',
         'If the clinic map is blank, check your internet connection.',
         'If text is cut off or a screen is difficult to use, keep your '
-            'preferred system text size and report the problem through an '
-            'available feedback or support channel.',
+            'preferred system text size. Close and reopen the app, but do not '
+            'reduce your text size as a workaround.',
         'If the app will not start, make sure you have an internet '
             'connection before reinstalling it. Reinstalling may repeat the '
             'first-time setup, but there is no WellaPath account or server '
@@ -156,9 +160,6 @@ abstract final class HelpContent {
             'to sort facilities by distance. WellaPath does not receive or '
             'store it. Viewing the clinic map requires requests to the map '
             'provider.',
-        'Do not include your name, phone number, symptoms, diagnosis or '
-            'other personal health information in feedback or support '
-            'messages.',
       ],
     ),
   ];
