@@ -125,7 +125,12 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'soft-launch candidate. iOS IPA not produced: the Apple '
       'Distribution (2SCUC2CBBS) private key is absent from this Mac. The '
       'number is consumed because a signed release artifact exists, '
-      'independently of store processing',
+      'independently of store processing. iOS IPA sha256 f8cd9d322c6887be'
+      '6d6a56d1b571e5e1994bf5622e05ea6975d917cb4928ca74 (26,596,891 B), '
+      'org.wellapath.app 0.3.0 (215), min iOS 15.0, signed Apple '
+      'Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS) with the App '
+      'Store profile, exported from a neutral-DerivedData archive that '
+      'scans clean',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.

@@ -5374,3 +5374,64 @@ iOS equivalent.
 
 **Build 211 remains untouched and remains the soft-launch candidate. Build
 215 is internal testing only.**
+
+## Build 215 iOS — archived, exported and verified (upload pending)
+
+**Signing identity.** The Apple Distribution private key for team
+`2SCUC2CBBS` was unrecoverable — Apple stores certificates, never private
+keys, and no `.p12` backup existed on this Mac — so the founder authorised
+and created a **replacement** Apple Distribution certificate on 2026-09-25:
+`Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)`, SHA-256
+`36:9E:F6:E2:58:9C:F9:0D:67:17:DA:EB:AD:4B:8D:AC:5D:76:53:A9:92:73:B5:21:7B:A5:A5:96:79:71:13:29`,
+valid to 2027-09-25. The existing App Store provisioning profile was
+**refreshed in place** to carry it — same name, same `2SCUC2CBBS.org.wellapath.app`
+App ID, new expiry 2027-09-25. No new App ID, application record or bundle
+identifier was created, and signing ownership is unchanged.
+
+**A neutral-path failure was caught before upload, and fixed.** The first
+`flutter build ipa` produced a clean IPA but an archive whose dSYMs carried
+the build engineer's home path: the scanner reported **8 prohibited findings**
+(`personal_home_macos` + `configured_personal_name`) in
+`Runner.app.dSYM` and both `objective_c.framework` dSYMs. Cause: Xcode's
+DerivedData and ModuleCache default to `~/Library/Developer/Xcode/DerivedData`
+regardless of where the source tree lives, so a neutral *build root* alone
+does not give neutral *symbols* — precisely the build-214 leak class that
+docs/NEUTRAL_BUILD_POLICY.md exists to stop, reappearing by a different
+route. **Remedy:** re-archive with
+`xcodebuild -derivedDataPath /Users/Shared/wellapath-build-215/DerivedData`,
+then `-exportArchive` with Flutter's own generated ExportOptions.plist
+(`method app-store-connect`, `signingStyle automatic`, `teamID 2SCUC2CBBS`,
+`uploadSymbols true`). The contaminated first archive and IPA were deleted so
+they cannot be uploaded by mistake. **A future change worth making: pass a
+neutral `-derivedDataPath` on every distributable iOS build, or the leak
+returns silently.**
+
+Separately verified and cleared: the shipped `Runner` binary contains 132
+`/Users/runner/` strings baked into the prebuilt Flutter engine. `runner` is
+the GitHub-hosted CI account and an explicitly approved non-personal account
+in `ScanRules.defaultApprovedMacUsers`; zero occurrences of the local
+username appear in any shipped binary.
+
+| | |
+|---|---|
+| File | `wellapath-release-215/WellaPath-215.ipa` — **internal testing only** |
+| SHA256 | `f8cd9d322c6887be6d6a56d1b571e5e1994bf5622e05ea6975d917cb4928ca74` |
+| Bytes | 26,596,891 |
+| Identity | `org.wellapath.app` · 0.3.0 · **215** · MinimumOSVersion 15.0 |
+| Signature | `Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)` → Apple WWDR → Apple Root CA, TeamIdentifier `2SCUC2CBBS` |
+| Profile | `iOS Team Store Provisioning Profile: org.wellapath.app`, no provisioned devices (store profile), expires 2027-09-25 |
+| Archive | dev-signed `Apple Development: JOHN OLUWASEYI (7F44V7HBXP)`, team `2SCUC2CBBS` — the same archive/export split build 211 used |
+| Neutral-path scan | **exit 0** — 181 files (IPA + archive + dSYMs + payload), 0 findings |
+
+Content: bundled `.env` byte-identical to the tracked production file; 0
+`ingest.sentry.io`, 0 DSN-shaped strings, 0 Sentry tokens, 0 `api-staging`,
+0 occurrences of the local username; Feedback, Support Chat and the
+internal-verification UI strings all absent from `App.framework/App`. Zero
+`--dart-define` of any kind was passed.
+
+**Upload pending.** The archive is staged in Xcode's Organizer library as
+`2026-09-25/WellaPath 0.3.0 (215).xcarchive`. Distribution is a founder GUI
+action; this session cannot drive Xcode's menu bar (`System Events` returns
+`-1719` for Xcode's menu bar). To be appended when known: Organizer result
+and timestamp, App Store Connect processing result, internal-tester
+availability, and confirmation that build 211 remains available.
