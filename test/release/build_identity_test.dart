@@ -103,17 +103,40 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'docs/CRASH_VERIFICATION_214_REPORT.md. Release '
       'wellapath-mobile@0.3.0+214 exists in Sentry, so the number is '
       'burned',
+  215:
+      'internal-testing build 0.3.0+215 — the first build of the merged '
+      'everyday-experience UI. Built 2026-09-25 from develop @ '
+      'd84fdac11ead50009f52d01429fc7fe96075e755 (tree 8a6ddc5a…) in the '
+      'approved neutral root /Users/Shared/wellapath-build-215 with a '
+      'build-local PUB_CACHE and zero dart-defines. Signed Android AAB '
+      'sha256 bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d6'
+      '0917 (62,395,097 B), org.wellapath.app versionCode 215 / '
+      'versionName 0.3.0, jar verified, upload certificate SHA-256 '
+      '94:E7:C5:74:…:D8:36 — byte-identical fingerprint to build 211, so '
+      'the established upload key was used and no signing-ownership or '
+      'Play App Signing decision arises. Neutral-path scanner exit 0 (28 '
+      'files, 0 findings). No DSN, no Sentry auth token, no staging '
+      'configuration; bundled .env byte-identical to the tracked '
+      'production file; Feedback and Support Chat control strings absent '
+      'from libapp.so (tree-shaken, flags compile-time false). Preserved '
+      'at wellapath-release-215/WellaPath-215.aab. INTERNAL TESTING ONLY '
+      '— must never be promoted beyond the Play Internal track or the '
+      'TestFlight internal group, and must not replace build 211 as the '
+      'soft-launch candidate. iOS IPA not produced: the Apple '
+      'Distribution (2SCUC2CBBS) private key is absent from this Mac. The '
+      'number is consumed because a signed release artifact exists, '
+      'independently of store processing',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 215 has never been attached to anything: it appears in no tag, no CI
+/// 216 has never been attached to anything: it appears in no tag, no CI
 /// release identifier, no rollback record, no Sentry release and no
-/// registry entry above. It is the earliest potentially distributable
-/// Sentry-enabled candidate, contingent on the build-path remediation and
-/// the store privacy-declaration update recorded in
-/// docs/CRASH_VERIFICATION_214_REPORT.md.
-const int kCurrentBuildNumber = 215;
+/// registry entry above. 215 was consumed on 2026-09-25 the moment a
+/// signed release AAB existed — before any store processing — so rebuilding
+/// 215 from different source could produce two artifacts that crash triage
+/// and Play both treat as the same build.
+const int kCurrentBuildNumber = 216;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';

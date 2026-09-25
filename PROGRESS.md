@@ -5253,3 +5253,124 @@ precondition for any distributable build.
 Scope held: no runtime code, dependency, version, Sentry or store
 change; no build hook (the scan is an explicit reviewed release step).
 No build 215, credentials, symbols, events or distribution.
+
+---
+
+# Build 215 BUILT and verified (Android internal-testing artifact; iOS blocked on a missing private key)
+
+**Date:** 2026-09-25 · **Source:** `develop @
+d84fdac11ead50009f52d01429fc7fe96075e755` (tree `8a6ddc5a…`, the merge of
+PR #86 and PR #87, CI green on that exact SHA) · **Built in:**
+`/Users/Shared/wellapath-build-215`, a clean detached worktree under the
+approved neutral root, with a build-local `PUB_CACHE`. Signing material was
+referenced by symlink and never copied or read. **Zero `--dart-define` of
+any kind was passed.**
+
+## Correction — the Play "not uploaded" record is superseded
+
+The build-211 entry above states *"Play internal track: NOT yet uploaded —
+no Play API credentials exist on this machine"*. **That entry is left
+standing as the historical record and is not rewritten.** It was true when
+written and is now superseded by the founder's direct Play Console
+confirmation (2026-09-25): developer account `6302882725431220689`, app
+`4973189146371972752`, **WellaPath 0.3.0 (211) is live on the existing
+Internal testing track with five testers listed**.
+
+Consequences for build 215, which follow from that confirmation:
+
+* 215 is **not** a first upload. The app record and the Internal testing
+  track already exist; no new application is to be created.
+* **No Play App Signing enrolment decision arises.** If the console
+  presents one, that contradicts the confirmed state — stop without
+  accepting, capture the screen, and reconcile before uploading.
+* No signing-ownership or upload-key change is in scope. The 215 AAB's
+  upload certificate fingerprint is byte-identical to build 211's, which is
+  the positive evidence that the established key signed it.
+
+The general lesson, recorded because it cost a wrong conclusion here: an
+absence recorded in this file means "not done **as of that entry**", never
+"impossible". Console state changes outside the repository and only the
+founder can observe it.
+
+## Android artifact
+
+| | |
+|---|---|
+| File | `wellapath-release-215/WellaPath-215.aab` — **internal testing only** |
+| SHA256 | `bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d60917` |
+| Bytes | 62,395,097 |
+| Identity | `org.wellapath.app` · versionName 0.3.0 · versionCode **215** · no `debuggable` |
+| Signature | `jar verified.`, single signer, SHA-256 digest, `CN=John Oluwaseyi, OU=Engineering, O=Wellapath` |
+| Certificate | SHA-256 `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` — identical to build 211 |
+| Neutral-path scan | **exit 0** — 28 files, 0 prohibited findings, 0 input errors |
+
+Content verification, on the extracted artifact: bundled
+`assets/flutter_assets/.env` **byte-identical** to the tracked production
+file (`api.wellapath.org`, `APP_ENV=production`, both telemetry flags
+false); **0** `ingest.sentry.io` strings and **0** DSN-shaped
+`https://<hex>@host` matches; **0** Sentry auth tokens and **0** bearer
+literals; Feedback and Support Chat control strings ("Give feedback",
+"Message the support team", "Start a conversation") **absent from
+`libapp.so`** — tree-shaken because both `bool.fromEnvironment` flags are
+compile-time false.
+
+Two staging-shaped strings were investigated and are benign, both matching
+build 211 exactly: `APP_ENV=staging` occurs only inside the committed
+explanatory comment in `.env` (the live value is `production`), and
+`wellapath-backend-staging.onrender.com` is the compile-time allowlist
+constant at `lib/core/config/build_environment.dart:37` whose purpose is to
+make a production build **reject** staging hosts at boot. It occurs exactly
+once in both the 211 and the 215 `libapp.so`.
+
+## iOS — not produced, one precise blocker
+
+The proven build-211 route was: archive signed `Apple Development: JOHN
+OLUWASEYI (7F44V7HBXP)` / team `2SCUC2CBBS`, re-signed on export by Xcode
+with **`Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)`** under
+the `iOS Team Store Provisioning Profile: org.wellapath.app`, then uploaded
+through **Xcode Organizer** ("Upload succeeded", 2026-09-21). No
+`ExportOptions.plist`, upload log or release script was ever written; the
+route is reconstructed from the preserved `WellaPath-211.ipa` and
+`Runner-211.xcarchive.tar.gz`.
+
+What is missing is only the **private key**. Both the store profile and the
+distribution certificate remain valid to **2027-06-02**, and the profile is
+still installed; but `security find-identity -v -p codesigning` lists only
+the Apple Development identity, no keychain on this Mac holds an Apple
+Distribution certificate, Xcode has no Apple ID configured
+(`IDEProvisioningTeams` absent), and no `.p12`/`.cer` backup exists on disk.
+Restoring the existing identity — by importing the `.p12`, or by signing
+into Xcode with the team's Apple ID — unblocks it. **No replacement
+certificate is to be created**; if Xcode offers to create one rather than
+restore, stop and report that screen.
+
+## Test-suite timing findings — post-launch reliability work, not blockers
+
+Two wall-clock assertions of the identical shape
+`expect(micros, lessThan(frameBudgetMicros))` flake under parallel
+full-suite load on the build machine, never the same one twice:
+`test/telemetry/performance_baseline_test.dart` and the added-synchronous-cost
+case inside `test/assessment/qb002_immediate_red_flag_test.dart`. Every
+clinical assertion in QB-002 passed in both runs; both files pass in
+isolation (38/38 together); CI is green on this exact tree; no related
+production code changed. Recorded as post-launch reliability work — the fix
+is to make the assertions load-independent, not to raise the thresholds.
+
+## Build-number state
+
+**215 is consumed** because a signed release artifact exists, independently
+of store processing, and must not be reused or rebuilt from different
+source. The registry entry and the candidate advance to **216** are in
+`test/release/build_identity_test.dart`, with `pubspec.yaml` at
+`0.3.0+216`.
+
+## Upload outcomes — pending
+
+Both uploads are founder console actions; this session has access to
+neither console. To be appended when known: Play release ID, processing
+status, tester availability, whether build 211 remains visible, and
+confirmation that 215 was not promoted beyond Internal testing; then the
+iOS equivalent.
+
+**Build 211 remains untouched and remains the soft-launch candidate. Build
+215 is internal testing only.**
