@@ -91,6 +91,35 @@ void main() {
     expect(find.text('How can WellaPath help you today?'), findsOneWidget);
   });
 
+  testWidgets('android back returns to Home instead of leaving the app', (
+    tester,
+  ) async {
+    await _pumpShell(tester, tab: ShellTab.learn);
+    expect(find.byType(LearnScreen), findsOneWidget);
+
+    // The system back gesture, as Android delivers it.
+    final bool popped = await tester.binding.handlePopRoute();
+    await _settle(tester);
+
+    expect(
+      popped,
+      isTrue,
+      reason: 'the shell must consume back rather than let the app close',
+    );
+    expect(find.text('How can WellaPath help you today?'), findsOneWidget);
+  });
+
+  testWidgets('android back from Home is not swallowed', (tester) async {
+    await _pumpShell(tester);
+    final bool popped = await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(
+      popped,
+      isFalse,
+      reason: 'on Home, back belongs to the system as usual',
+    );
+  });
+
   testWidgets('an initial tab can be requested', (tester) async {
     await _pumpShell(tester, tab: ShellTab.learn);
     expect(find.byType(LearnScreen), findsOneWidget);

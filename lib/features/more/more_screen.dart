@@ -23,14 +23,18 @@ import '../onboarding/onboarding_screen.dart';
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
-  static const String _version = String.fromEnvironment(
-    'APP_VERSION',
-    defaultValue: '0.3.0',
-  );
-  static const String _build = String.fromEnvironment(
-    'APP_BUILD',
-    defaultValue: 'dev',
-  );
+  /// Build identity, shown only when the build actually declares it.
+  ///
+  /// `pubspec.yaml` is the single source of version truth for all three
+  /// platforms (test/release/build_identity_test.dart), and these defines are
+  /// NOT passed by the ordinary store build — so a hardcoded fallback here
+  /// would print a number that silently disagrees with the artifact after the
+  /// next version bump. Showing nothing is better than showing a wrong build
+  /// id in an app whose build numbers are burned for crash triage.
+  static const String _version = String.fromEnvironment('APP_VERSION');
+  static const String _build = String.fromEnvironment('APP_BUILD');
+
+  static bool get _hasBuildIdentity => _version.isNotEmpty && _build.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -92,10 +96,11 @@ class MoreScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                Text(
-                  'WellaPath $_version ($_build)',
-                  style: const TextStyle(fontSize: 13, color: Brand.inkSoft),
-                ),
+                if (_hasBuildIdentity)
+                  Text(
+                    'WellaPath $_version ($_build)',
+                    style: const TextStyle(fontSize: 13, color: Brand.inkSoft),
+                  ),
                 if (BuildEnvironment.isInternal()) ...[
                   const SizedBox(height: 6),
                   Text(

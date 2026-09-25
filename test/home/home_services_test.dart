@@ -146,12 +146,20 @@ void main() {
   ) async {
     await _pumpHome(tester);
 
-    if (BuildEnvironment.isInternal()) {
-      expect(
-        find.text(BuildEnvironment.kInternalBuildMarker),
-        findsOneWidget,
-        reason: 'testers and reviewers must be able to tell this is internal',
-      );
-    }
+    // Asserted unconditionally, as it was before the redesign: dotenv is not
+    // initialised in widget tests, so BuildEnvironment resolves to the
+    // internal default and the marker MUST render. Wrapping this in an
+    // `if (isInternal())` would let a regression that drops the marker pass
+    // silently, and this is the only test that proves it renders at all.
+    expect(
+      BuildEnvironment.isInternal(),
+      isTrue,
+      reason: 'widget tests run without dotenv, which resolves to internal',
+    );
+    expect(
+      find.text(BuildEnvironment.kInternalBuildMarker),
+      findsOneWidget,
+      reason: 'testers and reviewers must be able to tell this is internal',
+    );
   });
 }

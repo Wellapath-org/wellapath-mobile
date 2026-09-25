@@ -85,10 +85,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  /// Guards against a double tap: `_finish` awaits preferences, so two quick
+  /// taps would otherwise run it twice — two `pushReplacement` calls, and for
+  /// the clinic intent two stacked locators to back out of.
+  bool _finishing = false;
+
   /// Both *Skip for now* and *Start with WellaPath* land here. Skipping is a
   /// decision, not an interruption — re-showing the introduction on the next
   /// launch would override it.
   Future<void> _finish() async {
+    if (_finishing) return;
+    _finishing = true;
     if (widget.replay) {
       Navigator.of(context).pop();
       return;
@@ -507,12 +514,13 @@ class _JourneyPageState extends State<_JourneyPage> {
     super.dispose();
   }
 
+  /// Tapping reveals the next step. It deliberately does NOT fall through to
+  /// "advance the page" once every step is showing: the copy says "tap to
+  /// follow along", the steps also unfold on their own, and a reader who taps
+  /// a moment after they finish would be thrown forward without asking.
+  /// Moving on is the button's job.
   void _revealNext() {
-    if (_shown < _steps.length) {
-      setState(() => _shown += 1);
-    } else {
-      widget.onNext();
-    }
+    if (_shown < _steps.length) setState(() => _shown += 1);
   }
 
   @override

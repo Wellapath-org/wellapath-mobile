@@ -8,8 +8,8 @@
 /// background pairing below meets WCAG AA for body text at the sizes used:
 ///  * [ink] on [surface] — 15.9:1
 ///  * [inkSoft] on [surface] — 7.3:1
-///  * white on [primary] — 5.3:1
-///  * [emergency] on [emergencyTint] — 6.6:1
+///  * white on [primary] — 5.05:1
+///  * [emergency] on [emergencyTint] — 5.3:1
 library;
 
 import 'package:flutter/material.dart';

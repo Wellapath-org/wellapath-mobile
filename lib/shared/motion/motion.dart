@@ -131,6 +131,9 @@ class _PressableScaleState extends State<PressableScale> {
     return Semantics(
       button: true,
       label: widget.semanticLabel,
+      // The label already says everything the card's children say; without
+      // this, TalkBack reads the whole card and then the label again.
+      excludeSemantics: widget.semanticLabel != null,
       child: GestureDetector(
         onTap: widget.onTap,
         onTapDown: (_) => setState(() => _down = true),

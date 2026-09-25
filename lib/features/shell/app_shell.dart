@@ -34,8 +34,10 @@ class ShellScope extends InheritedWidget {
   static ShellScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ShellScope>();
 
+  // The callback is a stable State method, and the tab index lives in the
+  // State above — dependents never need to rebuild because of this widget.
   @override
-  bool updateShouldNotify(ShellScope oldWidget) => select != oldWidget.select;
+  bool updateShouldNotify(ShellScope oldWidget) => false;
 }
 
 class AppShell extends StatefulWidget {
@@ -52,13 +54,43 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Android back on a secondary tab returns to Home rather than quitting
+    // the app. Without this, Back from Learn or More drops the user out to
+    // the launcher, which reads as the app crashing.
+    return PopScope(
+      canPop: _index == ShellTab.home.index,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return;
+        setState(() => _index = ShellTab.home.index);
+      },
+      child: _buildScaffold(),
+    );
+  }
+
+  void _select(ShellTab tab) => setState(() => _index = tab.index);
+
+  Widget _buildScaffold() {
     return Scaffold(
       backgroundColor: Brand.surface,
       body: ShellScope(
-        select: (tab) => setState(() => _index = tab.index),
+        select: _select,
+        // IndexedStack keeps every tab alive (that is how tab state
+        // survives switching), which also keeps their ticks running.
+        // TickerMode stops animations on tabs nobody is looking at, so
+        // Wella breathes on exactly one screen at a time.
         child: IndexedStack(
           index: _index,
-          children: const [HomeScreen(), LearnScreen(), MoreScreen()],
+          children: [
+            for (final ShellTab tab in ShellTab.values)
+              TickerMode(
+                enabled: _index == tab.index,
+                child: switch (tab) {
+                  ShellTab.home => const HomeScreen(),
+                  ShellTab.learn => const LearnScreen(),
+                  ShellTab.more => const MoreScreen(),
+                },
+              ),
+          ],
         ),
       ),
       bottomNavigationBar: NavigationBar(
