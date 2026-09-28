@@ -5364,13 +5364,27 @@ source. The registry entry and the candidate advance to **216** are in
 `test/release/build_identity_test.dart`, with `pubspec.yaml` at
 `0.3.0+216`.
 
+## Upload outcomes — pending (SUPERSEDED 2026-09-28, kept verbatim)
+
+> Both uploads are founder console actions; this session has access to
+> neither console. To be appended when known: Play release ID, processing
+> status, tester availability, whether build 211 remains visible, and
+> confirmation that 215 was not promoted beyond Internal testing; then the
+> iOS equivalent.
+
+That block is the honest record of what was known on 2026-09-25 and is kept
+word for word. The section below supersedes it; it does not replace it.
+
 ## Upload outcomes — CLOSED, founder-confirmed 2026-09-28
 
 Both uploads were founder console actions. Engineering has access to
 neither console, so everything in this section is the founder's direct
-observation, recorded as such and dated. No release ID, processing
-timestamp or tester count is recorded, because none was observed by this
-session and inventing one would defeat the purpose of the record.
+observation, recorded as such and dated. **No Play release ID, no store
+processing timestamp and no tester count for build 215** is recorded,
+because none was observed and inventing one would defeat the purpose of the
+record. A tester count for build **211** does exist earlier in this file,
+recorded from the founder's console read on 2026-09-25; it is a figure for a
+different build and is not carried across.
 
 **Android, build 215.** Fully processed and available to the existing Play
 Internal testing cohort. Confirmed by the founder, 2026-09-28. This closes
@@ -5399,7 +5413,9 @@ result: no automated acceptance suite produced it, and it is not a clinical
 sign-off.
 
 **No new build was created during this confirmation.** Nothing was rebuilt,
-re-signed, re-uploaded, promoted or deleted.
+re-signed, re-uploaded, promoted or deleted. This one is an engineering fact
+about this session rather than a founder observation, which is why it carries
+no console attribution.
 
 ## The verified artifact evidence is unchanged
 
@@ -5508,6 +5524,13 @@ Sentry symbols are needed, so the warning is moot. No ITMS error or other
 warning was raised — `ITSAppUsesNonExemptEncryption=false` is a source
 declaration, so no export-compliance prompt appeared.
 
+**Still to be appended, from the console (this session has no App Store
+Connect access):** processing result, that it appears as `0.3.0 (215)`,
+internal-tester availability, and confirmation that build 211 remains
+available and unexpired.
+
+> Kept verbatim. **Superseded 2026-09-28** by the paragraph below.
+
 **Console outcome — founder-confirmed 2026-09-28.** Build 215 is fully
 processed and available to the existing TestFlight internal testers, and
 build 211 remains available and has not been deleted. Recorded from the
@@ -5540,16 +5563,22 @@ closes the record.
 | External promotion | None. Neither artifact has reached an external or public cohort |
 | New builds | None created during this confirmation |
 
-All six are the founder's direct observation, dated 2026-09-28. Engineering
-has access to neither console and observed none of it first hand, which is
-why each line says so rather than presenting it as a measurement.
+Five are the founder's direct observation, dated 2026-09-28; engineering has
+access to neither console and observed none of that first hand, which is why
+each line says so rather than presenting it as a measurement. The sixth — that
+no new build was created — is an engineering fact about this session.
 
 ## What is deliberately not recorded
 
-No Play release ID, no processing timestamps, no tester counts. None was
-observed, and a record whose value is that it distinguishes what was seen
-from what was assumed cannot afford to invent any of them. If those figures
-are wanted later they need a fresh console read, recorded the same way.
+For build 215: no Play release ID, no store processing timestamp, no tester
+count on either platform. None was observed, and a record whose value is that
+it distinguishes what was seen from what was assumed cannot afford to invent
+any of them. If those figures are wanted they need a fresh console read,
+recorded the same way.
+
+A tester count of five **is** recorded earlier in this file, from the founder's
+console read of 2026-09-25, together with the Play developer-account and app
+identifiers. Those belong to build **211** and are not carried across to 215.
 
 ## What has not changed
 
@@ -5560,12 +5589,22 @@ where those artifacts ended up, not about what they are.
 
 ## One correction the record should carry
 
-Earlier entries in this file state that Android 215 had not been uploaded and
-that "a signed artifact is not evidence of store availability." That reasoning
-was right and is worth keeping: an artifact on disk never was proof of a store
-state. What has changed is not the reasoning but the fact, which a console
-read has now supplied. The earlier entries stand as the honest record of what
-was known at the time.
+What the earlier 215 entries actually said is that the console outcome **had
+not been observed** — not that the upload had failed. The nearest thing to a
+statement of principle is at the build-number state above: *"215 is consumed
+because a signed release artifact exists, independently of store processing."*
+That separation was right and is worth keeping: an artifact on disk is not a
+store state, and a successful upload call is not availability. What a console
+read has now supplied is the fact, not a correction to the reasoning.
+
+Both superseded blocks are kept verbatim above, marked as superseded rather
+than rewritten.
+
+An earlier draft of this section put quotation marks around a sentence that
+appears nowhere else in this file. It has been corrected. Recorded here rather
+than quietly fixed, because a fabricated citation is exactly the failure this
+record exists to prevent, and a provenance document that hides its own
+correction is worth less than one that shows it.
 
 ## Build-number state
 
