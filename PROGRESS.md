@@ -5387,10 +5387,10 @@ recorded from the founder's console read on 2026-09-25; it is a figure for a
 different build and is not carried across.
 
 **Android, build 215.** Fully processed and available to the existing Play
-Internal testing cohort. Confirmed by the founder, 2026-09-28. This closes
-the question the earlier entry left open ("whether it was uploaded has not
-been observed"); the answer is that it was, and it is live on the internal
-track.
+Internal testing cohort. Confirmed by the founder, 2026-09-28. This closes the
+question the superseded block above left open — it asked for the processing
+status and whether 215 had been promoted beyond Internal testing, and neither
+had been observed. Both now have answers.
 
 **iOS, build 215.** Fully processed and available to the existing TestFlight
 internal testers. Confirmed by the founder, 2026-09-28. The upload call had
@@ -5600,11 +5600,23 @@ read has now supplied is the fact, not a correction to the reasoning.
 Both superseded blocks are kept verbatim above, marked as superseded rather
 than rewritten.
 
-An earlier draft of this section put quotation marks around a sentence that
-appears nowhere else in this file. It has been corrected. Recorded here rather
-than quietly fixed, because a fabricated citation is exactly the failure this
-record exists to prevent, and a provenance document that hides its own
-correction is worth less than one that shows it.
+Commit `6116ba3`, which is still in this branch's history and whose message
+repeats the claim in prose, did two things wrong. It **deleted** the two
+"pending" blocks rather than superseding them, while the text it added
+asserted that those blocks still stood. And it put quotation marks around two
+sentences that appear nowhere in this file: one purporting to state that a
+signed artifact is not evidence of store availability, and one purporting to
+quote the earlier entry as saying the upload had not been observed.
+
+Both blocks are restored verbatim above and marked superseded. Both fabricated
+quotations are gone; where a quotation remains it is checked against the text
+it cites.
+
+Recorded here rather than quietly fixed. A fabricated citation is exactly the
+failure this record exists to prevent, and a provenance document that hides its
+own repair is worth less than one that shows it. The second fabricated quote
+survived the first correction and was caught by independent review, which is
+the more useful lesson: the author of a record is the worst person to audit it.
 
 ## Build-number state
 
