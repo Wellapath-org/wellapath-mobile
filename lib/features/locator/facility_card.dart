@@ -24,7 +24,6 @@ class FacilityCard extends StatelessWidget {
       state,
     ].where((part) => part.isNotEmpty).join(', ');
     final distanceKm = facility['distance_km'] as double?;
-    final openingHours = facility['opening_hours'];
     final phone = facility['phone'] as String?;
 
     return Container(
@@ -52,34 +51,34 @@ class FacilityCard extends StatelessWidget {
               style: const TextStyle(fontSize: 14, color: Colors.black54),
             ),
           ],
-          if (distanceKm != null || openingHours != null) ...[
+          // No opening-hours claim is rendered, deliberately.
+          //
+          // This card used to show a green "Open now" whenever `opening_hours`
+          // was non-null. It never read the value: any string at all produced
+          // "Open now", at any hour, on any day. It has never been visible in
+          // production because `opening_hours` is null on all 5,344 records in
+          // the shipped artifact, so this removes nothing a user has seen.
+          //
+          // It is removed rather than corrected because correcting it needs
+          // things the app does not have: structured hours, a timezone, and a
+          // notion of public holidays. Until those exist and the hours are
+          // verified, the honest number of opening claims this card can make
+          // is zero. Telling someone a clinic is open when it is closed is a
+          // wasted journey by a person who is unwell.
+          //
+          // Do not reintroduce this by mapping a status field from a new data
+          // source into `opening_hours`. GRID3's `functional` column is a
+          // dataset-quality flag, not opening hours, and its own publisher
+          // warns that abandoned facilities may be included.
+          if (distanceKm != null) ...[
             const SizedBox(height: 6),
-            Row(
-              children: [
-                if (distanceKm != null)
-                  Text(
-                    '${distanceKm.toStringAsFixed(1)} km away',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _primary,
-                    ),
-                  ),
-                if (distanceKm != null && openingHours != null)
-                  const Text(
-                    '  •  ',
-                    style: TextStyle(fontSize: 13, color: Colors.black38),
-                  ),
-                if (openingHours != null)
-                  const Text(
-                    'Open now',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF22C55E),
-                    ),
-                  ),
-              ],
+            Text(
+              '${distanceKm.toStringAsFixed(1)} km away',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _primary,
+              ),
             ),
           ],
           const SizedBox(height: 14),
