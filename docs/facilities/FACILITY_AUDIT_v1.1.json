@@ -1,0 +1,225 @@
+{
+  "generated_utc": "2026-09-28T13:19:49.318156+00:00",
+  "artifact": {
+    "path": "/tmp/claude-501/facility-audit/data/facilities.ng.v1.1.json",
+    "sha256": "25684c714367abf2f3c305c8a5597b5f7eb0d11baaf658c5b9e2f8f5e2982398",
+    "bytes": 1695844
+  },
+  "envelope": {
+    "_metadata": {
+      "artifact_id": "facilities",
+      "version": "1.1",
+      "schema_version": "1.0",
+      "country": "ng",
+      "release_date": "2026-07-26",
+      "total_facilities": 5344,
+      "states_covered": [
+        "Lagos",
+        "FCT",
+        "Kano"
+      ],
+      "sources": [
+        {
+          "name": "GRID3 NGA Health Facilities v2.0",
+          "url": "https://data.grid3.org/datasets/GRID3::grid3-nga-health-facilities-/explore",
+          "last_updated": "2024-11",
+          "license": "CC BY 4.0",
+          "reliability": 5
+        },
+        {
+          "name": "HDX Nigeria Health Facilities (OSM Export)",
+          "url": "https://data.humdata.org/dataset/hotosm_nga_health_facilities",
+          "last_updated": "2025-02",
+          "license": "ODbL",
+          "reliability": 4
+        },
+        {
+          "name": "HFR manual enrichment — 45 Lagos facilities with verified phone numbers",
+          "url": null,
+          "last_updated": "2026-07-26",
+          "license": null,
+          "reliability": 5
+        }
+      ],
+      "coordinate_bounds": {
+        "lat_min": 4.0,
+        "lat_max": 14.0,
+        "lon_min": 2.5,
+        "lon_max": 15.0,
+        "all_valid": true
+      },
+      "urgency_filter_logic": {
+        "emergency": "Show emergency_capable=true facilities first",
+        "urgent": "Show hospitals and clinics",
+        "non_urgent": "Show hospitals, clinics, and health_centres",
+        "self_care": "Show pharmacies and health_centres"
+      },
+      "type_enum": [
+        "hospital",
+        "clinic",
+        "pharmacy",
+        "health_centre",
+        "maternity"
+      ]
+    },
+    "_record_list_key": "facilities"
+  },
+  "record_count": 5344,
+  "fields": {
+    "city_area": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "str": 5344
+      }
+    },
+    "emergency_capable": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "bool": 5344
+      }
+    },
+    "facility_id": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "str": 5344
+      }
+    },
+    "latitude": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "float": 5344
+      }
+    },
+    "longitude": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "float": 5344
+      }
+    },
+    "name": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "str": 5344
+      }
+    },
+    "opening_hours": {
+      "present": 5344,
+      "non_empty": 0,
+      "types": {
+        "NoneType": 5344
+      }
+    },
+    "phone": {
+      "present": 5344,
+      "non_empty": 45,
+      "types": {
+        "NoneType": 5299,
+        "str": 45
+      }
+    },
+    "state": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "str": 5344
+      }
+    },
+    "type": {
+      "present": 5344,
+      "non_empty": 5344,
+      "types": {
+        "str": 5344
+      }
+    }
+  },
+  "coverage": {
+    "by_state": {
+      "Lagos": 2690,
+      "Kano": 2040,
+      "FCT": 614
+    },
+    "by_ownership": {
+      "«missing»": 5344
+    },
+    "by_level": {
+      "health_centre": 4278,
+      "hospital": 924,
+      "pharmacy": 92,
+      "clinic": 50
+    },
+    "lga_count": 0,
+    "by_lga_top_25": {
+      "Lagos / «missing»": 2690,
+      "Kano / «missing»": 2040,
+      "FCT / «missing»": 614
+    }
+  },
+  "contacts": {
+    "records_with_phone": 45,
+    "records_with_email": 0,
+    "phone_structurally_invalid": 0,
+    "email_structurally_invalid": 0,
+    "phone_shape_examples_masked": [],
+    "note": "Structure only. A number that parses is not a number that answers."
+  },
+  "coordinates": {
+    "missing": 0,
+    "structurally_invalid": 0,
+    "outside_nigeria_bbox": 0,
+    "suspect_null_island": 0,
+    "usable": 5344,
+    "bbox_used": {
+      "lat": [
+        4.0,
+        14.0
+      ],
+      "lon": [
+        2.5,
+        15.0
+      ],
+      "note": "generous sanity filter, not a border"
+    }
+  },
+  "duplicates": {
+    "exact_name_state_lga_groups": 226,
+    "exact_name_state_lga_extra_records": 246,
+    "near_duplicate_pairs_same_name_within_2km": 70,
+    "method": "normalised name key (accent-stripped, punctuation-collapsed, token-sorted, common words dropped) plus state/LGA; near-duplicates additionally require 2 km proximity. Candidates for review only."
+  },
+  "provenance_fields": {
+    "expected": [
+      "source",
+      "source_version",
+      "source_updated_at",
+      "updated_at",
+      "last_verified",
+      "verified_at",
+      "contact_verified_at",
+      "verification_method",
+      "operational_status",
+      "contact_status",
+      "confidence"
+    ],
+    "present_non_empty": {},
+    "absent": [
+      "source",
+      "source_version",
+      "source_updated_at",
+      "updated_at",
+      "last_verified",
+      "verified_at",
+      "contact_verified_at",
+      "verification_method",
+      "operational_status",
+      "contact_status",
+      "confidence"
+    ],
+    "records_with_no_source_information": 5344
+  }
+}

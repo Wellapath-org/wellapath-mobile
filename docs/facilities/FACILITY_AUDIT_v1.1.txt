@@ -1,0 +1,53 @@
+Artifact      facilities.ng.v1.1.json
+sha256        25684c714367abf2f3c305c8a5597b5f7eb0d11baaf658c5b9e2f8f5e2982398
+bytes         1,695,844
+records       5,344
+
+By state
+  Lagos                         2,690
+  Kano                          2,040
+  FCT                             614
+  distinct LGAs (named)             0
+
+By ownership
+  «missing»                     5,344
+
+By level / type
+  health_centre                 4,278
+  hospital                        924
+  pharmacy                         92
+  clinic                           50
+
+Contacts
+  with a phone number              45
+  with an email address             0
+  phone structurally invalid        0
+  email structurally invalid        0
+
+Coordinates
+  usable                        5,344
+  missing                           0
+  structurally invalid              0
+  outside the Nigeria bbox          0
+  at 0,0                            0
+
+Duplicates (review candidates, not merges)
+  exact name+state+LGA groups     226
+  extra records in those          246
+  near-dupe pairs within 2 km      70
+
+Provenance fields present
+  none
+  absent: source, source_version, source_updated_at, updated_at, last_verified, verified_at, contact_verified_at, verification_method, operational_status, contact_status, confidence
+
+Fields in the record shape
+  city_area                present 5,344  non-empty 5,344  {'str': 5344}
+  emergency_capable        present 5,344  non-empty 5,344  {'bool': 5344}
+  facility_id              present 5,344  non-empty 5,344  {'str': 5344}
+  latitude                 present 5,344  non-empty 5,344  {'float': 5344}
+  longitude                present 5,344  non-empty 5,344  {'float': 5344}
+  name                     present 5,344  non-empty 5,344  {'str': 5344}
+  opening_hours            present 5,344  non-empty     0  {'NoneType': 5344}
+  phone                    present 5,344  non-empty    45  {'NoneType': 5299, 'str': 45}
+  state                    present 5,344  non-empty 5,344  {'str': 5344}
+  type                     present 5,344  non-empty 5,344  {'str': 5344}
