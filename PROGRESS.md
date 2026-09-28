@@ -5364,13 +5364,59 @@ source. The registry entry and the candidate advance to **216** are in
 `test/release/build_identity_test.dart`, with `pubspec.yaml` at
 `0.3.0+216`.
 
-## Upload outcomes — pending
+## Upload outcomes — CLOSED, founder-confirmed 2026-09-28
 
-Both uploads are founder console actions; this session has access to
-neither console. To be appended when known: Play release ID, processing
-status, tester availability, whether build 211 remains visible, and
-confirmation that 215 was not promoted beyond Internal testing; then the
-iOS equivalent.
+Both uploads were founder console actions. Engineering has access to
+neither console, so everything in this section is the founder's direct
+observation, recorded as such and dated. No release ID, processing
+timestamp or tester count is recorded, because none was observed by this
+session and inventing one would defeat the purpose of the record.
+
+**Android, build 215.** Fully processed and available to the existing Play
+Internal testing cohort. Confirmed by the founder, 2026-09-28. This closes
+the question the earlier entry left open ("whether it was uploaded has not
+been observed"); the answer is that it was, and it is live on the internal
+track.
+
+**iOS, build 215.** Fully processed and available to the existing TestFlight
+internal testers. Confirmed by the founder, 2026-09-28. The upload call had
+returned success on 2026-09-25; that was never evidence of availability, and
+this is the separate confirmation that closes it.
+
+**Build 211 remains available and has not been deleted**, on both platforms.
+Confirmed by the founder, 2026-09-28.
+
+**Neither 215 artifact has been promoted to an external or public cohort.**
+Confirmed by the founder, 2026-09-28. The iOS export carries
+`testFlightInternalTestingOnly = true`, which bars external testing and Beta
+App Review for that build by construction rather than by policy; the Android
+side rests on the founder's confirmation alone.
+
+**Build 215 has been exercised in internal testing by the founder and other
+testers and currently meets expectations.** Confirmed by the founder,
+2026-09-28. This is a statement about the testers' experience, not a test
+result: no automated acceptance suite produced it, and it is not a clinical
+sign-off.
+
+**No new build was created during this confirmation.** Nothing was rebuilt,
+re-signed, re-uploaded, promoted or deleted.
+
+## The verified artifact evidence is unchanged
+
+Re-stated because this section closes the record and the figures must not
+drift. Every value below was recorded at verification time and none has been
+re-derived, re-measured or altered by this confirmation:
+
+* Android AAB sha256 `bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d60917`,
+  62,395,097 B.
+* iOS IPA sha256 `f8cd9d322c6887be6d6a56d1b571e5e1994bf5622e05ea6975d917cb4928ca74`,
+  26,596,891 B.
+* Signing identities unchanged: the Android upload certificate fingerprint
+  byte-identical to build 211's, and the replacement
+  `Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)` for iOS.
+* Source SHA unchanged: `develop @ d84fdac11ead50009f52d01429fc7fe96075e755`.
+* Neutral-build-path evidence unchanged: scanner exit 0 on both platforms,
+  28 files for Android and 181 for the iOS archive set.
 
 **Build 211 remains untouched and remains the soft-launch candidate. Build
 215 is internal testing only.**
@@ -5462,7 +5508,72 @@ Sentry symbols are needed, so the warning is moot. No ITMS error or other
 warning was raised — `ITSAppUsesNonExemptEncryption=false` is a source
 declaration, so no export-compliance prompt appeared.
 
-**Still to be appended, from the console (this session has no App Store
-Connect access):** processing result, that it appears as `0.3.0 (215)`,
-internal-tester availability, and confirmation that build 211 remains
-available and unexpired.
+**Console outcome — founder-confirmed 2026-09-28.** Build 215 is fully
+processed and available to the existing TestFlight internal testers, and
+build 211 remains available and has not been deleted. Recorded from the
+founder's direct observation; engineering has no App Store Connect access
+and observed none of it first hand. No processing timestamp or tester count
+is recorded, because neither was reported and neither may be inferred.
+
+See "Upload outcomes — CLOSED" above for the full set of confirmations
+across both platforms.
+
+---
+
+# Build 215 evidence CLOSED — internal testing live on both platforms
+
+**Date:** 2026-09-28 · **Branch:** `chore/215-evidence` · **Nothing was built,
+signed, uploaded, promoted or deleted to produce this entry.**
+
+The 215 record had two open sections waiting on console observations that
+engineering could not make. The founder has now made them, and this entry
+closes the record.
+
+## What is now confirmed
+
+| | |
+|---|---|
+| Android 215 | Fully processed, available to the existing Play Internal testing cohort |
+| iOS 215 | Fully processed, available to the existing TestFlight internal testers |
+| Build 211 | Still available on both platforms, not deleted |
+| Internal testing | Exercised by the founder and other testers; currently meets expectations |
+| External promotion | None. Neither artifact has reached an external or public cohort |
+| New builds | None created during this confirmation |
+
+All six are the founder's direct observation, dated 2026-09-28. Engineering
+has access to neither console and observed none of it first hand, which is
+why each line says so rather than presenting it as a measurement.
+
+## What is deliberately not recorded
+
+No Play release ID, no processing timestamps, no tester counts. None was
+observed, and a record whose value is that it distinguishes what was seen
+from what was assumed cannot afford to invent any of them. If those figures
+are wanted later they need a fresh console read, recorded the same way.
+
+## What has not changed
+
+The artifact evidence is unchanged and was not re-derived: both hashes, both
+signing identities, the source SHA and the neutral-path scanner results all
+stand exactly as verified on 2026-09-25. The confirmation above is about
+where those artifacts ended up, not about what they are.
+
+## One correction the record should carry
+
+Earlier entries in this file state that Android 215 had not been uploaded and
+that "a signed artifact is not evidence of store availability." That reasoning
+was right and is worth keeping: an artifact on disk never was proof of a store
+state. What has changed is not the reasoning but the fact, which a console
+read has now supplied. The earlier entries stand as the honest record of what
+was known at the time.
+
+## Build-number state
+
+**215 is consumed.** The registry entry and the advance to 216 were recorded
+when the artifacts were signed and are unchanged by this confirmation.
+`pubspec.yaml` remains at `0.3.0+216`.
+
+**Still open, unchanged by this entry:** CB_211 clinical adjudication before
+any external cohort; the danger-sign label review; physical-device smoke
+testing; and everything in the store-submission blockers. Internal testing
+being live does not move any of them.
