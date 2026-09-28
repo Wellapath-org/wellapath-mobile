@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wellapath_mobile/features/locator/facility_card.dart';
@@ -279,6 +282,113 @@ void main() {
       expect(find.text('Unknown'), findsNothing);
     },
   );
+
+  // ── the card makes no opening-hours claim, whatever the data says ──────
+  //
+  // TEST 7 above only ever covered the null case, which is why the defect it
+  // was written to catch survived: the card rendered a hardcoded "Open now"
+  // for ANY non-null value, having never read it. The group below covers the
+  // non-null cases, which are the ones that were wrong.
+  //
+  // These are not tests of a formatting preference. The claim was false in a
+  // way that sends an unwell person to a closed building, and it would have
+  // gone live the moment a data refresh populated the field.
+
+  group('a facility card never claims a facility is open', () {
+    Widget cardWith(Object? openingHours) => MaterialApp(
+      home: Scaffold(
+        body: FacilityCard(
+          facility: {
+            'facility_id': 'f_open',
+            'name': 'Test Facility',
+            'type': 'hospital',
+            'state': 'Lagos',
+            'city_area': 'Ikeja',
+            'latitude': 6.6,
+            'longitude': 3.35,
+            'phone': null,
+            'opening_hours': openingHours,
+            'emergency_capable': true,
+            'distance_km': 1.2,
+          },
+          onDirectionsTap: () {},
+        ),
+      ),
+    );
+
+    // Every one of these previously rendered a green "Open now".
+    for (final hours in <Object?>[
+      '24/7',
+      'Mon-Fri 09:00-17:00',
+      'Closed Sundays',
+      'By appointment only',
+      'CLOSED',
+      'unknown',
+      '',
+      ' ',
+      'null',
+      0,
+      false,
+      <String, String>{'mon': '09:00-17:00'},
+      <String>['09:00', '17:00'],
+    ]) {
+      testWidgets('no opening claim for opening_hours = ${jsonEncode(hours)}', (
+        tester,
+      ) async {
+        await tester.pumpWidget(cardWith(hours));
+        expect(find.text('Open now'), findsNothing);
+        expect(find.textContaining('Open'), findsNothing);
+        expect(find.textContaining('Closed'), findsNothing);
+      });
+    }
+
+    testWidgets('and none for a null value either', (tester) async {
+      await tester.pumpWidget(cardWith(null));
+      expect(find.text('Open now'), findsNothing);
+      expect(find.textContaining('Open'), findsNothing);
+    });
+
+    testWidgets('the distance still renders when hours are present', (
+      tester,
+    ) async {
+      // The two used to share a row, so removing the claim must not take the
+      // distance with it.
+      await tester.pumpWidget(cardWith('24/7'));
+      expect(find.text('1.2 km away'), findsOneWidget);
+    });
+
+    testWidgets('and when they are absent', (tester) async {
+      await tester.pumpWidget(cardWith(null));
+      expect(find.text('1.2 km away'), findsOneWidget);
+    });
+  });
+
+  test('no source file renders an opening-status claim', () {
+    // A source-level guard, because the widget tests above can only cover the
+    // card. If someone adds an "Open now" badge to a list row or the map
+    // sheet, this fails.
+    const claims = ['Open now', 'Currently open', 'Open 24/7'];
+    final dir = Directory('lib/features/locator');
+    for (final entity in dir.listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      // Comments may name the claim — the comment explaining why it was
+      // removed necessarily quotes it. Only code can render one.
+      final code = entity
+          .readAsLinesSync()
+          .where((line) => !line.trimLeft().startsWith('//'))
+          .join('\n');
+      for (final claim in claims) {
+        expect(
+          code.contains("'$claim'") || code.contains('"$claim"'),
+          isFalse,
+          reason:
+              '${entity.path} contains the literal "$claim" in code. The app '
+              'has no structured opening hours and no way to evaluate them '
+              'against the current local time, so it cannot make this claim.',
+        );
+      }
+    }
+  });
 
   // NOTE: with mockFacilities, Kano's only facility (f003) is a pharmacy,
   // which the 'urgent' type filter (hospital/clinic) excludes — so this
