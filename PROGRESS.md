@@ -5592,7 +5592,10 @@ where those artifacts ended up, not about what they are.
 What the earlier 215 entries actually said is that the console outcome **had
 not been observed** — not that the upload had failed. The nearest thing to a
 statement of principle is at the build-number state above: *"215 is consumed
-because a signed release artifact exists, independently of store processing."*
+because a signed release artifact exists, independently of store processing,
+…"* — the source sentence continues "and must not be reused or rebuilt from
+different source", which is a separate point and is why the quotation stops
+where it does.
 That separation was right and is worth keeping: an artifact on disk is not a
 store state, and a successful upload call is not availability. What a console
 read has now supplied is the fact, not a correction to the reasoning.
