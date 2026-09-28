@@ -5253,3 +5253,381 @@ precondition for any distributable build.
 Scope held: no runtime code, dependency, version, Sentry or store
 change; no build hook (the scan is an explicit reviewed release step).
 No build 215, credentials, symbols, events or distribution.
+
+---
+
+# Build 215 BUILT and verified (Android internal-testing artifact; iOS blocked on a missing private key)
+
+**Date:** 2026-09-25 · **Source:** `develop @
+d84fdac11ead50009f52d01429fc7fe96075e755` (tree `8a6ddc5a…`, the merge of
+PR #86 and PR #87, CI green on that exact SHA) · **Built in:**
+`/Users/Shared/wellapath-build-215`, a clean detached worktree under the
+approved neutral root, with a build-local `PUB_CACHE`. Signing material was
+referenced by symlink and never copied or read. **Zero `--dart-define` of
+any kind was passed.**
+
+## Correction — the Play "not uploaded" record is superseded
+
+The build-211 entry above states *"Play internal track: NOT yet uploaded —
+no Play API credentials exist on this machine"*. **That entry is left
+standing as the historical record and is not rewritten.** It was true when
+written and is now superseded by the founder's direct Play Console
+confirmation (2026-09-25): developer account `6302882725431220689`, app
+`4973189146371972752`, **WellaPath 0.3.0 (211) is live on the existing
+Internal testing track with five testers listed**.
+
+Consequences for build 215, which follow from that confirmation:
+
+* 215 is **not** a first upload. The app record and the Internal testing
+  track already exist; no new application is to be created.
+* **No Play App Signing enrolment decision arises.** If the console
+  presents one, that contradicts the confirmed state — stop without
+  accepting, capture the screen, and reconcile before uploading.
+* No signing-ownership or upload-key change is in scope. The 215 AAB's
+  upload certificate fingerprint is byte-identical to build 211's, which is
+  the positive evidence that the established key signed it.
+
+The general lesson, recorded because it cost a wrong conclusion here: an
+absence recorded in this file means "not done **as of that entry**", never
+"impossible". Console state changes outside the repository and only the
+founder can observe it.
+
+## Android artifact
+
+| | |
+|---|---|
+| File | `wellapath-release-215/WellaPath-215.aab` — **internal testing only** |
+| SHA256 | `bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d60917` |
+| Bytes | 62,395,097 |
+| Identity | `org.wellapath.app` · versionName 0.3.0 · versionCode **215** · no `debuggable` |
+| Signature | `jar verified.`, single signer, SHA-256 digest, `CN=John Oluwaseyi, OU=Engineering, O=Wellapath` |
+| Certificate | SHA-256 `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` — identical to build 211 |
+| Neutral-path scan | **exit 0** — 28 files, 0 prohibited findings, 0 input errors |
+
+Content verification, on the extracted artifact: bundled
+`assets/flutter_assets/.env` **byte-identical** to the tracked production
+file (`api.wellapath.org`, `APP_ENV=production`, both telemetry flags
+false); **0** `ingest.sentry.io` strings and **0** DSN-shaped
+`https://<hex>@host` matches; **0** Sentry auth tokens and **0** bearer
+literals; Feedback and Support Chat control strings ("Give feedback",
+"Message the support team", "Start a conversation") **absent from
+`libapp.so`** — tree-shaken because both `bool.fromEnvironment` flags are
+compile-time false.
+
+Two staging-shaped strings were investigated and are benign, both matching
+build 211 exactly: `APP_ENV=staging` occurs only inside the committed
+explanatory comment in `.env` (the live value is `production`), and
+`wellapath-backend-staging.onrender.com` is the compile-time allowlist
+constant at `lib/core/config/build_environment.dart:37` whose purpose is to
+make a production build **reject** staging hosts at boot. It occurs exactly
+once in both the 211 and the 215 `libapp.so`.
+
+## iOS — not produced, one precise blocker
+
+The proven build-211 route was: archive signed `Apple Development: JOHN
+OLUWASEYI (7F44V7HBXP)` / team `2SCUC2CBBS`, re-signed on export by Xcode
+with **`Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)`** under
+the `iOS Team Store Provisioning Profile: org.wellapath.app`, then uploaded
+through **Xcode Organizer** ("Upload succeeded", 2026-09-21). No
+`ExportOptions.plist`, upload log or release script was ever written; the
+route is reconstructed from the preserved `WellaPath-211.ipa` and
+`Runner-211.xcarchive.tar.gz`.
+
+What is missing is only the **private key**. Both the store profile and the
+distribution certificate remain valid to **2027-06-02**, and the profile is
+still installed; but `security find-identity -v -p codesigning` lists only
+the Apple Development identity, no keychain on this Mac holds an Apple
+Distribution certificate, Xcode has no Apple ID configured
+(`IDEProvisioningTeams` absent), and no `.p12`/`.cer` backup exists on disk.
+Restoring the existing identity — by importing the `.p12`, or by signing
+into Xcode with the team's Apple ID — unblocks it. **No replacement
+certificate is to be created**; if Xcode offers to create one rather than
+restore, stop and report that screen.
+
+## Test-suite timing findings — post-launch reliability work, not blockers
+
+Two wall-clock assertions of the identical shape
+`expect(micros, lessThan(frameBudgetMicros))` flake under parallel
+full-suite load on the build machine, never the same one twice:
+`test/telemetry/performance_baseline_test.dart` and the added-synchronous-cost
+case inside `test/assessment/qb002_immediate_red_flag_test.dart`. Every
+clinical assertion in QB-002 passed in both runs; both files pass in
+isolation (38/38 together); CI is green on this exact tree; no related
+production code changed. Recorded as post-launch reliability work — the fix
+is to make the assertions load-independent, not to raise the thresholds.
+
+## Build-number state
+
+**215 is consumed** because a signed release artifact exists, independently
+of store processing, and must not be reused or rebuilt from different
+source. The registry entry and the candidate advance to **216** are in
+`test/release/build_identity_test.dart`, with `pubspec.yaml` at
+`0.3.0+216`.
+
+## Upload outcomes — pending (SUPERSEDED 2026-09-28, kept verbatim)
+
+> Both uploads are founder console actions; this session has access to
+> neither console. To be appended when known: Play release ID, processing
+> status, tester availability, whether build 211 remains visible, and
+> confirmation that 215 was not promoted beyond Internal testing; then the
+> iOS equivalent.
+
+That block is the honest record of what was known on 2026-09-25 and is kept
+word for word. The section below supersedes it; it does not replace it.
+
+## Upload outcomes — CLOSED, founder-confirmed 2026-09-28
+
+Both uploads were founder console actions. Engineering has access to
+neither console, so everything in this section is the founder's direct
+observation, recorded as such and dated. **No Play release ID, no store
+processing timestamp and no tester count for build 215** is recorded,
+because none was observed and inventing one would defeat the purpose of the
+record. A tester count for build **211** does exist earlier in this file,
+recorded from the founder's console read on 2026-09-25; it is a figure for a
+different build and is not carried across.
+
+**Android, build 215.** Fully processed and available to the existing Play
+Internal testing cohort. Confirmed by the founder, 2026-09-28. This closes the
+question the superseded block above left open — it asked for the processing
+status and whether 215 had been promoted beyond Internal testing, and neither
+had been observed. Both now have answers.
+
+**iOS, build 215.** Fully processed and available to the existing TestFlight
+internal testers. Confirmed by the founder, 2026-09-28. The upload call had
+returned success on 2026-09-25; that was never evidence of availability, and
+this is the separate confirmation that closes it.
+
+**Build 211 remains available and has not been deleted**, on both platforms.
+Confirmed by the founder, 2026-09-28.
+
+**Neither 215 artifact has been promoted to an external or public cohort.**
+Confirmed by the founder, 2026-09-28. The iOS export carries
+`testFlightInternalTestingOnly = true`, which bars external testing and Beta
+App Review for that build by construction rather than by policy; the Android
+side rests on the founder's confirmation alone.
+
+**Build 215 has been exercised in internal testing by the founder and other
+testers and currently meets expectations.** Confirmed by the founder,
+2026-09-28. This is a statement about the testers' experience, not a test
+result: no automated acceptance suite produced it, and it is not a clinical
+sign-off.
+
+**No new build was created during this confirmation.** Nothing was rebuilt,
+re-signed, re-uploaded, promoted or deleted. This one is an engineering fact
+about this session rather than a founder observation, which is why it carries
+no console attribution.
+
+## The verified artifact evidence is unchanged
+
+Re-stated because this section closes the record and the figures must not
+drift. Every value below was recorded at verification time and none has been
+re-derived, re-measured or altered by this confirmation:
+
+* Android AAB sha256 `bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d60917`,
+  62,395,097 B.
+* iOS IPA sha256 `f8cd9d322c6887be6d6a56d1b571e5e1994bf5622e05ea6975d917cb4928ca74`,
+  26,596,891 B.
+* Signing identities unchanged: the Android upload certificate fingerprint
+  byte-identical to build 211's, and the replacement
+  `Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)` for iOS.
+* Source SHA unchanged: `develop @ d84fdac11ead50009f52d01429fc7fe96075e755`.
+* Neutral-build-path evidence unchanged: scanner exit 0 on both platforms,
+  28 files for Android and 181 for the iOS archive set.
+
+**Build 211 remains untouched and remains the soft-launch candidate. Build
+215 is internal testing only.**
+
+## Build 215 iOS — archived, exported and verified (upload pending)
+
+**Signing identity.** The Apple Distribution private key for team
+`2SCUC2CBBS` was unrecoverable — Apple stores certificates, never private
+keys, and no `.p12` backup existed on this Mac — so the founder authorised
+and created a **replacement** Apple Distribution certificate on 2026-09-25:
+`Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)`, SHA-256
+`36:9E:F6:E2:58:9C:F9:0D:67:17:DA:EB:AD:4B:8D:AC:5D:76:53:A9:92:73:B5:21:7B:A5:A5:96:79:71:13:29`,
+valid to 2027-09-25. The existing App Store provisioning profile was
+**refreshed in place** to carry it — same name, same `2SCUC2CBBS.org.wellapath.app`
+App ID, new expiry 2027-09-25. No new App ID, application record or bundle
+identifier was created, and signing ownership is unchanged.
+
+**A neutral-path failure was caught before upload, and fixed.** The first
+`flutter build ipa` produced a clean IPA but an archive whose dSYMs carried
+the build engineer's home path: the scanner reported **8 prohibited findings**
+(`personal_home_macos` + `configured_personal_name`) in
+`Runner.app.dSYM` and both `objective_c.framework` dSYMs. Cause: Xcode's
+DerivedData and ModuleCache default to `~/Library/Developer/Xcode/DerivedData`
+regardless of where the source tree lives, so a neutral *build root* alone
+does not give neutral *symbols* — precisely the build-214 leak class that
+docs/NEUTRAL_BUILD_POLICY.md exists to stop, reappearing by a different
+route. **Remedy:** re-archive with
+`xcodebuild -derivedDataPath /Users/Shared/wellapath-build-215/DerivedData`,
+then `-exportArchive` with Flutter's own generated ExportOptions.plist
+(`method app-store-connect`, `signingStyle automatic`, `teamID 2SCUC2CBBS`,
+`uploadSymbols true`). The contaminated first archive and IPA were deleted so
+they cannot be uploaded by mistake. **A future change worth making: pass a
+neutral `-derivedDataPath` on every distributable iOS build, or the leak
+returns silently.**
+
+Separately verified and cleared: the shipped `Runner` binary contains 132
+`/Users/runner/` strings baked into the prebuilt Flutter engine. `runner` is
+the GitHub-hosted CI account and an explicitly approved non-personal account
+in `ScanRules.defaultApprovedMacUsers`; zero occurrences of the local
+username appear in any shipped binary.
+
+| | |
+|---|---|
+| File | `wellapath-release-215/WellaPath-215.ipa` — **internal testing only** |
+| SHA256 | `f8cd9d322c6887be6d6a56d1b571e5e1994bf5622e05ea6975d917cb4928ca74` |
+| Bytes | 26,596,891 |
+| Identity | `org.wellapath.app` · 0.3.0 · **215** · MinimumOSVersion 15.0 |
+| Signature | `Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)` → Apple WWDR → Apple Root CA, TeamIdentifier `2SCUC2CBBS` |
+| Profile | `iOS Team Store Provisioning Profile: org.wellapath.app`, no provisioned devices (store profile), expires 2027-09-25 |
+| Archive | dev-signed `Apple Development: JOHN OLUWASEYI (7F44V7HBXP)`, team `2SCUC2CBBS` — the same archive/export split build 211 used |
+| Neutral-path scan | **exit 0** — 181 files (IPA + archive + dSYMs + payload), 0 findings |
+
+Content: bundled `.env` byte-identical to the tracked production file; 0
+`ingest.sentry.io`, 0 DSN-shaped strings, 0 Sentry tokens, 0 `api-staging`,
+0 occurrences of the local username; Feedback, Support Chat and the
+internal-verification UI strings all absent from `App.framework/App`. Zero
+`--dart-define` of any kind was passed.
+
+**UPLOADED to App Store Connect — "Upload succeeded"** at
+**2026-09-25T14:18:57Z** (started 14:17:10Z), exit 0. Route, now recorded so
+nobody has to reconstruct it again: the archive staged in Xcode's Organizer
+library (`2026-09-25/WellaPath 0.3.0 (215).xcarchive`, verified recursively
+identical to the scanned archive) was exported with
+
+```
+xcodebuild -exportArchive -archivePath <archive> \
+  -exportOptionsPlist ExportOptionsUpload.plist \
+  -exportPath build/ios/upload215 -allowProvisioningUpdates
+```
+
+where `ExportOptionsUpload.plist` is Flutter's own generated export options
+with `destination = upload` and `testFlightInternalTestingOnly = true`
+(`method app-store-connect`, `signingStyle automatic`, `teamID 2SCUC2CBBS`,
+`uploadSymbols true`). Authentication is the Apple ID signed into Xcode —
+**no App Store Connect API key, app-specific password or new credential was
+used or created.** This is the "authenticated Xcode flow" that uploaded
+builds 210 and 211; "Upload succeeded" is `xcodebuild`'s own message.
+
+`testFlightInternalTestingOnly = true` is a deliberate tightening over the
+211 export: it marks the build internal-only at App Store Connect so it
+cannot be submitted for Beta App Review or external testing. That matches
+the founder's classification of 215 and is permanent for this build.
+
+One warning, identical to build 211's: *"Upload Symbols Failed. The archive
+did not include a dSYM for the Sentry.framework with the UUIDs
+[9BDFB481-BE21-3390-B2E1-8FE0E69D2612]."* Sentry's prebuilt SPM framework
+ships without a dSYM; crash reporting is disabled in this build and no
+Sentry symbols are needed, so the warning is moot. No ITMS error or other
+warning was raised — `ITSAppUsesNonExemptEncryption=false` is a source
+declaration, so no export-compliance prompt appeared.
+
+**Still to be appended, from the console (this session has no App Store
+Connect access):** processing result, that it appears as `0.3.0 (215)`,
+internal-tester availability, and confirmation that build 211 remains
+available and unexpired.
+
+> Kept verbatim. **Superseded 2026-09-28** by the paragraph below.
+
+**Console outcome — founder-confirmed 2026-09-28.** Build 215 is fully
+processed and available to the existing TestFlight internal testers, and
+build 211 remains available and has not been deleted. Recorded from the
+founder's direct observation; engineering has no App Store Connect access
+and observed none of it first hand. No processing timestamp or tester count
+is recorded, because neither was reported and neither may be inferred.
+
+See "Upload outcomes — CLOSED" above for the full set of confirmations
+across both platforms.
+
+---
+
+# Build 215 evidence CLOSED — internal testing live on both platforms
+
+**Date:** 2026-09-28 · **Branch:** `chore/215-evidence` · **Nothing was built,
+signed, uploaded, promoted or deleted to produce this entry.**
+
+The 215 record had two open sections waiting on console observations that
+engineering could not make. The founder has now made them, and this entry
+closes the record.
+
+## What is now confirmed
+
+| | |
+|---|---|
+| Android 215 | Fully processed, available to the existing Play Internal testing cohort |
+| iOS 215 | Fully processed, available to the existing TestFlight internal testers |
+| Build 211 | Still available on both platforms, not deleted |
+| Internal testing | Exercised by the founder and other testers; currently meets expectations |
+| External promotion | None. Neither artifact has reached an external or public cohort |
+| New builds | None created during this confirmation |
+
+Five are the founder's direct observation, dated 2026-09-28; engineering has
+access to neither console and observed none of that first hand, which is why
+each line says so rather than presenting it as a measurement. The sixth — that
+no new build was created — is an engineering fact about this session.
+
+## What is deliberately not recorded
+
+For build 215: no Play release ID, no store processing timestamp, no tester
+count on either platform. None was observed, and a record whose value is that
+it distinguishes what was seen from what was assumed cannot afford to invent
+any of them. If those figures are wanted they need a fresh console read,
+recorded the same way.
+
+A tester count of five **is** recorded earlier in this file, from the founder's
+console read of 2026-09-25, together with the Play developer-account and app
+identifiers. Those belong to build **211** and are not carried across to 215.
+
+## What has not changed
+
+The artifact evidence is unchanged and was not re-derived: both hashes, both
+signing identities, the source SHA and the neutral-path scanner results all
+stand exactly as verified on 2026-09-25. The confirmation above is about
+where those artifacts ended up, not about what they are.
+
+## One correction the record should carry
+
+What the earlier 215 entries actually said is that the console outcome **had
+not been observed** — not that the upload had failed. The nearest thing to a
+statement of principle is at the build-number state above: *"215 is consumed
+because a signed release artifact exists, independently of store processing,
+…"* — the source sentence continues "and must not be reused or rebuilt from
+different source", which is a separate point and is why the quotation stops
+where it does.
+That separation was right and is worth keeping: an artifact on disk is not a
+store state, and a successful upload call is not availability. What a console
+read has now supplied is the fact, not a correction to the reasoning.
+
+Both superseded blocks are kept verbatim above, marked as superseded rather
+than rewritten.
+
+Commit `6116ba3`, which is still in this branch's history and whose message
+repeats the claim in prose, did two things wrong. It **deleted** the two
+"pending" blocks rather than superseding them, while the text it added
+asserted that those blocks still stood. And it put quotation marks around two
+sentences that appear nowhere in this file: one purporting to state that a
+signed artifact is not evidence of store availability, and one purporting to
+quote the earlier entry as saying the upload had not been observed.
+
+Both blocks are restored verbatim above and marked superseded. Both fabricated
+quotations are gone; where a quotation remains it is checked against the text
+it cites.
+
+Recorded here rather than quietly fixed. A fabricated citation is exactly the
+failure this record exists to prevent, and a provenance document that hides its
+own repair is worth less than one that shows it. The second fabricated quote
+survived the first correction and was caught by independent review, which is
+the more useful lesson: the author of a record is the worst person to audit it.
+
+## Build-number state
+
+**215 is consumed.** The registry entry and the advance to 216 were recorded
+when the artifacts were signed and are unchanged by this confirmation.
+`pubspec.yaml` remains at `0.3.0+216`.
+
+**Still open, unchanged by this entry:** CB_211 clinical adjudication before
+any external cohort; the danger-sign label review; physical-device smoke
+testing; and everything in the store-submission blockers. Internal testing
+being live does not move any of them.
