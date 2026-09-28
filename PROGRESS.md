@@ -5253,3 +5253,77 @@ precondition for any distributable build.
 Scope held: no runtime code, dependency, version, Sentry or store
 change; no build hook (the scan is an explicit reviewed release step).
 No build 215, credentials, symbols, events or distribution.
+
+---
+
+# Launch command centre — internal dashboard (workstream started, uncommitted to develop)
+
+**Branch:** `feat/launch-dashboard` (off `develop` `d84fdac`)
+**Last Updated:** 2026-09-28
+
+## CURRENT STATUS: built and verified locally; NOT pushed, NO PR, nothing enabled
+
+> This workstream touches no clinical logic, no build artifact and no store
+> declaration. It adds **zero bytes to any build** — the generator is a
+> `scripts/` tool that imports nothing from `lib/`, and nothing in `lib/`
+> references it. Both directions are pinned by tests. Build 211 and the
+> verified build-215 artifacts are untouched.
+
+## What was built
+
+`scripts/launch_dashboard.dart` (CLI) over `launch_status_model.dart`,
+`launch_status_sources.dart`, `launch_status_inputs.dart` and
+`launch_status_render.dart`. Emits `docs/launch/LAUNCH_STATUS.json` and a
+self-contained `docs/launch/launch_dashboard.html` (no CDN, no fonts, no
+scripts, works offline).
+
+**The central invariant, enforced in the model's constructor rather than in the
+renderer:** a metric in a non-reporting state may not carry a value. `Disabled`,
+`Not instrumented`, `Awaiting data` and `Not verified` are rendered as words. A
+`Metric` constructed with a value in one of those states throws. The reason is
+that `0 crashes` and `crash reporting is off` are opposite facts.
+
+Panels are labelled by their weakest fact: **Live** (a real-time measurement),
+**Derived** (reproduces from committed sources), **Manual** (someone typed it
+in — carries their name and date, and expires after the freshness window into
+`Not verified`), **Incomplete** (at least one fact nobody has supplied).
+
+Nine panels: build status, internal tester availability, clinical review,
+physical-device smoke tests, production API/config, facility data, feedback and
+support, Sentry, telemetry — plus the outstanding-actions register.
+
+Human-edited inputs: `docs/launch/manual_status.json` (testimony; a `live`
+state is rejected) and `docs/launch/launch_actions.json` (the register).
+Neither may contain an email address or phone number — enforced by test.
+
+## Verification
+
+- 37 new tests in `test/scripts/launch_dashboard_test.dart`, all passing.
+- Full suite **1,589 passed · 7 skipped · 0 failed** (1,552 baseline + 37).
+- `flutter analyze` no issues · `dart format --set-exit-if-changed` clean.
+- Live probe against production `/config`: **HTTP 200, 1,000 B, canonical
+  sha256 matches the frozen baseline**, serving `token_dictionary 1.1 ·
+  knowledge_base 2.4 · rules 2.2 · facilities 1.1`. Compared in canonical form
+  (recursively sorted keys, compact separators), which is the method
+  `RC_FROZEN_INPUTS.json` records.
+
+## Companion documents (proposals, nothing approved, nothing enabled)
+
+* `docs/launch/SENTRY_ACTIVATION_CHECKLIST.md` — activation plan for 216+.
+  Flags that the **DPA record contradicts itself** across two documents and
+  must be settled before activation, and that iOS needs an explicit neutral
+  `-derivedDataPath` or the build-214 symbol-leak class returns silently.
+* `docs/launch/TELEMETRY_MVP_SPEC.md` — corrects the premise that telemetry is
+  unimplemented (it is complete, 268 tests, contract v1.0, and switched off),
+  reconciles the proposed vocabulary against the shipped one, and challenges
+  every event. Recommends three events on day one.
+
+## Findings raised, not fixed here
+
+* CI pins `flutter-version: '3.x'` (floating). Local Dart 3.12.2 reformats
+  `test/scripts/symbol_artifact_scanner_test.dart`, which is committed in a
+  different formatter's shape. Since CI runs `dart format --set-exit-if-changed .`
+  over the whole repo, an unrelated toolchain bump can turn CI red. The file
+  was left untouched.
+* The stale `pubspec.yaml` build-number comment is now detected automatically
+  by the generator rather than relying on someone noticing it.

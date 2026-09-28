@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WellaPath Launch Status</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #667085;
+    --line: #e3e6eb; --live: #0f7b4f; --derived: #2c5cc5; --manual: #8a5a00;
+    --off: #667085; --wait: #8a5a00; --unknown: #9aa1ad;
+    --blocker: #b42318; --high: #c2410c; --medium: #8a5a00; --low: #475467;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --card: #171a21; --ink: #e8eaed; --muted: #98a1b0;
+      --line: #262b34; --live: #4ade80; --derived: #7aa2f7; --manual: #e0af68;
+      --off: #98a1b0; --wait: #e0af68; --unknown: #6b7280;
+      --blocker: #f87171; --high: #fb923c; --medium: #e0af68; --low: #98a1b0;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --card: #171a21; --ink: #e8eaed; --muted: #98a1b0;
+    --line: #262b34; --live: #4ade80; --derived: #7aa2f7; --manual: #e0af68;
+    --off: #98a1b0; --wait: #e0af68; --unknown: #6b7280;
+    --blocker: #f87171; --high: #fb923c; --medium: #e0af68; --low: #98a1b0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+    padding: 0 16px 64px;
+  }
+  header { max-width: 1120px; margin: 0 auto; padding: 32px 0 8px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .notice {
+    max-width: 1120px; margin: 16px auto 0; padding: 12px 14px;
+    border: 1px solid var(--line); border-left: 3px solid var(--manual);
+    background: var(--card); border-radius: 8px; font-size: 13px;
+    color: var(--muted);
+  }
+  .grid {
+    max-width: 1120px; margin: 20px auto 0; display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+  .panel {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 16px 6px;
+  }
+  .panel.wide { grid-column: 1 / -1; }
+  h2 {
+    font-size: 14px; margin: 0 0 10px; display: flex; align-items: center;
+    gap: 8px; letter-spacing: 0.01em;
+  }
+  .p-summary { color: var(--muted); font-size: 12.5px; margin: -4px 0 12px; }
+  .metric { padding: 9px 0; border-top: 1px solid var(--line); }
+  .metric:first-of-type { border-top: 0; }
+  .m-label {
+    font-size: 12.5px; color: var(--muted); display: flex;
+    align-items: center; gap: 6px;
+  }
+  .m-value { font-size: 15px; font-weight: 600; margin-top: 2px; }
+  .m-meta { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .m-note {
+    font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.45;
+  }
+  .st-live { color: var(--live); }
+  .st-derived { color: var(--derived); }
+  .st-manual { color: var(--manual); }
+  .st-off, .st-unknown { color: var(--off); font-weight: 500;
+    font-style: italic; }
+  .st-wait { color: var(--wait); font-weight: 500; font-style: italic; }
+  .badge {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line);
+    color: var(--muted); font-weight: 600;
+  }
+  .badge.live { color: var(--live); border-color: currentColor; }
+  .badge.derived { color: var(--derived); border-color: currentColor; }
+  .badge.placeholder { color: var(--unknown); }
+  .badge.manual { color: var(--manual); border-color: currentColor; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--muted); font-weight: 600;
+    padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line);
+  }
+  td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--line);
+    vertical-align: top; }
+  td.ref { color: var(--muted); font-size: 11.5px; word-break: break-word; }
+  .sev { font-weight: 700; font-size: 11.5px; white-space: nowrap; }
+  .sev-blocker { color: var(--blocker); }
+  .sev-high { color: var(--high); }
+  .sev-medium { color: var(--medium); }
+  .sev-low { color: var(--low); }
+  .sev-info { color: var(--muted); }
+  footer {
+    max-width: 1120px; margin: 24px auto 0; color: var(--muted);
+    font-size: 11.5px; line-height: 1.6;
+  }
+  code { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WellaPath launch status</h1>
+  <div class="sub">
+    feat/launch-dashboard &middot; <code>d84fdac</code>
+    &middot; generated 2026-09-28T08:36:40.898621Z
+    &middot; 3 of 9 panels machine-established,
+    6 incomplete
+    &middot; 3 blockers
+  </div>
+</header>
+
+<div class="notice">
+  <strong>Reading this correctly.</strong> Each panel is labelled by its
+  weakest fact. <em>Live</em> means a real-time measurement backs it;
+  <em>Derived</em> means it reproduces from committed repository sources alone;
+  <em>Manual</em> means someone typed at least one fact in, and it carries
+  their name and the date; <em>Incomplete</em> means at least one fact is one
+  nobody has supplied. Where a subsystem is switched off or was never
+  instrumented, this page says so in words &mdash; it never prints
+  <code>0</code>, because &ldquo;zero crashes&rdquo; and &ldquo;crash
+  reporting is off&rdquo; are opposite facts.
+  Live probes ran for this snapshot.
+</div>
+
+<div class="grid">
+<section class="panel">
+  <h2>Build status <span class="badge placeholder">Incomplete</span></h2>
+  <p class="p-summary">What exists, and what number the next build would take.</p>
+<div class="metric">
+  <div class="m-label">Next candidate build
+  </div>
+  <div class="m-value st-derived">0.3.0+215</div>
+  <div class="m-meta">pubspec.yaml</div>
+  <div class="m-note">Not yet built. This is the number the next build would take, not a build that exists.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Highest consumed build number
+  </div>
+  <div class="m-value st-derived">214</div>
+  <div class="m-meta">test/release/build_identity_test.dart (kKnownDistributedBuilds)</div>
+  <div class="m-note">8 build numbers are consumed and can never be reused: 1, 208, 209, 210, 211, 212, 213, 214.</div>
+</div>
+<div class="metric">
+  <div class="m-label">pubspec and registry agree
+  </div>
+  <div class="m-value st-derived">Yes — both 215</div>
+  <div class="m-meta">pubspec.yaml + test/release/build_identity_test.dart</div>
+</div>
+<div class="metric">
+  <div class="m-label">iOS 215 App Store Connect processing
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">App Store Connect → TestFlight → iOS builds</div>
+  <div class="m-note">Upload succeeded 2026-09-25T14:18:57Z (xcodebuild exit 0, recorded on chore/215-evidence). Processing OUTCOME has not been observed by anyone yet — awaiting founder console read.</div>
+</div>
+<div class="metric">
+  <div class="m-label">iOS 215 visible as 0.3.0 (215)
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">App Store Connect → TestFlight → iOS builds</div>
+  <div class="m-note">Awaiting founder console read.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Android 215 uploaded to Play Internal testing
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">Play Console → Testing → Internal testing</div>
+  <div class="m-note">The signed AAB is verified and on disk but NOT uploaded by this session. Upload is a founder console action. If not uploaded, the artifact stays exactly as verified — no rebuild.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Internal tester availability <span class="badge placeholder">Incomplete</span></h2>
+  <p class="p-summary">Console state. Nothing here can be observed from the repository.</p>
+<div class="metric">
+  <div class="m-label">iOS 215 internal tester availability
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">App Store Connect → TestFlight → Internal Testing group</div>
+  <div class="m-note">Exported with testFlightInternalTestingOnly = true, so external testing and Beta App Review are barred for this build by construction. The number of internal testers who can actually install it has not been observed.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Android internal tester availability
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">Play Console → Testing → Internal testing → Testers</div>
+  <div class="m-note">Founder confirmed 5 testers on the track on 2026-09-25 for build 211; not re-observed for 215.</div>
+</div>
+<div class="metric">
+  <div class="m-label">iOS 211 still available and unexpired
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">App Store Connect → TestFlight → iOS builds</div>
+  <div class="m-note">211 remains the soft-launch candidate; confirm it has not expired out of TestFlight's 90-day window.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Android 211 live on Internal testing
+    <span class="badge manual">Manual</span>
+  </div>
+  <div class="m-value st-manual">Live — WellaPath 0.3.0 (211), 5 testers</div>
+  <div class="m-meta">observed by Founder on 2026-09-25 &middot; Play Console, developer account 6302882725431220689, app 4973189146371972752</div>
+  <div class="m-note">Direct console confirmation recorded on chore/215-evidence. This is what superseded the earlier 'never uploaded' record.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Play App Signing enrolment prompt absent
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">Play Console → Release → Setup → App signing</div>
+  <div class="m-note">MUST remain absent. 215 is not a first upload; if the console offers enrolment, that contradicts the confirmed state — stop, capture the screen, reconcile before uploading.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Clinical review <span class="badge placeholder">Incomplete</span></h2>
+  <p class="p-summary">The engine is a decision-support tool; every open finding gates external users.</p>
+<div class="metric">
+  <div class="m-label">Clinical review
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">Clinical reviewer (external to this repository)</div>
+  <div class="m-note">CB_211 / RC-BLK-016 adjudication is the specific open item and it blocks any external cohort. Set to 'manual' with the reviewer's name and date only when a real decision exists.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Open clinical findings
+  </div>
+  <div class="m-value st-derived">1 — CB_211</div>
+  <div class="m-meta">test/fixtures/known_findings.json</div>
+  <div class="m-note">Tracked findings carried by the shipped engine. Each one needs clinical adjudication before an external cohort.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Clinical case bank
+  </div>
+  <div class="m-value st-derived">239 cases</div>
+  <div class="m-meta">test/fixtures/case_bank_v1.json</div>
+  <div class="m-note">The committed input. The pass/fail result is produced by running the suite — see the regression metric.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Clinical regression result
+  </div>
+  <div class="m-value st-wait">Awaiting data</div>
+  <div class="m-meta">build/e8_case_bank/case_bank_results_v1.json</div>
+  <div class="m-note">The harness writes this file only when the suite runs, and it is gitignored. Run `flutter test test/engine/case_bank_validation_test.dart` in this checkout to populate it. No remembered figure is shown here.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Physical-device smoke tests <span class="badge placeholder">Incomplete</span></h2>
+  <p class="p-summary">Emulator and CI runs do not substitute for a real handset.</p>
+<div class="metric">
+  <div class="m-label">Physical Android device smoke test
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">Manual test on a physical handset</div>
+  <div class="m-note">No physical-device smoke test of 215 has been recorded. Emulator and CI runs do not satisfy this.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Physical iOS device smoke test
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">Manual test on a physical handset via TestFlight</div>
+  <div class="m-note">Blocked until iOS 215 finishes processing and reaches an internal tester.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Production API and configuration <span class="badge live">Live</span></h2>
+  <p class="p-summary">The app pins no artifact versions — it uses whatever /config names, so this is what actually determines behaviour.</p>
+<div class="metric">
+  <div class="m-label">Bundled environment
+  </div>
+  <div class="m-value st-derived">production</div>
+  <div class="m-meta">.env</div>
+  <div class="m-note">Bundled through the asset bundle, so it is fixed at build time and cannot be overridden on device.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Bundled API base URL
+  </div>
+  <div class="m-value st-derived">https://api.wellapath.org</div>
+  <div class="m-meta">.env</div>
+</div>
+<div class="metric">
+  <div class="m-label">API timeout (ms)
+  </div>
+  <div class="m-value st-derived">10000</div>
+  <div class="m-meta">.env</div>
+</div>
+<div class="metric">
+  <div class="m-label">Production /config reachability
+  </div>
+  <div class="m-value st-live">HTTP 200 · 1000 B</div>
+  <div class="m-meta">measured 2026-09-28T08:36:40.908195Z &middot; https://api.wellapath.org/config</div>
+</div>
+<div class="metric">
+  <div class="m-label">Production /config integrity
+  </div>
+  <div class="m-value st-live">Matches frozen baseline</div>
+  <div class="m-meta">measured 2026-09-28T08:36:40.908195Z &middot; https://api.wellapath.org/config</div>
+  <div class="m-note">Canonical sha256 3b2bbb1cec6b… — compared in canonical form (recursively sorted keys, compact separators), so harmless re-serialisation by the backend does not raise a false alarm.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Artifacts served by /config
+  </div>
+  <div class="m-value st-live">token_dictionary 1.1 · knowledge_base 2.4 · rules 2.2 · facilities 1.1</div>
+  <div class="m-meta">measured 2026-09-28T08:36:40.908195Z &middot; https://api.wellapath.org/config</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Facility data <span class="badge derived">Derived</span></h2>
+<div class="metric">
+  <div class="m-label">Facility dataset (frozen record)
+  </div>
+  <div class="m-value st-derived">v1.1 · 5344 records</div>
+  <div class="m-meta">docs/release/RC_FROZEN_INPUTS.json</div>
+  <div class="m-note">This is the frozen snapshot taken 2026-08-31T08:30:00Z, NOT what /config serves today. The app pins no facilities version — it uses whatever /config names. Run with --probe to check the live value.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Facility coverage
+  </div>
+  <div class="m-value st-derived">Partial — Lagos, Kano, FCT</div>
+  <div class="m-meta">docs/release/RC_FROZEN_INPUTS.json</div>
+  <div class="m-note">Coverage is not national. Users outside these states will find no nearby facility.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Feedback and support <span class="badge placeholder">Incomplete</span></h2>
+  <p class="p-summary">Both are compile-time gated off and tree-shaken out of the binary.</p>
+<div class="metric">
+  <div class="m-label">In-app feedback
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">lib/core/config/feature_flags.dart</div>
+  <div class="m-note">No define is passed in any release build, and the control strings are tree-shaken out of the binary entirely.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Support chat
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">lib/core/config/feature_flags.dart</div>
+  <div class="m-note">No define is passed in any release build, and the control strings are tree-shaken out of the binary entirely.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Support contact
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">docs/store/SUPPORT_AND_PRIVACY_POLICY.md</div>
+  <div class="m-note">No monitored support mailbox exists yet. Founder action. Hard blocker for both store listings.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Published privacy policy URL
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">docs/store/SUPPORT_AND_PRIVACY_POLICY.md</div>
+  <div class="m-note">No published policy exists yet. Founder action. Hard blocker for both store listings and doubly so under the Play Health Apps declaration.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Sentry — engineering diagnostics <span class="badge derived">Derived</span></h2>
+  <p class="p-summary">Crash reporting. Deliberately kept separate from product analytics: different purpose, different data, different gates.</p>
+<div class="metric">
+  <div class="m-label">Crash reporting (Sentry)
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">lib/core/crash/crash_config.dart</div>
+  <div class="m-note">Three independent gates must all be satisfied by --dart-define and none is set in any release build: CRASH_REPORTING_ENABLED, a structurally valid SENTRY_DSN, and CRASH_REPORTING_PRODUCTION_APPROVED (required because the bundled .env declares production).</div>
+</div>
+<div class="metric">
+  <div class="m-label">DSN present in the build
+  </div>
+  <div class="m-value st-derived">No — define-only, never committed</div>
+  <div class="m-meta">lib/core/crash/crash_config.dart</div>
+  <div class="m-note">The DSN can only arrive via --dart-define. It is absent from .env, from source and from the verified 215 binaries.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Crash-free session rate
+  </div>
+  <div class="m-value st-off">Not instrumented</div>
+  <div class="m-meta">lib/core/crash/crash_config.dart</div>
+  <div class="m-note">Automatic session tracking is deliberately switched off, so no crash-free rate exists for any build. This figure cannot be produced until Sentry is enabled AND session tracking is separately approved.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Native crash capture
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">lib/core/crash/sentry_crash_sink.dart</div>
+  <div class="m-note">Native envelopes bypass the beforeSend sanitiser, so native crash handling is switched off by design. Native fatals are therefore not reported even once Sentry is enabled.</div>
+</div>
+</section>
+
+<section class="panel">
+  <h2>Telemetry — product analytics <span class="badge placeholder">Incomplete</span></h2>
+  <p class="p-summary">Anonymous aggregate product usage. Never symptoms, answers, results or location.</p>
+<div class="metric">
+  <div class="m-label">Product analytics (telemetry)
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">.env (TELEMETRY_ENABLED=false, TELEMETRY_PRODUCTION_APPROVED=false)</div>
+  <div class="m-note">Two gates, both false in the bundled .env. There is also no TELEMETRY_BASE_URL, which fails the config closed independently.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Events received
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">lib/core/telemetry/telemetry_config.dart</div>
+  <div class="m-note">No events are emitted by any build. &quot;0 events&quot; would wrongly imply a working pipeline reporting no activity.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Analytics consent decision
+  </div>
+  <div class="m-value st-unknown">Not verified</div>
+  <div class="m-meta">docs/TELEMETRY_MOBILE.md §9</div>
+  <div class="m-note">Unresolved. Owner: Product / Privacy. Required before any external cohort. No consent flow exists in the app.</div>
+</div>
+<div class="metric">
+  <div class="m-label">Telemetry backend endpoint
+  </div>
+  <div class="m-value st-off">Disabled</div>
+  <div class="m-meta">POST /v1/telemetry/events</div>
+  <div class="m-note">The staging backend returns 503 telemetry_disabled. The endpoint is not accepting events, by the backend's own configuration.</div>
+</div>
+</section>
+
+<section class="panel wide">
+  <h2>Outstanding launch actions <span class="badge placeholder">Register</span></h2>
+  <table>
+    <thead><tr><th>Severity</th><th>Action</th><th>Owner</th><th>Reference</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="sev sev-blocker">Blocker</span></td>
+        <td><strong>CB_211 clinical adjudication</strong><div class="m-note">The one open finding in the 239-case bank. Blocks every external cohort — closed beta, public beta and production. Does not block internal testing.</div></td>
+        <td>Clinical + Product</td>
+        <td class="ref">docs/release/CB_211_DISPOSITION.md · test/fixtures/known_findings.json</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-blocker">Blocker</span></td>
+        <td><strong>Designate a monitored support mailbox</strong><div class="m-note">Required on both store listings. Must not be a personal address. Cannot be created by engineering.</div></td>
+        <td>Founder</td>
+        <td class="ref">docs/store/SUPPORT_AND_PRIVACY_POLICY.md</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-blocker">Blocker</span></td>
+        <td><strong>Publish the privacy policy at a stable public URL</strong><div class="m-note">Required by Play for all apps and doubly so under the Health Apps declaration. Must state that symptom data never leaves the device.</div></td>
+        <td>Founder</td>
+        <td class="ref">docs/store/SUPPORT_AND_PRIVACY_POLICY.md</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-high">High</span></td>
+        <td><strong>Enrol in Play App Signing at the next upload opportunity</strong><div class="m-note">The upload key exists on exactly one machine with no escrowed backup. Losing it without Play App Signing would end the ability to update the listing.</div></td>
+        <td>Founder</td>
+        <td class="ref">docs/release/SIGNING_CONTINUITY.md</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-high">High</span></td>
+        <td><strong>Escrow the replacement Apple Distribution private key</strong><div class="m-note">The original private key was unrecoverable and a replacement certificate was issued on 2026-09-25. Exporting a .p12 to secure storage now prevents an identical loss.</div></td>
+        <td>Founder + Engineering</td>
+        <td class="ref">PROGRESS.md — build 215 iOS section</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-high">High</span></td>
+        <td><strong>Physical-device smoke test of build 215 on both platforms</strong><div class="m-note">Emulator and CI runs do not substitute. iOS is blocked until TestFlight processing completes.</div></td>
+        <td>Engineering</td>
+        <td class="ref">docs/release/RELEASE_CHECKLIST.md</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-medium">Medium</span></td>
+        <td><strong>Reconcile the contradictory Sentry DPA records</strong><div class="m-note">One document says the DPA is pending acceptance; the other says it was signed and effective 2026-09-21. The later record appears to supersede, but the earlier was never updated. This must be settled before Sentry is enabled, not after.</div></td>
+        <td>Engineering</td>
+        <td class="ref">docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md vs docs/store/CRASH_PRIVACY_DECLARATIONS.md</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-medium">Medium</span></td>
+        <td><strong>Decide whether analytics consent is required</strong><div class="m-note">Unresolved. Required before any external cohort if telemetry is ever enabled. The config plumbing for a runtime consent gate already exists.</div></td>
+        <td>Product + Privacy</td>
+        <td class="ref">docs/TELEMETRY_MOBILE.md §9</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-low">Low</span></td>
+        <td><strong>Correct the stale crash-provider claim in the telemetry doc</strong><div class="m-note">Both still state that no crash provider exists and that stack traces are not forwarded. Sentry landed afterwards and stack traces are forwarded, sanitised per frame.</div></td>
+        <td>Engineering</td>
+        <td class="ref">docs/TELEMETRY_MOBILE.md §10 · lib/core/crash/crash_reporter.dart header</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-low">Low</span></td>
+        <td><strong>Update CLAUDE.md to the real toolchain</strong><div class="m-note">Declares Flutter 3.41.5 / Dart 3.11.3; the actual toolchain is Flutter 3.44.4 / Dart 3.12.2.</div></td>
+        <td>Engineering</td>
+        <td class="ref">CLAUDE.md</td>
+      </tr>
+      <tr>
+        <td><span class="sev sev-low">Low</span></td>
+        <td><strong>pubspec comments mention build 210, 212 while the version line is 215</strong><div class="m-note">Prose only — the version line and the registry constant are authoritative. Worth correcting so a reader is not misled.</div></td>
+        <td>Engineering</td>
+        <td class="ref">pubspec.yaml</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+
+<footer>
+  Internal engineering and founder view. Not part of the shipping application:
+  this page is generated by <code>scripts/launch_dashboard.dart</code> and adds
+  no bytes to any build. It contains no patient data and no symptom data of any
+  kind, by construction &mdash; it reads only build metadata, configuration
+  flags and hand-entered operational notes.
+</footer>
+</body>
+</html>

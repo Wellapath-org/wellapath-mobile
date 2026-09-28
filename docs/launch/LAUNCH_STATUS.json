@@ -1,0 +1,648 @@
+{
+  "schema": "wellapath.launch_status/1",
+  "generated_at": "2026-09-28T08:36:40.898621Z",
+  "commit": "d84fdac",
+  "branch": "feat/launch-dashboard",
+  "probes_attempted": true,
+  "panel_count": 9,
+  "live_panel_count": 1,
+  "panels": [
+    {
+      "key": "builds",
+      "title": "Build status",
+      "summary": "What exists, and what number the next build would take.",
+      "kind": "incomplete",
+      "kind_label": "Incomplete",
+      "live": false,
+      "automatic": false,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "candidate_version",
+          "label": "Next candidate build",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "0.3.0+215",
+          "display": "0.3.0+215",
+          "manual": false,
+          "source": "pubspec.yaml",
+          "note": "Not yet built. This is the number the next build would take, not a build that exists."
+        },
+        {
+          "key": "highest_consumed_build",
+          "label": "Highest consumed build number",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "214",
+          "display": "214",
+          "manual": false,
+          "source": "test/release/build_identity_test.dart (kKnownDistributedBuilds)",
+          "note": "8 build numbers are consumed and can never be reused: 1, 208, 209, 210, 211, 212, 213, 214."
+        },
+        {
+          "key": "build_number_consistency",
+          "label": "pubspec and registry agree",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "Yes — both 215",
+          "display": "Yes — both 215",
+          "manual": false,
+          "source": "pubspec.yaml + test/release/build_identity_test.dart"
+        },
+        {
+          "key": "ios_processing_status",
+          "label": "iOS 215 App Store Connect processing",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "App Store Connect → TestFlight → iOS builds",
+          "note": "Upload succeeded 2026-09-25T14:18:57Z (xcodebuild exit 0, recorded on chore/215-evidence). Processing OUTCOME has not been observed by anyone yet — awaiting founder console read."
+        },
+        {
+          "key": "ios_build_visible",
+          "label": "iOS 215 visible as 0.3.0 (215)",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "App Store Connect → TestFlight → iOS builds",
+          "note": "Awaiting founder console read."
+        },
+        {
+          "key": "android_215_uploaded",
+          "label": "Android 215 uploaded to Play Internal testing",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "Play Console → Testing → Internal testing",
+          "note": "The signed AAB is verified and on disk but NOT uploaded by this session. Upload is a founder console action. If not uploaded, the artifact stays exactly as verified — no rebuild."
+        }
+      ]
+    },
+    {
+      "key": "testers",
+      "title": "Internal tester availability",
+      "summary": "Console state. Nothing here can be observed from the repository.",
+      "kind": "incomplete",
+      "kind_label": "Incomplete",
+      "live": false,
+      "automatic": false,
+      "has_manual_entries": true,
+      "metrics": [
+        {
+          "key": "ios_internal_tester_availability",
+          "label": "iOS 215 internal tester availability",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "App Store Connect → TestFlight → Internal Testing group",
+          "note": "Exported with testFlightInternalTestingOnly = true, so external testing and Beta App Review are barred for this build by construction. The number of internal testers who can actually install it has not been observed."
+        },
+        {
+          "key": "android_internal_tester_availability",
+          "label": "Android internal tester availability",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "Play Console → Testing → Internal testing → Testers",
+          "note": "Founder confirmed 5 testers on the track on 2026-09-25 for build 211; not re-observed for 215."
+        },
+        {
+          "key": "ios_211_still_available",
+          "label": "iOS 211 still available and unexpired",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "App Store Connect → TestFlight → iOS builds",
+          "note": "211 remains the soft-launch candidate; confirm it has not expired out of TestFlight's 90-day window."
+        },
+        {
+          "key": "android_211_live_release",
+          "label": "Android 211 live on Internal testing",
+          "state": "manual",
+          "state_label": "Manual",
+          "value": "Live — WellaPath 0.3.0 (211), 5 testers",
+          "display": "Live — WellaPath 0.3.0 (211), 5 testers",
+          "manual": true,
+          "source": "Play Console, developer account 6302882725431220689, app 4973189146371972752",
+          "observer": "Founder",
+          "observed_at": "2026-09-25T00:00:00.000",
+          "note": "Direct console confirmation recorded on chore/215-evidence. This is what superseded the earlier 'never uploaded' record."
+        },
+        {
+          "key": "play_app_signing_prompt",
+          "label": "Play App Signing enrolment prompt absent",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "Play Console → Release → Setup → App signing",
+          "note": "MUST remain absent. 215 is not a first upload; if the console offers enrolment, that contradicts the confirmed state — stop, capture the screen, reconcile before uploading."
+        }
+      ]
+    },
+    {
+      "key": "clinical",
+      "title": "Clinical review",
+      "summary": "The engine is a decision-support tool; every open finding gates external users.",
+      "kind": "incomplete",
+      "kind_label": "Incomplete",
+      "live": false,
+      "automatic": false,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "clinical_review_status",
+          "label": "Clinical review",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "Clinical reviewer (external to this repository)",
+          "note": "CB_211 / RC-BLK-016 adjudication is the specific open item and it blocks any external cohort. Set to 'manual' with the reviewer's name and date only when a real decision exists."
+        },
+        {
+          "key": "known_findings",
+          "label": "Open clinical findings",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "1 — CB_211",
+          "display": "1 — CB_211",
+          "manual": false,
+          "source": "test/fixtures/known_findings.json",
+          "note": "Tracked findings carried by the shipped engine. Each one needs clinical adjudication before an external cohort."
+        },
+        {
+          "key": "case_bank_size",
+          "label": "Clinical case bank",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "239 cases",
+          "display": "239 cases",
+          "manual": false,
+          "source": "test/fixtures/case_bank_v1.json",
+          "note": "The committed input. The pass/fail result is produced by running the suite — see the regression metric."
+        },
+        {
+          "key": "clinical_regression",
+          "label": "Clinical regression result",
+          "state": "awaitingData",
+          "state_label": "Awaiting data",
+          "value": null,
+          "display": "Awaiting data",
+          "manual": false,
+          "source": "build/e8_case_bank/case_bank_results_v1.json",
+          "note": "The harness writes this file only when the suite runs, and it is gitignored. Run `flutter test test/engine/case_bank_validation_test.dart` in this checkout to populate it. No remembered figure is shown here."
+        }
+      ]
+    },
+    {
+      "key": "devices",
+      "title": "Physical-device smoke tests",
+      "summary": "Emulator and CI runs do not substitute for a real handset.",
+      "kind": "incomplete",
+      "kind_label": "Incomplete",
+      "live": false,
+      "automatic": false,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "device_smoke_test_android",
+          "label": "Physical Android device smoke test",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "Manual test on a physical handset",
+          "note": "No physical-device smoke test of 215 has been recorded. Emulator and CI runs do not satisfy this."
+        },
+        {
+          "key": "device_smoke_test_ios",
+          "label": "Physical iOS device smoke test",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "Manual test on a physical handset via TestFlight",
+          "note": "Blocked until iOS 215 finishes processing and reaches an internal tester."
+        }
+      ]
+    },
+    {
+      "key": "api",
+      "title": "Production API and configuration",
+      "summary": "The app pins no artifact versions — it uses whatever /config names, so this is what actually determines behaviour.",
+      "kind": "live",
+      "kind_label": "Live",
+      "live": true,
+      "automatic": true,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "app_env",
+          "label": "Bundled environment",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "production",
+          "display": "production",
+          "manual": false,
+          "source": ".env",
+          "note": "Bundled through the asset bundle, so it is fixed at build time and cannot be overridden on device."
+        },
+        {
+          "key": "api_base_url",
+          "label": "Bundled API base URL",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "https://api.wellapath.org",
+          "display": "https://api.wellapath.org",
+          "manual": false,
+          "source": ".env"
+        },
+        {
+          "key": "api_timeout_ms",
+          "label": "API timeout (ms)",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "10000",
+          "display": "10000",
+          "manual": false,
+          "source": ".env"
+        },
+        {
+          "key": "config_endpoint",
+          "label": "Production /config reachability",
+          "state": "live",
+          "state_label": "Live",
+          "value": "HTTP 200 · 1000 B",
+          "display": "HTTP 200 · 1000 B",
+          "manual": false,
+          "source": "https://api.wellapath.org/config",
+          "observed_at": "2026-09-28T08:36:40.908195Z"
+        },
+        {
+          "key": "config_integrity",
+          "label": "Production /config integrity",
+          "state": "live",
+          "state_label": "Live",
+          "value": "Matches frozen baseline",
+          "display": "Matches frozen baseline",
+          "manual": false,
+          "source": "https://api.wellapath.org/config",
+          "observed_at": "2026-09-28T08:36:40.908195Z",
+          "note": "Canonical sha256 3b2bbb1cec6b… — compared in canonical form (recursively sorted keys, compact separators), so harmless re-serialisation by the backend does not raise a false alarm."
+        },
+        {
+          "key": "served_artifacts",
+          "label": "Artifacts served by /config",
+          "state": "live",
+          "state_label": "Live",
+          "value": "token_dictionary 1.1 · knowledge_base 2.4 · rules 2.2 · facilities 1.1",
+          "display": "token_dictionary 1.1 · knowledge_base 2.4 · rules 2.2 · facilities 1.1",
+          "manual": false,
+          "source": "https://api.wellapath.org/config",
+          "observed_at": "2026-09-28T08:36:40.908195Z"
+        }
+      ]
+    },
+    {
+      "key": "facilities",
+      "title": "Facility data",
+      "kind": "derived",
+      "kind_label": "Derived",
+      "live": false,
+      "automatic": true,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "facilities_version",
+          "label": "Facility dataset (frozen record)",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "v1.1 · 5344 records",
+          "display": "v1.1 · 5344 records",
+          "manual": false,
+          "source": "docs/release/RC_FROZEN_INPUTS.json",
+          "note": "This is the frozen snapshot taken 2026-08-31T08:30:00Z, NOT what /config serves today. The app pins no facilities version — it uses whatever /config names. Run with --probe to check the live value."
+        },
+        {
+          "key": "facilities_coverage",
+          "label": "Facility coverage",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "Partial — Lagos, Kano, FCT",
+          "display": "Partial — Lagos, Kano, FCT",
+          "manual": false,
+          "source": "docs/release/RC_FROZEN_INPUTS.json",
+          "note": "Coverage is not national. Users outside these states will find no nearby facility."
+        }
+      ]
+    },
+    {
+      "key": "feedback",
+      "title": "Feedback and support",
+      "summary": "Both are compile-time gated off and tree-shaken out of the binary.",
+      "kind": "incomplete",
+      "kind_label": "Incomplete",
+      "live": false,
+      "automatic": false,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "feedback",
+          "label": "In-app feedback",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": "lib/core/config/feature_flags.dart",
+          "note": "No define is passed in any release build, and the control strings are tree-shaken out of the binary entirely."
+        },
+        {
+          "key": "support_chat",
+          "label": "Support chat",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": "lib/core/config/feature_flags.dart",
+          "note": "No define is passed in any release build, and the control strings are tree-shaken out of the binary entirely."
+        },
+        {
+          "key": "support_contact",
+          "label": "Support contact",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+          "note": "No monitored support mailbox exists yet. Founder action. Hard blocker for both store listings."
+        },
+        {
+          "key": "privacy_policy_url",
+          "label": "Published privacy policy URL",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+          "note": "No published policy exists yet. Founder action. Hard blocker for both store listings and doubly so under the Play Health Apps declaration."
+        }
+      ]
+    },
+    {
+      "key": "sentry",
+      "title": "Sentry — engineering diagnostics",
+      "summary": "Crash reporting. Deliberately kept separate from product analytics: different purpose, different data, different gates.",
+      "kind": "derived",
+      "kind_label": "Derived",
+      "live": false,
+      "automatic": true,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "sentry_state",
+          "label": "Crash reporting (Sentry)",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": "lib/core/crash/crash_config.dart",
+          "note": "Three independent gates must all be satisfied by --dart-define and none is set in any release build: CRASH_REPORTING_ENABLED, a structurally valid SENTRY_DSN, and CRASH_REPORTING_PRODUCTION_APPROVED (required because the bundled .env declares production)."
+        },
+        {
+          "key": "sentry_dsn_bundled",
+          "label": "DSN present in the build",
+          "state": "derived",
+          "state_label": "Derived",
+          "value": "No — define-only, never committed",
+          "display": "No — define-only, never committed",
+          "manual": false,
+          "source": "lib/core/crash/crash_config.dart",
+          "note": "The DSN can only arrive via --dart-define. It is absent from .env, from source and from the verified 215 binaries."
+        },
+        {
+          "key": "crash_free_rate",
+          "label": "Crash-free session rate",
+          "state": "notInstrumented",
+          "state_label": "Not instrumented",
+          "value": null,
+          "display": "Not instrumented",
+          "manual": false,
+          "source": "lib/core/crash/crash_config.dart",
+          "note": "Automatic session tracking is deliberately switched off, so no crash-free rate exists for any build. This figure cannot be produced until Sentry is enabled AND session tracking is separately approved."
+        },
+        {
+          "key": "native_crash_capture",
+          "label": "Native crash capture",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": "lib/core/crash/sentry_crash_sink.dart",
+          "note": "Native envelopes bypass the beforeSend sanitiser, so native crash handling is switched off by design. Native fatals are therefore not reported even once Sentry is enabled."
+        }
+      ]
+    },
+    {
+      "key": "telemetry",
+      "title": "Telemetry — product analytics",
+      "summary": "Anonymous aggregate product usage. Never symptoms, answers, results or location.",
+      "kind": "incomplete",
+      "kind_label": "Incomplete",
+      "live": false,
+      "automatic": false,
+      "has_manual_entries": false,
+      "metrics": [
+        {
+          "key": "telemetry_state",
+          "label": "Product analytics (telemetry)",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": ".env (TELEMETRY_ENABLED=false, TELEMETRY_PRODUCTION_APPROVED=false)",
+          "note": "Two gates, both false in the bundled .env. There is also no TELEMETRY_BASE_URL, which fails the config closed independently."
+        },
+        {
+          "key": "telemetry_events_received",
+          "label": "Events received",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": "lib/core/telemetry/telemetry_config.dart",
+          "note": "No events are emitted by any build. \"0 events\" would wrongly imply a working pipeline reporting no activity."
+        },
+        {
+          "key": "telemetry_consent",
+          "label": "Analytics consent decision",
+          "state": "notVerified",
+          "state_label": "Not verified",
+          "value": null,
+          "display": "Not verified",
+          "manual": false,
+          "source": "docs/TELEMETRY_MOBILE.md §9",
+          "note": "Unresolved. Owner: Product / Privacy. Required before any external cohort. No consent flow exists in the app."
+        },
+        {
+          "key": "telemetry_backend",
+          "label": "Telemetry backend endpoint",
+          "state": "disabled",
+          "state_label": "Disabled",
+          "value": null,
+          "display": "Disabled",
+          "manual": false,
+          "source": "POST /v1/telemetry/events",
+          "note": "The staging backend returns 503 telemetry_disabled. The endpoint is not accepting events, by the backend's own configuration."
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "RC-BLK-016",
+      "title": "CB_211 clinical adjudication",
+      "owner": "Clinical + Product",
+      "severity": "blocker",
+      "severity_label": "Blocker",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/release/CB_211_DISPOSITION.md · test/fixtures/known_findings.json",
+      "note": "The one open finding in the 239-case bank. Blocks every external cohort — closed beta, public beta and production. Does not block internal testing."
+    },
+    {
+      "id": "SUPPORT-CONTACT",
+      "title": "Designate a monitored support mailbox",
+      "owner": "Founder",
+      "severity": "blocker",
+      "severity_label": "Blocker",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+      "note": "Required on both store listings. Must not be a personal address. Cannot be created by engineering."
+    },
+    {
+      "id": "PRIVACY-POLICY",
+      "title": "Publish the privacy policy at a stable public URL",
+      "owner": "Founder",
+      "severity": "blocker",
+      "severity_label": "Blocker",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+      "note": "Required by Play for all apps and doubly so under the Health Apps declaration. Must state that symptom data never leaves the device."
+    },
+    {
+      "id": "RC-BLK-002-FOLLOWON",
+      "title": "Enrol in Play App Signing at the next upload opportunity",
+      "owner": "Founder",
+      "severity": "high",
+      "severity_label": "High",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/release/SIGNING_CONTINUITY.md",
+      "note": "The upload key exists on exactly one machine with no escrowed backup. Losing it without Play App Signing would end the ability to update the listing."
+    },
+    {
+      "id": "IOS-KEY-ESCROW",
+      "title": "Escrow the replacement Apple Distribution private key",
+      "owner": "Founder + Engineering",
+      "severity": "high",
+      "severity_label": "High",
+      "state": "manual",
+      "manual": true,
+      "reference": "PROGRESS.md — build 215 iOS section",
+      "note": "The original private key was unrecoverable and a replacement certificate was issued on 2026-09-25. Exporting a .p12 to secure storage now prevents an identical loss."
+    },
+    {
+      "id": "DEVICE-SMOKE-215",
+      "title": "Physical-device smoke test of build 215 on both platforms",
+      "owner": "Engineering",
+      "severity": "high",
+      "severity_label": "High",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/release/RELEASE_CHECKLIST.md",
+      "note": "Emulator and CI runs do not substitute. iOS is blocked until TestFlight processing completes."
+    },
+    {
+      "id": "DPA-RECORD",
+      "title": "Reconcile the contradictory Sentry DPA records",
+      "owner": "Engineering",
+      "severity": "medium",
+      "severity_label": "Medium",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md vs docs/store/CRASH_PRIVACY_DECLARATIONS.md",
+      "note": "One document says the DPA is pending acceptance; the other says it was signed and effective 2026-09-21. The later record appears to supersede, but the earlier was never updated. This must be settled before Sentry is enabled, not after."
+    },
+    {
+      "id": "TELEMETRY-CONSENT",
+      "title": "Decide whether analytics consent is required",
+      "owner": "Product + Privacy",
+      "severity": "medium",
+      "severity_label": "Medium",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/TELEMETRY_MOBILE.md §9",
+      "note": "Unresolved. Required before any external cohort if telemetry is ever enabled. The config plumbing for a runtime consent gate already exists."
+    },
+    {
+      "id": "TELEMETRY-STALE-DOC",
+      "title": "Correct the stale crash-provider claim in the telemetry doc",
+      "owner": "Engineering",
+      "severity": "low",
+      "severity_label": "Low",
+      "state": "manual",
+      "manual": true,
+      "reference": "docs/TELEMETRY_MOBILE.md §10 · lib/core/crash/crash_reporter.dart header",
+      "note": "Both still state that no crash provider exists and that stack traces are not forwarded. Sentry landed afterwards and stack traces are forwarded, sanitised per frame."
+    },
+    {
+      "id": "RC-BLK-013",
+      "title": "Update CLAUDE.md to the real toolchain",
+      "owner": "Engineering",
+      "severity": "low",
+      "severity_label": "Low",
+      "state": "manual",
+      "manual": true,
+      "reference": "CLAUDE.md",
+      "note": "Declares Flutter 3.41.5 / Dart 3.11.3; the actual toolchain is Flutter 3.44.4 / Dart 3.12.2."
+    },
+    {
+      "id": "DERIVED-STALE-PUBSPEC-COMMENT",
+      "title": "pubspec comments mention build 210, 212 while the version line is 215",
+      "owner": "Engineering",
+      "severity": "low",
+      "severity_label": "Low",
+      "state": "derived",
+      "manual": false,
+      "reference": "pubspec.yaml",
+      "note": "Prose only — the version line and the registry constant are authoritative. Worth correcting so a reader is not misled."
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "_schema": "wellapath.launch_actions/1",
+  "_purpose": "The human-maintained register of what still stands between here and launch. Every entry is rendered with a MANUAL badge. The generator appends its own derived checks (prefixed DERIVED-) which are recomputed from the repository on every run and are not listed here.",
+  "_rules": [
+    "severity: blocker | high | medium | low | info.",
+    "owner is a role, never a personal contact detail.",
+    "Remove an entry when it is genuinely done; do not leave it with a 'done' flag, because a register of completed work stops being read.",
+    "reference should point at a document, blocker id or issue that carries the evidence."
+  ],
+  "actions": [
+    {
+      "id": "RC-BLK-016",
+      "title": "CB_211 clinical adjudication",
+      "owner": "Clinical + Product",
+      "severity": "blocker",
+      "reference": "docs/release/CB_211_DISPOSITION.md · test/fixtures/known_findings.json",
+      "note": "The one open finding in the 239-case bank. Blocks every external cohort — closed beta, public beta and production. Does not block internal testing."
+    },
+    {
+      "id": "SUPPORT-CONTACT",
+      "title": "Designate a monitored support mailbox",
+      "owner": "Founder",
+      "severity": "blocker",
+      "reference": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+      "note": "Required on both store listings. Must not be a personal address. Cannot be created by engineering."
+    },
+    {
+      "id": "PRIVACY-POLICY",
+      "title": "Publish the privacy policy at a stable public URL",
+      "owner": "Founder",
+      "severity": "blocker",
+      "reference": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+      "note": "Required by Play for all apps and doubly so under the Health Apps declaration. Must state that symptom data never leaves the device."
+    },
+    {
+      "id": "RC-BLK-002-FOLLOWON",
+      "title": "Enrol in Play App Signing at the next upload opportunity",
+      "owner": "Founder",
+      "severity": "high",
+      "reference": "docs/release/SIGNING_CONTINUITY.md",
+      "note": "The upload key exists on exactly one machine with no escrowed backup. Losing it without Play App Signing would end the ability to update the listing."
+    },
+    {
+      "id": "IOS-KEY-ESCROW",
+      "title": "Escrow the replacement Apple Distribution private key",
+      "owner": "Founder + Engineering",
+      "severity": "high",
+      "reference": "PROGRESS.md — build 215 iOS section",
+      "note": "The original private key was unrecoverable and a replacement certificate was issued on 2026-09-25. Exporting a .p12 to secure storage now prevents an identical loss."
+    },
+    {
+      "id": "DEVICE-SMOKE-215",
+      "title": "Physical-device smoke test of build 215 on both platforms",
+      "owner": "Engineering",
+      "severity": "high",
+      "reference": "docs/release/RELEASE_CHECKLIST.md",
+      "note": "Emulator and CI runs do not substitute. iOS is blocked until TestFlight processing completes."
+    },
+    {
+      "id": "DPA-RECORD",
+      "title": "Reconcile the contradictory Sentry DPA records",
+      "owner": "Engineering",
+      "severity": "medium",
+      "reference": "docs/I1_OBSERVABILITY_BASELINE_CLOSURE.md vs docs/store/CRASH_PRIVACY_DECLARATIONS.md",
+      "note": "One document says the DPA is pending acceptance; the other says it was signed and effective 2026-09-21. The later record appears to supersede, but the earlier was never updated. This must be settled before Sentry is enabled, not after."
+    },
+    {
+      "id": "TELEMETRY-CONSENT",
+      "title": "Decide whether analytics consent is required",
+      "owner": "Product + Privacy",
+      "severity": "medium",
+      "reference": "docs/TELEMETRY_MOBILE.md §9",
+      "note": "Unresolved. Required before any external cohort if telemetry is ever enabled. The config plumbing for a runtime consent gate already exists."
+    },
+    {
+      "id": "TELEMETRY-STALE-DOC",
+      "title": "Correct the stale crash-provider claim in the telemetry doc",
+      "owner": "Engineering",
+      "severity": "low",
+      "reference": "docs/TELEMETRY_MOBILE.md §10 · lib/core/crash/crash_reporter.dart header",
+      "note": "Both still state that no crash provider exists and that stack traces are not forwarded. Sentry landed afterwards and stack traces are forwarded, sanitised per frame."
+    },
+    {
+      "id": "RC-BLK-013",
+      "title": "Update CLAUDE.md to the real toolchain",
+      "owner": "Engineering",
+      "severity": "low",
+      "reference": "CLAUDE.md",
+      "note": "Declares Flutter 3.41.5 / Dart 3.11.3; the actual toolchain is Flutter 3.44.4 / Dart 3.12.2."
+    }
+  ]
+}

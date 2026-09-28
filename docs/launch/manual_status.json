@@ -1,0 +1,96 @@
+{
+  "_schema": "wellapath.manual_status/1",
+  "_purpose": "Facts the repository cannot observe for itself. Every entry here is rendered on the dashboard with a MANUAL badge, the observer's name and the observation date. Nothing in this file is measured by tooling; it is testimony, and it is labelled as testimony.",
+  "_rules": [
+    "state must be one of: manual, notVerified, disabled, notInstrumented, awaitingData.",
+    "state 'manual' REQUIRES value, observer and observed_at. The other states must NOT have a value.",
+    "Use 'notVerified' for a fact nobody has looked at yet. Never guess a value.",
+    "observed_at is a UTC date (YYYY-MM-DD) or full ISO 8601 timestamp.",
+    "Manual entries older than the freshness window are automatically downgraded to 'Not verified' by the generator, keeping the original date in the note.",
+    "owner/observer is a name or role. Never put an email address, phone number or any other contact detail in this file."
+  ],
+  "freshness_window_days": 14,
+  "entries": {
+    "ios_processing_status": {
+      "label": "iOS 215 App Store Connect processing",
+      "state": "notVerified",
+      "source": "App Store Connect → TestFlight → iOS builds",
+      "note": "Upload succeeded 2026-09-25T14:18:57Z (xcodebuild exit 0, recorded on chore/215-evidence). Processing OUTCOME has not been observed by anyone yet — awaiting founder console read."
+    },
+    "ios_build_visible": {
+      "label": "iOS 215 visible as 0.3.0 (215)",
+      "state": "notVerified",
+      "source": "App Store Connect → TestFlight → iOS builds",
+      "note": "Awaiting founder console read."
+    },
+    "ios_internal_tester_availability": {
+      "label": "iOS 215 internal tester availability",
+      "state": "notVerified",
+      "source": "App Store Connect → TestFlight → Internal Testing group",
+      "note": "Exported with testFlightInternalTestingOnly = true, so external testing and Beta App Review are barred for this build by construction. The number of internal testers who can actually install it has not been observed."
+    },
+    "ios_211_still_available": {
+      "label": "iOS 211 still available and unexpired",
+      "state": "notVerified",
+      "source": "App Store Connect → TestFlight → iOS builds",
+      "note": "211 remains the soft-launch candidate; confirm it has not expired out of TestFlight's 90-day window."
+    },
+    "android_215_uploaded": {
+      "label": "Android 215 uploaded to Play Internal testing",
+      "state": "notVerified",
+      "source": "Play Console → Testing → Internal testing",
+      "note": "The signed AAB is verified and on disk but NOT uploaded by this session. Upload is a founder console action. If not uploaded, the artifact stays exactly as verified — no rebuild."
+    },
+    "android_internal_tester_availability": {
+      "label": "Android internal tester availability",
+      "state": "notVerified",
+      "source": "Play Console → Testing → Internal testing → Testers",
+      "note": "Founder confirmed 5 testers on the track on 2026-09-25 for build 211; not re-observed for 215."
+    },
+    "android_211_live_release": {
+      "label": "Android 211 live on Internal testing",
+      "state": "manual",
+      "value": "Live — WellaPath 0.3.0 (211), 5 testers",
+      "observer": "Founder",
+      "observed_at": "2026-09-25",
+      "source": "Play Console, developer account 6302882725431220689, app 4973189146371972752",
+      "note": "Direct console confirmation recorded on chore/215-evidence. This is what superseded the earlier 'never uploaded' record."
+    },
+    "play_app_signing_prompt": {
+      "label": "Play App Signing enrolment prompt absent",
+      "state": "notVerified",
+      "source": "Play Console → Release → Setup → App signing",
+      "note": "MUST remain absent. 215 is not a first upload; if the console offers enrolment, that contradicts the confirmed state — stop, capture the screen, reconcile before uploading."
+    },
+    "clinical_review_status": {
+      "label": "Clinical review",
+      "state": "notVerified",
+      "source": "Clinical reviewer (external to this repository)",
+      "note": "CB_211 / RC-BLK-016 adjudication is the specific open item and it blocks any external cohort. Set to 'manual' with the reviewer's name and date only when a real decision exists."
+    },
+    "device_smoke_test_android": {
+      "label": "Physical Android device smoke test",
+      "state": "notVerified",
+      "source": "Manual test on a physical handset",
+      "note": "No physical-device smoke test of 215 has been recorded. Emulator and CI runs do not satisfy this."
+    },
+    "device_smoke_test_ios": {
+      "label": "Physical iOS device smoke test",
+      "state": "notVerified",
+      "source": "Manual test on a physical handset via TestFlight",
+      "note": "Blocked until iOS 215 finishes processing and reaches an internal tester."
+    },
+    "support_contact": {
+      "label": "Support contact",
+      "state": "notVerified",
+      "source": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+      "note": "No monitored support mailbox exists yet. Founder action. Hard blocker for both store listings."
+    },
+    "privacy_policy_url": {
+      "label": "Published privacy policy URL",
+      "state": "notVerified",
+      "source": "docs/store/SUPPORT_AND_PRIVACY_POLICY.md",
+      "note": "No published policy exists yet. Founder action. Hard blocker for both store listings and doubly so under the Play Health Apps declaration."
+    }
+  }
+}
