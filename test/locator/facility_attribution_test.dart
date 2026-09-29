@@ -57,6 +57,37 @@ void main() {
       expect(s, contains('OpenStreetMap'));
     });
 
+    test('acknowledges the HOT Export Tool, as the KB notice does', () {
+      expect(
+        FacilityAttribution.hotAcknowledgement,
+        contains('HOT Export Tool'),
+      );
+      expect(
+        FacilityAttribution.hotAcknowledgement,
+        contains('Humanitarian OpenStreetMap Team'),
+      );
+    });
+
+    test('declares the database under ODbL as a Derivative Database', () {
+      expect(
+        FacilityAttribution.databaseLicenceStatement,
+        contains('Open Database License 1.0'),
+      );
+      expect(
+        FacilityAttribution.databaseLicenceStatement,
+        contains('Derivative Database'),
+      );
+    });
+
+    test('does not claim the app itself is ODbL-licensed', () {
+      // Without this a reader could reasonably infer the whole app is
+      // ODbL-licensed. It is not, and the licence does not require it.
+      const String s = FacilityAttribution.scopeStatement;
+      expect(s, contains('facility database only'));
+      expect(s, contains('does not place'));
+      expect(s.toLowerCase(), contains('clinical engine'));
+    });
+
     test('the collapsed summary alone carries both credits', () {
       // The footer is collapsed by default, so the summary has to stand on
       // its own as the attribution a user actually sees.
@@ -102,6 +133,9 @@ void main() {
         find.textContaining('modified from the originals'),
         findsOneWidget,
       );
+      expect(find.textContaining('HOT Export Tool'), findsOneWidget);
+      expect(find.textContaining('facility database only'), findsOneWidget);
+      expect(find.textContaining('Open Database License 1.0'), findsOneWidget);
       expect(find.text('Show less'), findsOneWidget);
     });
 

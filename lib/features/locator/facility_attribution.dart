@@ -35,6 +35,11 @@ class FacilityAttribution {
   static const String grid3SourceUrl = 'https://data.grid3.org/';
 
   static const String osmCredit = '© OpenStreetMap contributors';
+
+  /// The HOT Export Tool acknowledgement the Knowledge Base notice carries.
+  static const String hotAcknowledgement =
+      "Produced with the Humanitarian OpenStreetMap Team's HOT Export Tool, "
+      'via the Humanitarian Data Exchange.';
   static const String osmLicence = 'ODbL 1.0';
   static const String osmLicenceUrl =
       'https://opendatacommons.org/licenses/odbl/1-0/';
@@ -51,6 +56,21 @@ class FacilityAttribution {
       'GRID3, CIESIN, Columbia University, the Humanitarian OpenStreetMap '
       'Team, OpenStreetMap contributors and the Government of Nigeria do not '
       'endorse WellaPath or this derived work.';
+
+  /// The facility database itself is offered under ODbL, because 896 of its
+  /// 5,344 records are OpenStreetMap-derived. Mirrors the declaration in the
+  /// artifact's own `_metadata.licence`.
+  static const String databaseLicenceStatement =
+      'WellaPath offers this facility database under the Open Database '
+      'License 1.0. It is a Derivative Database: OpenStreetMap records are '
+      'modified and merged into it rather than included unaltered.';
+
+  /// Scope. Without this a reader could reasonably infer the whole app is
+  /// ODbL-licensed, which is untrue and is not what the licence requires.
+  static const String scopeStatement =
+      'This licence covers the facility database only. It does not place the '
+      'WellaPath application, its source code or its clinical engine under '
+      'the Open Database License.';
 
   /// One-line summary shown before the reader expands the detail.
   static const String summary =
@@ -140,6 +160,15 @@ class _FacilityAttributionFooterState extends State<FacilityAttributionFooter> {
               label: 'OpenStreetMap copyright',
               onTap: () => _open(FacilityAttribution.osmSourceUrl),
               style: small,
+            ),
+            const SizedBox(height: 8),
+            Text(FacilityAttribution.hotAcknowledgement, style: small),
+            const SizedBox(height: 10),
+            Text(FacilityAttribution.databaseLicenceStatement, style: small),
+            const SizedBox(height: 8),
+            Text(
+              FacilityAttribution.scopeStatement,
+              style: small.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             Text(FacilityAttribution.modificationStatement, style: small),
