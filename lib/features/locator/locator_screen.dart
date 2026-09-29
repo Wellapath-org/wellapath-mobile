@@ -10,6 +10,7 @@ import '../../core/network/staged_artifact_loader.dart';
 import '../../core/telemetry/contract/telemetry_event.dart';
 import '../../core/telemetry/telemetry.dart';
 import '../../core/storage/storage_service.dart';
+import 'facility_attribution.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
 import 'nigeria_coverage.dart';
@@ -479,6 +480,10 @@ class _LocatorScreenState extends State<LocatorScreen> {
             // between, so the toggle would be a control that does nothing.
             if (!_locationDenied && !_outsideCoverage) _buildViewToggle(),
             Expanded(child: _buildBody()),
+            // Attribution is a licence condition of the facility data, not a
+            // feature of a particular view, so it sits outside _buildBody()
+            // and stays put whichever state the body is in.
+            const FacilityAttributionFooter(),
           ],
         ),
       ),
