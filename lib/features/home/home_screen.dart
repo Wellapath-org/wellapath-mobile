@@ -580,7 +580,7 @@ class _InfoModal extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _bullet(
-              "The results is not a diagnosis. It's only for your information "
+              "The result is not a diagnosis. It's only for your information "
               'and not a qualified medical opinion',
             ),
             _bullet(

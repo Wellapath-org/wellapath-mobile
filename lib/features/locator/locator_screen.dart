@@ -449,11 +449,17 @@ class _LocatorScreenState extends State<LocatorScreen> {
     _mapController.move(_userLatLng!, 15);
   }
 
+  /// Manual area search is the working path in two states: location denied,
+  /// and a known location outside the covered region. They differ only in why
+  /// there is no usable position, so everything downstream treats them alike
+  /// rather than duplicating the flow.
+  bool get _usingManualSearch => _locationDenied || _outsideCoverage;
+
   int get _shownCount =>
-      _locationDenied ? _manualResults.length : _results.length;
+      _usingManualSearch ? _manualResults.length : _results.length;
 
   String get _locationLabel {
-    if (_locationDenied) {
+    if (_usingManualSearch) {
       if (_manualSearched && _selectedState != null) {
         return _selectedCityArea != null
             ? '$_selectedCityArea, $_selectedState'
@@ -668,50 +674,62 @@ class _LocatorScreenState extends State<LocatorScreen> {
     );
   }
 
+  /// Out of the covered region: explain, then offer the same manual area
+  /// search the location-denied path already provides.
+  ///
+  /// Before, this state was a dead end — the explanation and a Back button,
+  /// nothing else — even though the facility data is cached on the device and
+  /// the denied path offers exactly this search. A user who travels outside
+  /// Nigeria lost the locator entirely. The explanation is unchanged and still
+  /// comes first; the search is added beneath it, not in place of it.
   Widget _buildOutsideCoverageView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Icon(
               Icons.public_off_rounded,
               size: 56,
               color: _primary.withValues(alpha: 0.7),
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'WellaPath Clinic Locator is not yet available in your '
-              'region. $kCoverageDisclosure',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                height: 1.5,
-                color: Colors.black87,
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'WellaPath Clinic Locator is not yet available in your '
+            'region. $kCoverageDisclosure',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, height: 1.5, color: Colors.black87),
+          ),
+          const SizedBox(height: 28),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          const SizedBox(height: 20),
+          _manualSearchBody(
+            lead:
+                'You can still search a covered area. Select a state and '
+                'area to find available facilities.',
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Back to Results',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Back to Results',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1053,104 +1071,114 @@ class _LocatorScreenState extends State<LocatorScreen> {
   }
 
   Widget _buildManualFallback() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: _manualSearchBody(
+        lead:
+            'We could not access your location. Select your area to find '
+            'available facilities instead.',
+      ),
+    );
+  }
+
+  /// The manual state/area selector and its results.
+  ///
+  /// One implementation, two entry points: location denied, and a location
+  /// known to be outside the covered region. Only [lead] differs, because the
+  /// reason there is no usable position differs. The caller supplies the
+  /// scroll view so this can sit beneath other content.
+  Widget _manualSearchBody({required String lead}) {
     final cityAreas = _selectedState != null
         ? _cityAreasForState(_selectedState!)
         : <String>[];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'We could not access your location. Select your area to find '
-            'available facilities instead.',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(lead, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+        const SizedBox(height: 8),
+        // The picker only offers the covered states, so say why rather than
+        // leaving the user to read the short list as a bug.
+        const Text(
+          kCoverageDisclosure,
+          style: TextStyle(fontSize: 13, color: Colors.black54),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedState,
+          decoration: const InputDecoration(
+            labelText: 'State',
+            border: OutlineInputBorder(),
           ),
-          const SizedBox(height: 8),
-          // The picker only offers the covered states, so say why rather than
-          // leaving the user to read the short list as a bug.
-          const Text(
-            kCoverageDisclosure,
-            style: TextStyle(fontSize: 13, color: Colors.black54),
+          items: [
+            for (final state in _states)
+              DropdownMenuItem(value: state, child: Text(state)),
+          ],
+          onChanged: (value) => setState(() {
+            _selectedState = value;
+            _selectedCityArea = null;
+          }),
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedCityArea,
+          decoration: const InputDecoration(
+            labelText: 'City / Area',
+            border: OutlineInputBorder(),
           ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedState,
-            decoration: const InputDecoration(
-              labelText: 'State',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final state in _states)
-                DropdownMenuItem(value: state, child: Text(state)),
-            ],
-            onChanged: (value) => setState(() {
-              _selectedState = value;
-              _selectedCityArea = null;
-            }),
-          ),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedCityArea,
-            decoration: const InputDecoration(
-              labelText: 'City / Area',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              for (final area in cityAreas)
-                DropdownMenuItem(value: area, child: Text(area)),
-            ],
-            onChanged: _selectedState == null
-                ? null
-                : (value) => setState(() => _selectedCityArea = value),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _selectedState == null ? null : _runManualSearch,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+          items: [
+            for (final area in cityAreas)
+              DropdownMenuItem(value: area, child: Text(area)),
+          ],
+          onChanged: _selectedState == null
+              ? null
+              : (value) => setState(() => _selectedCityArea = value),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _selectedState == null ? null : _runManualSearch,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text('Search'),
             ),
+            child: const Text('Search'),
           ),
-          const SizedBox(height: 20),
-          if (_manualSearched)
-            if (_manualResults.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: Text('No facilities found in this area.')),
-              )
-            else
-              Column(
-                children: [
-                  for (final facility in _manualResults) ...[
-                    FacilityCard(
-                      facility: facility,
-                      onDirectionsTap: () => _openDirections(
-                        facility,
-                        source: FacilityActionSource.searchResults,
-                      ),
-                      onCallTap: (facility['phone'] as String?) != null
-                          ? () => _callFacility(
-                              facility,
-                              source: FacilityActionSource.searchResults,
-                            )
-                          : null,
+        ),
+        const SizedBox(height: 20),
+        if (_manualSearched)
+          if (_manualResults.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('No facilities found in this area.')),
+            )
+          else
+            Column(
+              children: [
+                for (final facility in _manualResults) ...[
+                  FacilityCard(
+                    facility: facility,
+                    onDirectionsTap: () => _openDirections(
+                      facility,
+                      source: FacilityActionSource.searchResults,
                     ),
-                    const SizedBox(height: 12),
-                  ],
+                    onCallTap: (facility['phone'] as String?) != null
+                        ? () => _callFacility(
+                            facility,
+                            source: FacilityActionSource.searchResults,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
                 ],
-              ),
-        ],
-      ),
+              ],
+            ),
+      ],
     );
   }
 }
