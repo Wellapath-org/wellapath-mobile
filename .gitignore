@@ -66,3 +66,18 @@ android/key.properties
 sentry.properties
 android/sentry.properties
 ios/sentry.properties
+
+# Facility source exports — never committed.
+#
+# The health-facility registry exports used for audit work carry contact
+# details for tens of thousands of facilities (the NHFR export alone holds
+# ~30,500 telephone numbers and ~7,000 email addresses), and this repository
+# is public. They are also large enough to bloat every clone.
+#
+# Keep the raw exports outside Git entirely and pass the path to the audit
+# scripts, either as an argument or through WELLAPATH_PRIVATE_DATA. Only
+# derived, contact-free, aggregate artifacts belong in the repository.
+nigeria_health_facilities.csv
+nhfr_*.csv
+grid3_*.csv
+facilities_export_*.csv
