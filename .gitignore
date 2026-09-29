@@ -66,3 +66,31 @@ android/key.properties
 sentry.properties
 android/sentry.properties
 ios/sentry.properties
+
+# Private registry exports — never committed.
+#
+# This is prospective protection against accidentally recommitting a private
+# NHFR export. It is NOT breach remediation: no personal-data breach was
+# established, and no such file has ever been committed to this repository.
+#
+# The NHFR export is withheld because its redistribution terms were never
+# captured — the registry publishes no licence and reserves all rights. It is
+# also large enough to bloat every clone (~20 MB).
+#
+# Licensed public datasets are a different matter and MAY remain tracked
+# wherever their attribution and redistribution requirements are satisfied —
+# GRID3 (CC BY 4.0) and HOTOSM/OpenStreetMap (ODbL) among them. The negations
+# below keep this rule from ever blocking one.
+#
+# Keep private exports outside Git entirely and pass the path to the audit
+# scripts, either as an argument or through WELLAPATH_PRIVATE_DATA. Only
+# derived, contact-free, aggregate artifacts belong in the repository.
+nigeria_health_facilities.csv
+nhfr_*.csv
+facilities_export_*.csv
+
+# Licensed public sources are never caught by the rules above.
+!grid3_*.csv
+!GRID3_*.csv
+!hotosm_*.csv
+!HOTOSM_*.csv
