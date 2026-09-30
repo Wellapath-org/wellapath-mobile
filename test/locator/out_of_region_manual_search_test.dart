@@ -24,6 +24,17 @@ import 'package:wellapath_mobile/features/locator/nigeria_coverage.dart';
 String _source() =>
     File('lib/features/locator/locator_screen.dart').readAsStringSync();
 
+/// The body of `_buildOutsideCoverageView`, so assertions about that state
+/// cannot accidentally match something elsewhere in a 1,200-line file.
+String _outOfRegionBody() {
+  final String src = _source();
+  final int start = src.indexOf('Widget _buildOutsideCoverageView()');
+  final int end = src.indexOf('\n  Widget _build', start + 10);
+  expect(start, greaterThan(-1));
+  expect(end, greaterThan(start));
+  return src.substring(start, end);
+}
+
 Map<String, dynamic> _f({
   required String id,
   required String name,
@@ -106,8 +117,12 @@ void main() {
         contains('WellaPath Clinic Locator is not yet available in your '),
       );
       // It must still come before the search, so the user learns why first.
-      final int explanation = src.indexOf('not yet available in your ');
-      final int search = src.indexOf('_manualSearchBody(\n            lead:');
+      // Scoped to the method and matched on the call name alone: an
+      // indentation-sensitive match would break on a reformat and silently
+      // stop checking the ordering this test exists for.
+      final String body = _outOfRegionBody();
+      final int explanation = body.indexOf('not yet available in your ');
+      final int search = body.indexOf('_manualSearchBody(');
       expect(explanation, greaterThan(-1));
       expect(search, greaterThan(explanation));
     });
@@ -264,27 +279,52 @@ void main() {
       expect(body, contains('Back to Results'));
     });
   });
-
   group('nothing was added that this change must not add', () {
-    test('no telemetry, preference or network call in the changed view', () {
-      final String src = _source();
-      final int view = src.indexOf('Widget _buildOutsideCoverageView()');
-      final int nextMethod = src.indexOf('\n  Widget _build', view + 10);
-      final String body = src.substring(view, nextMethod);
+    test('the out-of-region view adds no dependency or stored preference', () {
+      // Scoped and specific. An earlier version banned the bare substring
+      // 'record', which would fail on the word "recorded" in any future
+      // comment, and banned 'Telemetry', which read as "this path emits
+      // none" — untrue, see the next test. These are the identifiers that
+      // would actually indicate a new dependency.
+      final String body = _outOfRegionBody();
       for (final banned in <String>[
-        'Telemetry',
-        'record',
         'SharedPreferences',
-        'http',
-        'Dio',
-        'analytics',
+        'Dio(',
+        'http.',
+        'Analytics',
       ]) {
         expect(
-          body.toLowerCase(),
-          isNot(contains(banned.toLowerCase())),
+          body,
+          isNot(contains(banned)),
           reason: '$banned must not appear in the out-of-region view',
         );
       }
+    });
+
+    test('no NEW telemetry event type is introduced', () {
+      // An honest statement of what is and is not true.
+      //
+      // The manual search already emitted FacilitySearchEvent(manualArea)
+      // before this change, from the location-denied path. Reusing that path
+      // means the same event can now also fire from the out-of-region state,
+      // so its frequency changes even though nothing new was added.
+      //
+      // What must not change is the contract: one event type, payload of
+      // search mode plus a clamped result count. No coordinates, no state or
+      // area, no free text. _runManualSearch already documents why the
+      // selected state and city/area are deliberately not recorded.
+      final String src = _source();
+      // Three emit sites exist and existed before: two nearby, one
+      // manualArea. Pinning the count is what catches a fourth being added.
+      expect('FacilitySearchEvent('.allMatches(src).length, 3);
+      expect(
+        'FacilitySearchMode.manualArea'.allMatches(src).length,
+        1,
+        reason: 'the manual path emits from exactly one place',
+      );
+      expect(src, contains('resultCount: results.length.clamp(0, 500)'));
+      // The emitting method is untouched; only its reachability widened.
+      expect(_outOfRegionBody(), isNot(contains('Telemetry.capture')));
     });
   });
 }
