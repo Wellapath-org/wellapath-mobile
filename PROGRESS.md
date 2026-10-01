@@ -5,7 +5,7 @@
 **Branch:** `develop` @ `34a331f` (== `origin/develop`, CI **success**) — mobile PR #94 merged  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
 **Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-30 — facility licensing work closed; builds 211 and 215 remain internal-testing only, no external promotion, nothing new uploaded
+**Last Updated:** 2026-10-01 — facility licensing work closed; disk cleanup (regenerable build output only, artifacts and signing credentials verified intact); builds 211 and 215 remain internal-testing only, nothing new uploaded
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
@@ -5875,3 +5875,86 @@ outstanding clinical work regardless.
   by setting every hospital true.**
 * **Backend #40** — the v1.0 rollback — stays open, draft and unmerged during
   the v1.2 observation period.
+
+---
+
+# Disk cleanup — regenerable build output removed, artifacts and evidence kept
+
+2026-10-01. Founder reported a full disk. Recorded here because it changes the
+state of the build environment, and the next session needs to know what is
+gone, what is not, and where the irreplaceable things actually live.
+
+## Starting position
+
+228 GB volume, 16 GB used, **8.2 GB free (66% full)** — tight but not
+critical. Worth stating, because it meant nothing had to be rushed.
+
+The request was to delete screenshots. **Screenshots were the wrong target.**
+Of 843 image files found across the trees, the overwhelming majority are
+**tracked app assets** (`assets/images/` Figma exports) replicated across
+fifteen git worktrees. The genuinely founder-added screenshots total about
+**12 MB**, live untracked in `wellapath-website/`, and are **referenced by
+that repo's `README.md` and `docs/DESIGN.md`** — so deleting them would have
+broken documentation to save a rounding error. They were left in place.
+
+**76% of all WellaPath disk use was one directory.**
+
+## What was deleted — all regenerable
+
+| Target | Freed |
+|---|---|
+| `/Users/Shared/wellapath-build-215/build` | 3.4 GB |
+| `/Users/Shared/wellapath-build-215/DerivedData` | 2.4 GB |
+| `build/` across 5 Flutter worktrees (`wp-216`, `wp-attribution`, `wp-dash`, `wp-opennow`, `wp-ui2`) | 404 MB |
+| `wellapath-website/node_modules` + `.next` | 743 MB |
+
+**Result: 8.2 GB → 19 GB free (66% → 46%).** The gain exceeds the sum of the
+deletions because macOS also reclaimed APFS snapshot space.
+
+## What was kept, and verified intact AFTER deletion
+
+The signed artifacts were **inside the deleted build tree** — but duplicates
+of copies already preserved elsewhere, which was checked by hash before
+anything was removed and re-checked afterwards:
+
+```
+WellaPath-215.aab   bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d60917
+registry expects    bfc8d401163c838658dcedc34397b18f65cd3ecc9030c77e1c4541f555d60917
+```
+
+That check mattered: per the build-214/215 record, **the AAB hash is never
+reproducible**, so losing the original would have been unrecoverable.
+
+**Where the irreplaceable things live:**
+
+* `~/dev/wellapath-release-215/` — `WellaPath-215.aab` (62,395,097 B, hash
+  above), `WellaPath-215.ipa`
+* `~/dev/wellapath-release-211/` — `WellaPath-211.aab`, `WellaPath-211.ipa`,
+  `WellaPath-210.ipa`, `Runner-211.xcarchive.tar.gz`
+* `/Users/Shared/wellapath-build-215/android/key.properties` — **signing
+  credentials, single signing machine**. Untouched.
+* `~/wellapath-private-data/` (84 MB) — the NHFR export, the Lagos
+  enrichment, and the **only** checksum-verified `facilities.ng.v1.1.json`
+  evidence copy (`25684c71…2398`). Untouched.
+
+The build-215 source tree, `lib/`, `test/`, `assets/` and `docs/` are intact;
+only generated output went. The directory is now 491 MB.
+
+## Consequences for the next session
+
+* **`wellapath-website` needs `npm install`** before it will run or build.
+  Nothing else does.
+* **The Flutter worktrees regenerate `build/` automatically** on the next
+  `flutter build` or `flutter test`. No action needed.
+* **The approved neutral build root `/Users/Shared/wellapath-build-215` is
+  now source-only.** A build 216 started there begins clean, which is
+  preferable for reproducibility rather than a problem.
+* Screenshots in `wellapath-website/` were deliberately **not** removed. If
+  they ever are, the `README.md` and `docs/DESIGN.md` references must be
+  updated in the same change.
+
+## Not done, and available if space is needed again
+
+`.dart_tool` caches across worktrees (~64 MB) and pruning merged git
+worktrees (~200 MB). Both regenerable, both small. Not worth doing at 19 GB
+free.
