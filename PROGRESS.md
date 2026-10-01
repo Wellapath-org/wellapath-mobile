@@ -1,11 +1,11 @@
 # WellaPath Mobile — Progress Tracker
 
-**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`  
-**Current state:** PR #78 merged and re-verified from the merged tree; **awaiting console access + upload authorization**  
-**Branch:** `develop` @ `5a1930b` merge, `9cce8e5` after the Step 2 record (== `origin/develop`, CI green)  
+**Phase:** Release — internal testing live on both platforms at `0.3.0+215` · `org.wellapath.app`  
+**Current state:** facilities **v1.2 live in production** (`sha256:94f162e4…b7788`); v1.1 retired from the artifact host and the repository; **216 prepared and gated, not built**  
+**Branch:** `develop` @ `34a331f` (== `origin/develop`, CI **success**) — mobile PR #94 merged  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
 **Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-12 — tracker header refreshed to the post-merge state; nothing uploaded to any store or tester track
+**Last Updated:** 2026-09-30 — facility licensing work closed; builds 211 and 215 remain internal-testing only, no external promotion, nothing new uploaded
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
@@ -5631,3 +5631,247 @@ when the artifacts were signed and are unchanged by this confirmation.
 any external cohort; the danger-sign label review; physical-device smoke
 testing; and everything in the store-submission blockers. Internal testing
 being live does not move any of them.
+
+---
+
+# Facility data licensing — v1.2 activated in production, v1.1 retired, 216 prepared
+
+2026-09-29 / 2026-09-30. Spans three repositories. Recorded here because the
+outcome changes what this app fetches at runtime and what the next build must
+carry.
+
+## What this was, and what it was not
+
+**Final classification, founder-set: "Public-source facility-data licensing
+and attribution gap. No personal-data breach evidenced."** Not an incident,
+not a breach. No NDPC report, no repository-visibility change, no individual
+notification, no history rewrite — none of those were required on the
+evidence, and none were done.
+
+Two of my own errors shaped the early part of this and are recorded because
+the reasoning is the useful part:
+
+**I reported ~12,000 telephone numbers that do not exist.** I matched a
+Nigerian mobile pattern `[789][0-9]{9}` against the GRID3 and HOTOSM CSVs and
+counted 11,741 and 462 "phones". **Neither file has a telephone or email
+column at all.** Every match was a coordinate — `7.342461` satisfies that
+pattern once the decimal point is disregarded. A count of contacts should
+have come from the schema first and the values second.
+
+**I misread the founder's remark about outdated contacts** as referring to
+the facility dataset. It referred only to the NHFR website's own support
+channels.
+
+The real scope was **45 telephone numbers**, not 42,000.
+
+## The blocking fact
+
+NHFR publishes no licence and no terms of use. Its only public rights
+statement reserves all rights to the Federal Ministry of Health. So the
+export, and any facility-level records derived from it, had **no established
+redistribution basis**. Stripping contact columns would not have fixed it:
+the question attaches to the derived records, not only to the contact values.
+
+GRID3 (CC BY 4.0) and HOTOSM/OpenStreetMap (ODbL 1.0) are properly licensed
+and remain in use.
+
+## ODbL determination
+
+Re-running `facilities/source/build_e5.py` and capturing the `_source` tag it
+strips reproduces the shipped `facility_id` set exactly, so the split is
+derived rather than estimated: **896 of 5,344 records (16.8%) are
+OSM-derived**, including **all 50 clinics and all 92 pharmacies** and 754 of
+924 hospitals.
+
+The database is therefore a **Derivative Database** under ODbL 1.0 — not a
+Collective Database (OSM records are modified and merged, not included
+unaltered) and not a Produced Work. Regenerating without OSM would have
+deleted a sixth of the dataset and two whole facility categories, so the
+compliant option was to declare the licence and attribute, which costs zero
+records and zero artifact bytes.
+
+## facilities.ng.v1.2.json — the replacement artifact
+
+| | |
+|---|---|
+| sha256 | `94f162e492fa91f7d9d3cf2ca33fcf0598a031a2510aa900aa717a581bdb7788` |
+| Bytes / records | 1,698,125 / **5,344** |
+| Telephone / email values | **0 / 0** |
+| `emergency_capable: true` | **924** — unchanged |
+| Identities, coordinates, types, states | **identical to v1.0 and v1.1** |
+
+Generated from v1.0 — the last version before the enrichment — by
+`tools/build_facilities_v1_2.py`, which has a `--check` mode that regenerates
+and byte-compares, so a hand-edited artifact fails the run.
+
+## Activation
+
+`/config` is **hardcoded source** in `wellapath-backend/src/routes/config.ts`;
+only the base URL is environment-derived. `StagedArtifactLoader` takes url,
+version and hash entirely from `/config` and **no build pins a facilities
+version**, so repointing changes existing installs with no new build.
+
+Routed through staging first, as the E9.1 freeze requires. Decision reference
+**FACILITIES-V1.2-ACTIVATION-2026-09-29**, engineering-lead approved.
+
+* Staging deploy `dep-datq9qad0e5s73d4idag` (commit `cd72dc5`) — v1.2 verified
+* Rollback staged and proven: deploy `dep-datqj5flot8c738jcrr0` → **v1.0**
+* Backend merge `fd7190b`; `develop` and `production` aligned, same tree
+* **Production verified 2026-09-29T13:07:34Z** — 6 cache-busted reads, whole
+  response equal to the frozen baseline, served artifact byte-identical to
+  the reviewed copy
+
+The distribution freeze was **moved deliberately, not loosened**: four
+assertions across three suites were updated, `deployed_observation` was
+**re-observed rather than edited**, and no test was weakened, skipped or
+disabled.
+
+## v1.1 retired
+
+Deleted from the artifact host 2026-09-29T13:41Z. Old URL returns **404** at
++1 min and +11 min; v1.0 and v1.2 both remain **200**. Repository copy removed
+by forward commit (knowledge-base #50, merge `28157fa`) — **no history
+rewrite**. One checksum-verified private evidence copy retained outside every
+working tree.
+
+**The 45 unlicensed telephone numbers are no longer served.**
+
+### A limitation that is not resolved
+
+Build 215 keys its artifact cache by version and sweeps nothing — the only
+`delete` removes the same version's entry on a hash failure. **v1.1's bytes,
+including the 45 numbers, remain in each existing device's Hive box until the
+app is uninstalled and reinstalled, or its data cleared.** No such uninstall
+has been confirmed for any device, so **device cleanup is not recorded as
+done**. No cleanup code was added; that would be a separate reviewed change.
+
+## Build 215 pre-activation baseline — 9/9 PASS
+
+Founder-tested on TestFlight via a guided session, direct observation rather
+than screenshots or inference. Cold launch with no staging marker; Home,
+Learn, More and onboarding; the disclosure as a blocking gate; locator with
+location denied and allowed; 112 dialler opening pre-filled without placing
+the call; Feedback and Support Chat absent entirely; offline; large text.
+
+Post-activation re-check also **PASS** — facilities still list, manual search
+and offline unaffected, **no Call control anywhere**.
+
+**No before/after Call-button claim is made for that device**, and the reason
+is worth keeping: Home → Find a clinic passes `non_urgent`, which admits only
+`hospital` and `clinic`, and **39 of the 45 phone-bearing records were
+`health_centre`**. At most 6 of 5,344 could ever have shown one. Build 215
+also surfaces the loaded facilities artifact version **nowhere** — the loader
+discards `_metadata` — so the device cannot be asked what it holds.
+
+Geographic validation in Nigeria (proximity ordering, directions destination,
+real-world facility existence) is **deferred to a tester physically in
+Nigeria** — a supplement, not a gap in the baseline. Checklist retained
+outside the repository.
+
+## Mobile PR #94 — merged `34a331f`
+
+Two defects found during the baseline, both still present on `develop`:
+
+**COPY-001.** The pre-assessment disclosure read "The results **is** not a
+diagnosis." One word. The clinical meaning was never wrong, but this is the
+screen where the product states its own limits.
+
+**UX-002.** The out-of-region locator state was a dead end — explanation and
+a Back button, nothing else — though facility data is cached on the device
+and the location-denied path already offers manual state/area search. A user
+who travelled outside Nigeria lost the locator entirely. Fixed by **reusing**
+that path: `_manualSearchBody({required String lead})`, one implementation,
+two call sites, and one shared predicate `_usingManualSearch`. Ignoring
+whitespace the locator change is 50 insertions and 22 deletions.
+
+Unchanged and verified by diff: coverage detection, ordering, filtering,
+urgency, the locator service, the engine, the assessment flow, the
+attribution footer, dependencies and the native projects.
+
+### One claim in that PR was wrong, and was corrected
+
+The PR body said the change adds no analytics event, "asserted by test". **No
+new event type is added**, but `_runManualSearch` already emits
+`FacilitySearchEvent(manualArea)`, so reusing that path means the same event
+can now fire from a state where it previously could not — its frequency
+changes. The guarding test only grepped one method's body, so it gave false
+assurance about a call one frame deeper. Caught by independent review,
+corrected in the tests and in the PR body. The contract is unchanged: mode
+plus a clamped count, no coordinates, no state or area, no free text.
+
+Three weak assertions were also replaced, including one that depended on
+twelve spaces of indentation and one that was flatly tautological.
+
+## Independent review caught two blocking defects in knowledge-base #50
+
+Recorded because both were mine and both would have shipped.
+
+**The PR would have turned a green check red.** Both CI workflows verify a
+checksum manifest with `shasum -a 256 -c`, and it listed
+`facilities.ng.v1.1.json`. With the file removed the step fails outright. W2
+is green on `develop`, so this would have broken it.
+
+**A second hardcoded v1.1 literal.** `build_facilities_manifest.py` had two,
+not one. The first pass fixed the rollback target and claimed the literal was
+gone; it was not. The missed field described what `/config` serves, so after
+activation it was simply wrong. Both now derive from `CURRENT`.
+
+Two latent bugs were also fixed at source: the manifest's rollback target
+filename was hardcoded, and the validator asserted that same hardcoded name —
+so the check validated the hardcoding rather than the truth, and a future
+artifact bump would have left a stale rollback pointer that still passed its
+own test.
+
+## Attribution now reaches users
+
+A grep across `lib/` and `assets/` previously found **no attribution string of
+any kind**, though both source licences require it. Build 216 will be the
+first build that shows it: a locator footer crediting **© OpenStreetMap
+contributors (ODbL 1.0)** and **GRID3/CIESIN (CC BY 4.0)**, with the HOT
+Export Tool acknowledgement, the modification disclosure, non-endorsement,
+and an explicit statement that the licence covers the **facility database
+only** — not the application or the clinical engine.
+
+Repository-level notices live in the knowledge base (`DATA_SOURCES.md`,
+`docs/FACILITIES_ODBL_LINEAGE.md`).
+
+## Build-number state
+
+`pubspec.yaml` remains `0.3.0+216`. **216 has not been built.** Its gate —
+PR #94 merged and mobile `develop` CI green — is now met: CI **success** at
+`34a331f`.
+
+**Builds 211 and 215 remain internal-testing only.** They do not contain the
+attribution footer, so they must not be promoted externally. The earliest
+external candidate is **216 or higher**, and that remains gated on the
+outstanding clinical work regardless.
+
+## Still open
+
+* **Clinical:** CB_211 adjudication, the danger-sign label review, and
+  physical-device smoke testing. Unchanged by any of this.
+* **Device caches** still hold v1.1 until testers uninstall and reinstall.
+* **Nigerian geographic validation**, owner to be assigned.
+* **UX follow-up:** out of region, "Back to Results" names results that do not
+  exist, and after a manual search it sits beneath results it appears to refer
+  to. A one-word rename.
+* **Test harness:** `LocatorScreen` is not widget-tested anywhere (geolocator
+  and Hive platform channels), so the out-of-region state is pinned by source
+  assertions rather than a rendered widget. Worth a harness change.
+* **Tooling:** a stacked PR gets no CI in `wellapath-backend` — the workflow
+  only fires on PRs targeting `develop` or `main`.
+* **Pre-existing:** `I3 publication tooling` fails on knowledge-base
+  `develop`, unrelated to this work and failing identically before it. Root
+  cause confirmed and tracked as knowledge-base issue #51: the frozen list
+  expects two files deliberately withheld pending NHFR terms.
+* **Neither `develop` branch is protected.** No required status checks exist
+  on either repository, so CI is advisory. That is a governance decision worth
+  taking deliberately.
+* **NHFR authorisation request** prepared for founder delivery; it does not
+  block anything, since v1.2 and the GRID3-only path use no NHFR data.
+* **Knowledge-base #42** — the GRID3-only nationwide candidate — stays open
+  and unmerged, blocked on `emergency_capable` being null for all 51,022
+  records, which removes hospital-first emergency ordering. **Not to be fixed
+  by setting every hospital true.**
+* **Backend #40** — the v1.0 rollback — stays open, draft and unmerged during
+  the v1.2 observation period.
