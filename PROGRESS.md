@@ -5631,3 +5631,579 @@ when the artifacts were signed and are unchanged by this confirmation.
 any external cohort; the danger-sign label review; physical-device smoke
 testing; and everything in the store-submission blockers. Internal testing
 being live does not move any of them.
+
+---
+
+# Build 216 BUILT and verified on both platforms — artifacts signed, NOTHING uploaded
+
+> **SUPERSEDED in part.** The "NOTHING uploaded" in this heading was true when
+> written and is no longer. Both platforms were later uploaded: iOS processed and
+> live on TestFlight Internal, Android observed **Active** on the Play Internal
+> testing track. The heading's original wording is kept; see the entries below.
+
+**Date:** 2026-10-02 · **Source:** `develop @
+34a331f4b47395df2084250fd6f53b86d30239e1` (tree `1d35237a…`, the merge of
+PR #94; CI "Flutter Lint & Build Check" **success**, run 36682391970, on that
+exact SHA) · **Built in:** `/Users/Shared/wellapath-build-216`, a clean
+detached worktree under the approved neutral root, with a build-local
+`PUB_CACHE` and an explicit neutral iOS `-derivedDataPath`. Signing material
+was referenced by symlink and never copied or read. **Zero `--dart-define` of
+any kind was passed.**
+
+## CURRENT STATUS: both signed artifacts produced and verified · build 216 CONSUMED · store upload and processing outcomes PENDING
+
+> **SUPERSEDED.** "PENDING" was true when written. Both store outcomes were later
+> observed and are recorded in the entries below. Wording kept, not rewritten.
+
+**216 is consumed** because signed release artifacts exist, independently of
+store processing, and must not be reused or rebuilt from different source. The
+registry entry and the advance to **217** are in
+`test/release/build_identity_test.dart`, with `pubspec.yaml` at `0.3.0+217`.
+
+**iOS UPLOADED 2026-10-02; Android NOT uploaded.** The iOS build was uploaded
+to App Store Connect at the founder's explicit instruction, from this same
+archive, via the authenticated Xcode account flow (`xcodebuild -exportArchive`,
+`destination=upload`). The call returned *"Upload succeeded — uploaded package
+is processing"*. **That is the upload call succeeding and is not evidence of
+TestFlight availability** — no processing outcome and no tester availability has
+been observed in the console, and none is claimed here. No App Store review or
+external beta was submitted: the export carries
+`testFlightInternalTestingOnly = true`, which bars external testing and Beta App
+Review for this build by construction. The Android AAB has **not** been
+uploaded. Builds 211 and 215 were not promoted, replaced or deleted.
+
+A note on artifact identity, because it matters for provenance: the upload
+export repackaged the IPA, so the bytes App Store Connect received are **not**
+the `3b433576…fda85` export-only IPA recorded below. Both were produced from the
+single archive `Runner.xcarchive`, with the same signing identity and profile.
+
+> **Kept verbatim. Partly superseded** — see "corrections from independent
+> review of PR #96" below. The uploaded container's signing **certificate** is
+> corroborated by Xcode's own upload record in the archive
+> (`Distributions[0].certificateSHA1`); the **provisioning profile** is the part
+> that is inferred rather than recorded.
+
+## Android artifact
+
+| | |
+|---|---|
+| File | `/Users/Shared/wellapath-build-216/src/build/app/outputs/bundle/release/app-release.aab` — **internal testing only** |
+| SHA256 | `2135ecf0f2c7fc53091c71ac4ef697c8f9a4ef6f35d3c1a8c9d5b6248b5d66da` |
+| Size | 62,409,495 B |
+| Identity | `org.wellapath.app` · versionCode 216 · versionName 0.3.0 |
+| Signature | `jar verified.` — upload certificate SHA-256 `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` |
+| Continuity | **identical SHA-256 fingerprint to builds 211 and 215** (this line originally read "byte-identical fingerprint to builds 211 and 215", which was accurate; all three full fingerprints are now recorded below) — the established upload key signed it, so no signing-ownership change and **no Play App Signing decision arises**. If the console presents one, that contradicts the confirmed state: stop without accepting. |
+
+## iOS artifact
+
+| | |
+|---|---|
+| File | `/Users/Shared/wellapath-build-216/export/WellaPath.ipa` — **internal testing only** |
+| SHA256 | `3b433576cf5314afe661d0ba941cb192b5536949554d870dff8abf52155fda85` |
+| Size | 12,619,526 B (117 entries, 25,255,769 B uncompressed) |
+| Identity | `org.wellapath.app` · 0.3.0 (216) · min iOS 15.0 · arm64 |
+| Signing | **Apple Distribution: Pixus Uganda - SMC LTD**, cert SHA-1 `6F191637AA0968B1E1529044D56E93B89AEEF649`, Team ID `2SCUC2CBBS` |
+| Profile | the **existing** `iOS Team Store Provisioning Profile: org.wellapath.app`, UUID `daebf88b-ed39-45b4-914b-a627cf76831d` |
+| Archive | `/Users/Shared/wellapath-build-216/Runner.xcarchive` (178 MB, not distributable) |
+
+`ITSAppUsesNonExemptEncryption=false` is now committed in source, so no
+export-compliance prompt arises. The export used `destination=export` (no
+upload) and `testFlightInternalTestingOnly=true`, which bars external testing
+and Beta App Review for this build **by construction** rather than by policy.
+`-allowProvisioningUpdates` was deliberately not passed, and **no certificate,
+key, keystore, provisioning profile, API key or account was created or
+replaced**. Xcode raised no agreement or signing-material prompt.
+
+**On the IPA being smaller than 215's (12.6 MB vs 26.6 MB):** this is zip
+compression, not missing content. The uncompressed payload is 25,255,769 B
+across 117 entries, with the full Dart AOT `App.framework/App` at 7,993,856 B
+and `Flutter` at 9,273,600 B. Recorded explicitly because a 2x size delta
+between consecutive builds is exactly the kind of figure that should be
+explained rather than left to be rediscovered.
+
+> **Kept verbatim. SUPERSEDED — this explanation is WRONG.** The cause is not
+> compression: 215 carries a 63,197,776 B / 5-entry `Symbols/` payload that 216
+> lacks entirely, because `uploadSymbols` was `true` for 215 and `false` for 216.
+> See "Correction 2" below. The app-payload figures in the paragraph above are
+> correct and still stand.
+
+## Bundled production configuration
+
+Byte-identical to the tracked production `.env` in **both** artifacts —
+sha256 `71ad44e3792843ec48b6618e9d38a1fe9e68edff4d5aa46a623d9ef672dffb96`,
+1,220 B (`base/assets/flutter_assets/.env` in the AAB,
+`Payload/Runner.app/Frameworks/App.framework/flutter_assets/.env` in the IPA).
+
+No DSN and no Sentry auth token in either release binary: `sentry.io`,
+`ingest.sentry` and `sntrys_` are all absent, and `SENTRY_DSN` is not declared
+in `.env` at all. Feedback and Support Chat control strings are absent from
+both `libapp.so` and `App.framework/App` — tree-shaken, because both flags are
+`bool.fromEnvironment` with no default and zero dart-defines were passed.
+
+## Neutral-path scanner — clean on every upload input
+
+| Input set | Files | Prohibited | Input errors | Result |
+|---|---|---|---|---|
+| AAB + embedded native symbol tables + shipped native libs | 33 | 0 | 0 | **CLEAN** |
+| IPA + `Runner.xcarchive` | 99 | 0 | 0 | **CLEAN** |
+| `Runner.xcarchive/dSYMs` (explicit) | 14 | 0 | 0 | **CLEAN** |
+
+Only informational `toolchain_path` hits (`/usr/lib/`, `/opt/homebrew/`), which
+`docs/NEUTRAL_BUILD_POLICY.md` explicitly never treats as a failure.
+
+### A real finding, caught and fixed before any artifact was signed
+
+Before the signed pass, an **unsigned** validation build was run without an
+explicit `-derivedDataPath`. It used Xcode's default personal DerivedData and
+the scanner **failed** it: 79 files, 2 prohibited findings —
+`personal_home_macos` and `configured_personal_name` — both in the `Runner`
+binary. The cause was confirmed by inspection, not guessed.
+
+With the explicit neutral `-derivedDataPath`, that same binary inside the
+archive reports only `toolchain_path /usr/lib/`, and so does
+`dSYMs/Runner.app.dSYM/Contents/Resources/DWARF/Runner`. **Both findings are
+absent.** This closes the build-214 failure mode, where a symbolicated
+`abs_path` exposed the build engineer's username. The contaminated intermediate
+was never signed, never archived and never exported, and has since been deleted
+along with that one personal DerivedData directory — both regenerable, deleted
+permanently (`rm -rf`, not to Trash).
+
+## Verification executed in the build worktree
+
+66 tests passed, 0 failed, across `build_identity_test`,
+`internal_build_config_test`, `home_disclosure_copy_test` (COPY-001),
+`out_of_region_manual_search_test` (UX-002) and `facility_attribution_test`
+(footer reachable, licences, disclaimers, 44px targets).
+
+**No clinical, assessment, ordering or filtering change relative to the
+reviewed 215 source** (`d84fdac`): `lib/core/engine/`,
+`lib/features/assessment/` and `test/engine/` are byte-untouched; only four
+`lib/` files differ, and the locator diff contains no sort, compare, filter,
+rank or `emergency_capable` change — display only.
+
+Source tree clean at the exact build SHA with no tracked file modified: the
+pbxproj was not edited, `DEVELOPMENT_TEAM=2SCUC2CBBS` was passed as a build
+flag.
+
+## Still open, unchanged by this entry
+
+CB_211 clinical adjudication before any external cohort; the danger-sign label
+review; physical-device smoke testing; and everything in the store-submission
+blockers. A signed artifact on disk is not a store state, and this entry claims
+no store availability of any kind.
+
+---
+
+# Build 216 — founder confirmation: both platforms uploaded, iOS processed and exercised
+
+**Date:** 2026-10-02 · **Source of every statement below:** the founder's
+direct report, recorded as such. Engineering has access to neither store
+console, so nothing here is an engineering measurement of store state.
+
+## Supersession notice — read with the entry above, which is NOT rewritten
+
+The preceding entry states **"The Android AAB has not been uploaded."** That was
+true when written and is **superseded** by this entry. The earlier wording is
+left verbatim above, as is this file's practice: an absence recorded here means
+"not done **as of that entry**", never "impossible". The same correction is
+reflected in the build-216 registry entry in
+`test/release/build_identity_test.dart`.
+
+## Android — UPLOADED ONLY
+
+**The founder uploaded the prepared build-216 AAB to the existing Google Play
+Internal testing track on 2026-10-02.** Attributed to the founder.
+
+| | |
+|---|---|
+| Artifact | `/Users/Shared/wellapath-build-216/src/build/app/outputs/bundle/release/app-release.aab` |
+| SHA-256 | `2135ecf0f2c7fc53091c71ac4ef697c8f9a4ef6f35d3c1a8c9d5b6248b5d66da` |
+| Version | `0.3.0` · version code `216` · package `org.wellapath.app` |
+
+**Recorded status: "uploaded to the existing Internal testing track" — nothing
+further.** No Play release ID, no processing timestamp, no tester count and no
+statement that the build is processed, active or available to testers. None of
+those was observed, and inventing any of them would defeat the purpose of this
+record. The existing Internal testing track and app record were used; no new
+application was created, and no Play App Signing decision arose (the upload
+certificate fingerprint is byte-identical to builds 211 and 215).
+
+## iOS — uploaded, processed, and exercised. Separate facts.
+
+These are deliberately recorded as distinct claims with distinct sources,
+because they are different kinds of fact and the first does not imply the rest.
+
+1. **Engineering uploaded build 216** to App Store Connect from the verified
+   `Runner.xcarchive`, via the authenticated Xcode account flow
+   (`xcodebuild -exportArchive`, `destination=upload`). The call returned
+   *"Upload succeeded — uploaded package is processing"*. Engineering fact.
+2. **Apple processed it and made it available** through the existing TestFlight
+   internal-testing setup: build `0.3.0 (216)` appeared in TestFlight. Founder
+   observation, 2026-10-02. This is the separate confirmation that the upload
+   call alone never provided.
+3. **The founder installed the TestFlight update** on an iPhone, launched
+   WellaPath and observed that **it worked as expected**. Founder observation.
+4. **This is a founder observation, not an automated measurement**, and not a
+   comprehensive Nigerian geographic validation. No acceptance suite produced
+   it; it is not a clinical sign-off and not a performance result.
+5. **The build remains TestFlight Internal Only.** It was not offered to
+   external testers and was not submitted for Beta App Review; the export
+   carries `testFlightInternalTestingOnly = true`, which bars both for this
+   build by construction rather than by policy.
+
+## The uploaded-container hash caveat, stated precisely
+
+App Store Connect received a **repackaged export** produced from the verified
+archive by the `destination=upload` run. **Do not claim that the uploaded
+container has the earlier IPA file's SHA-256**
+(`3b433576cf5314afe661d0ba941cb192b5536949554d870dff8abf52155fda85`) — that hash
+belongs to the export-only IPA on disk, and the uploaded container's own hash
+was never computed and is not recorded.
+
+What **is** established for the uploaded build: the single source archive
+`Runner.xcarchive`, the Apple Distribution identity
+(cert SHA-1 `6F191637AA0968B1E1529044D56E93B89AEEF649`, Team `2SCUC2CBBS`), the
+existing profile `iOS Team Store Provisioning Profile: org.wellapath.app`
+(UUID `daebf88b-ed39-45b4-914b-a627cf76831d`), and the scanner results over that
+archive and its dSYMs (99 and 14 files, 0 prohibited findings).
+
+> **Kept verbatim. Refined below** — this applies to the sentence immediately
+> above, not to the hash limitation before it, which is correct and unqualified.
+> Xcode's upload record in the archive corroborates the **certificate and team**
+> for the uploaded build, so those are recorded; the **provisioning profile
+> UUID** is not in that record and remains inferred. See "Correction 4" below.
+
+## Scope limits on this entry
+
+**No public, external or production distribution** of any kind is claimed on
+either platform. **Builds 211 and 215 remain retained and available**, not
+promoted, replaced or deleted. CB_211 clinical adjudication, the danger-sign
+label review and the store-submission blockers are all untouched by this entry.
+
+## What is still missing for the evidence PR
+
+The Android side is recorded as **uploaded only**. The evidence branch therefore
+stays local until the founder confirms, from a Play Console read, whether build
+216 is **processed/active and available to the existing internal testers** — in
+the founder's own observed wording, not a paraphrase.
+
+---
+
+# Build 216 — Google Play Console state observed: Internal testing ACTIVE
+
+**Date of founder observation:** 2026-10-02 · **Source:** the founder's direct
+Play Console read. Engineering has no Play Console access, so every status
+statement below is the founder's observation, recorded as such.
+
+## Supersession notice — the earlier entries are NOT rewritten
+
+The two preceding entries record Android first as **"not uploaded"** and then as
+**"uploaded to the existing Internal testing track"** with no processing state
+claimed. Both were true when written. The second is **superseded** by this later
+Play Console observation, which supplies the status the earlier entry
+deliberately left open. Both earlier wordings stand verbatim above; the same
+correction is reflected in the build-216 registry entry in
+`test/release/build_identity_test.dart`.
+
+## Founder-observed Play Console state
+
+| | |
+|---|---|
+| App / package | `org.wellapath.app` |
+| Release | `0.3.0 (216)` · version code `216` |
+| Track | the **existing** Google Play **Internal testing** track |
+| Status shown by Play Console | **Active** |
+| Not shown as | draft, uploading, pending, or in review |
+| Availability | active for the **existing internal testers** on that track |
+| Builds 211 and 215 | **retained and available** — neither deleted nor replaced |
+
+**No release ID, activation timestamp or tester count is recorded**, because
+none was observed. Inventing any of them would defeat the purpose of this file.
+
+## Distribution evidence for build 216 — now complete on both platforms
+
+* **Android 216** — founder uploaded to the existing Internal testing track;
+  Play Console status observed as **Active** for the existing internal testers.
+* **iOS 216** — **engineering** established the archive and performed the
+  upload. Everything after that is **founder observation**, because engineering
+  has no store-console access: the **founder observed** that Apple processed the
+  build, that it became available through **TestFlight Internal**, and that it
+  installed and launched successfully on an iPhone. Each of those is a founder
+  observation, not an automated measurement and not a comprehensive Nigerian
+  geographic validation.
+* **Builds 211 and 215** — retained and available on both platforms.
+* **No external, open-testing or production promotion** on either platform. The
+  iOS export carries `testFlightInternalTestingOnly = true`, which bars external
+  testing and Beta App Review for that build by construction; the Android side
+  rests on the founder's confirmation that only the Internal track was used.
+
+## What this does and does not settle
+
+It settles store **state** for build 216 on both platforms, which is what the
+earlier entries left open. It settles nothing clinical: **CB_211 adjudication
+before any external cohort**, the danger-sign label review, physical-device
+smoke testing beyond the founder's own handset, and the store-submission
+blockers are all untouched. Internal testing being active on both platforms
+does not move any of them.
+
+The uploaded-iOS-container hash caveat from the previous entry stands unchanged:
+App Store Connect received a repackaged export from the verified archive, so the
+uploaded container does **not** carry the export-only IPA's SHA-256, and its own
+hash was never computed.
+
+---
+
+# Build 216 — corrections from independent review of PR #96
+
+**Date:** 2026-10-02 · **Source:** an independent adversarial review of PR #96
+that re-derived every hash, size, fingerprint, scanner count and test count
+from primary evidence. All quantitative claims verified exact. Two narrative
+claims did not survive, and both were mine. Recorded here rather than quietly
+fixed.
+
+## Correction 1 — a paragraph was DELETED, not superseded, and then cited as standing
+
+Commit `e33c81f` **deleted** the following paragraph from the build-216 entry
+instead of superseding it (`16` added, `4` removed on `PROGRESS.md`). The PR #96
+description then asserted *"PROGRESS.md is append-only here"* and that *"each
+earlier wording stands verbatim"*, quoting this paragraph's first sentence as
+though it were still in the file. It was not: `grep` for it returned nothing.
+
+**Restored verbatim:**
+
+> **Nothing has been uploaded to either console.** No Play release, no TestFlight
+> submission, no processing outcome observed, no tester availability claimed.
+> Both uploads remain founder console actions; engineering has access to neither
+> console. Builds 211 and 215 were not promoted, replaced or deleted.
+
+That paragraph was true when written and is **superseded** by the later
+entries: iOS uploaded by engineering and processed by Apple, Android uploaded by
+the founder and observed **Active** on the Internal testing track.
+
+This is the same failure this file already records against commit `6116ba3` —
+deleting a block rather than superseding it, while asserting it still stood. The
+lesson recorded there was *"the author of a record is the worst person to audit
+it."* That held again: the deletion was caught by independent review, not by the
+author. The claim that this file was append-only across PR #96 is withdrawn.
+
+## Correction 2 — the IPA size difference was NOT zip compression
+
+The previous entry and the registry both explained 216's smaller IPA
+(12,619,526 B vs 215's 26,596,891 B) as *"zip compression, not missing
+content"*. **That explanation is wrong.** It compared 216's *uncompressed* total
+against 215's *compressed* size.
+
+Measured:
+
+| | 215 IPA | 216 IPA |
+|---|---|---|
+| compressed | 26,596,891 B | 12,619,526 B |
+| uncompressed | **88,420,485 B** | **25,255,769 B** |
+| entries | 122 | 117 |
+| top-level dirs | Payload, Signatures, **Symbols** | Payload, Signatures |
+| `Symbols/` payload | **63,197,776 B in 5 entries** | **absent** |
+| `App.framework/App` | 7,960,832 B | 7,993,856 B |
+
+88,420,485 − 63,197,776 = 25,222,709 against 216's measured 25,255,769, and
+122 − 5 = 117. The difference is **the absent `Symbols/` payload**, not
+compression. The 33,060 B residual is accounted for by 216's slightly larger
+`App.framework/App` (7,993,856 B vs 215's 7,960,832 B = 33,024 B) plus 36 B
+elsewhere — so "entirely" would be loose; the symbols payload is the whole of the
+*explanation*, not quite the whole of the arithmetic.
+
+**Real cause:** `uploadSymbols` was `false` in both 216 export options plists;
+215's `ExportOptionsUpload.plist` had it `true`.
+
+**The consequence, previously undisclosed:** **no dSYMs were uploaded to App
+Store Connect for build 216**, where 215 did send them. Apple-side crash
+symbolication for 216 on TestFlight Internal is therefore degraded relative to
+215. This is an operational regression, it was not stated anywhere in the
+evidence record, and it is a consequence of a build-option choice made without
+flagging it.
+
+What the earlier claim got right and remains true: the **app payload is
+intact** — the full Dart AOT `App.framework/App` is present at 7,993,856 B
+(larger than 215's 7,960,832 B), and `Flutter` at 9,273,600 B. Nothing the app
+needs to run is missing. Only the symbol payload is.
+
+### The symbolication fallback — a mitigation, NOT an equivalent
+
+**Build 216 was uploaded without Apple-hosted symbols. Matching local dSYMs
+remain preserved with the archive, and their UUIDs match the shipped binaries, so
+downloaded crash reports can be symbolicated locally. Automatic Apple-side
+symbolication is unavailable for this build.**
+
+Independently verified with `dwarfdump --uuid`, against the binaries inside the
+exported IPA — not merely against the archive:
+
+| Binary | UUID |
+|---|---|
+| `Runner` (archive, dSYM, and IPA) | `3EBDB720-FB31-3B47-83B2-0C71936709DD` |
+| `App.framework/App` (dSYM and IPA) | `0C7143A3-8E4B-E618-4C4F-F30216005C2E` |
+
+This is **not** equivalent to uploading symbols: it requires someone to download
+each crash report and symbolicate it by hand against the preserved archive, and
+it does nothing for Apple's own aggregated crash dashboards. It makes the
+regression recoverable, not absent. A second private copy of the archive and its
+complete dSYMs is preserved under `~/wellapath-private-data/build-216-symbols/`
+(mode 700/600, outside any repository) for the observation period.
+
+## Correction 3 — certificate continuity: true, now actually sourced
+
+The registry asserted 216's Android upload certificate had a "byte-identical
+fingerprint to builds 211 and 215". The claim is **true**, and so was that
+wording. An earlier revision of this section quoted it as "byte-identical to
+builds 211 and 215" — eliding **fingerprint** inside the quote marks, with no
+ellipsis — and then faulted it as "imprecise for a digest comparison". **That
+criticism was false and is withdrawn:** the two SHA-256 fingerprints are
+genuinely byte-identical, so "byte-identical fingerprint" was accurate. The
+elision shifted the predicate from the fingerprint to the certificate, which is
+the only reason the charge appeared to land. The exact historical wording, at
+`d48e3e2:test/release/build_identity_test.dart:150` and
+`d48e3e2:PROGRESS.md:5669`, is "byte-identical fingerprint to builds 211 and
+215". One half of the earlier
+reasoning about the prior record was right and the other was wrong:
+
+* **211:** correct — 211's fingerprint is recorded nowhere in this repository,
+  only the subject DN "Wellapath upload key (CN=John Oluwaseyi)".
+* **215:** WRONG as earlier written. **The full Android upload-certificate
+  SHA-256 for build 215 was already present in the base `PROGRESS.md`** (line
+  5304, present verbatim at the base commit `34a331f`); **only the
+  build-identity registry entry was truncated.** An earlier revision of this
+  section claimed 215's was "recorded only truncated" without qualification,
+  which under-reported the repository's own evidence.
+
+This PR independently remeasured the signing identity used for builds 211, 215
+and 216.
+
+Measured first-hand from the preserved artifacts
+(`keytool -printcert -jarfile`):
+
+```
+211  WellaPath-211.aab  94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:
+                        24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36
+215  WellaPath-215.aab  (identical, all 32 bytes)
+216  app-release.aab    (identical, all 32 bytes)
+```
+
+Owner on all three: `CN=John Oluwaseyi, OU=Engineering, O=Wellapath, L=Lagos,
+ST=Lagos, C=NG`. The full fingerprint is now recorded so the chain rests on
+evidence.
+
+An earlier revision of this section ended here by calling "byte-identical"
+"imprecise for a digest comparison" and prescribing "identical SHA-256
+fingerprint" instead. **That criticism is withdrawn as false.** The prior wording
+was "byte-identical **fingerprint** to builds 211 and 215", which is accurate —
+the digests are byte-identical. Both phrasings are correct; the current registry
+wording is kept only because it is more explicit, not because the earlier one was
+wrong.
+
+## Correction 4 — the uploaded container: what is recorded, what is inferred
+
+**This correction was itself wrong on first writing and is corrected here.** An
+earlier revision of this section claimed the `destination=upload` run "retained
+no evidence … no captured log" and that the "Upload succeeded" string "exists
+only in narrative documents, never in a captured transcript".
+
+**Exactly one of those was false.** "Retained no evidence" was wrong — the
+archive holds the `Distributions` record below, which this record had failed to
+look for. But **"exists only in narrative documents" was CORRECT** and was
+wrongly withdrawn: `grep` across the whole build tree finds that phrase in
+**three** retained files — `evidence/PROGRESS.md`, `src/PROGRESS.md` and
+`logs/BUILD_216_CONSUMED.md` — **all three narrative**, and in **zero**
+machine-written artifacts. (An earlier revision of this section, and the commit
+message that carried it, said *four*; that count was wrong and is superseded
+here. The history is preserved, not amended.) The archive records the title
+"Uploaded to Apple", which is a different string. That statement is reinstated
+here.
+
+Under-reporting your own evidence is as much a provenance error as
+over-reporting it — and so is withdrawing a true statement. Both directions are
+recorded rather than quietly amended.
+
+**What Xcode actually recorded.** `Runner.xcarchive/Info.plist` →
+`ApplicationProperties` gives the archive identity, and a separate top-level
+`Distributions` array records the upload itself:
+
+```
+destination          upload
+uploadDestination    App Store
+uploadedBuildNumber  216
+teamID               2SCUC2CBBS
+certificateSHA1      6F191637AA0968B1E1529044D56E93B89AEEF649
+adamId               6812800867
+providerId           ab532e14-7fc2-4420-9f54-69b76c025c8e
+identifier           5ed4d85c-57e4-4902-a916-cc73dd12d106
+preparationEvent     "Prepared archive for uploading"  state=success  2026-10-02T10:26:54Z
+uploadEvent          "Uploaded to Apple"               state=success  2026-10-02T10:28:48Z
+```
+
+**No retained machine-generated artifact contains the literal phrase "Upload
+succeeded."** That phrase exists only in narrative records. Independently, the
+Xcode archive's `Distributions` record establishes build 216, certificate SHA-1
+`6F191637AA0968B1E1529044D56E93B89AEEF649`, upload event "Uploaded to Apple",
+state `success`, and timestamp `2026-10-02T10:28:48Z`.
+
+An earlier revision of this section cited a `13:28:48 EAT "Upload succeeded"`
+line as independent corroboration. **That was wrong twice over:** the session
+transcript is not a retained artifact, and `13:28:48` is merely `10:28:48Z`
+converted to UTC+3 — derived arithmetic, not a second source. The conversion is
+**not** offered as evidence here. The archive record alone establishes the upload.
+
+**So the uploaded container's signing certificate is RECORDED, not inferred:**
+`certificateSHA1 6F191637AA0968B1E1529044D56E93B89AEEF649` is the same Apple
+Distribution certificate as the verified export, written by Xcode at upload time.
+
+**What genuinely remains unestablished, and only this:**
+
+* **The uploaded container's bytes and hash.** No container was retained and no
+  hash field exists anywhere in the record. The hash is unknown — unchanged.
+* **The provisioning profile UUID** for the upload. The `Distributions` record
+  does not carry it, so the profile (as distinct from the certificate) is
+  inferred from export options identical to the verified export but for
+  `destination`.
+* **No `DistributionSummary.plist` and no standalone log file** for the upload
+  run. That part of the earlier wording was right; "retained no evidence" was
+  not, because the archive record above is evidence.
+
+**On the archive's own signature** — still true: `ApplicationProperties`
+→ `SigningIdentity = "Apple Development: JOHN OLUWASEYI (7F44V7HBXP)"`. The
+archive is Development-signed and the Distribution identity is applied at export.
+(The earlier wording cited this as a top-level `Info.plist` key; it is nested
+under `ApplicationProperties`.)
+
+**Net effect on the comparison with 215:** 216 has no standalone upload log where
+215 preserved `upload215.log`, but 216's archive carries a structured upload
+record with a success state and a matching certificate. The 216 chain is
+therefore **not** weaker overall, as the earlier revision asserted — it is
+differently shaped. The one thing neither build establishes is the uploaded
+container's hash.
+
+## Minor corrections
+
+* The registry's own header says entries are *"never edited or removed"*, yet
+  the 216 entry was revised repeatedly during this branch as facts arrived; the
+  commit history preserves each correction.
+  Defensible while the entry is still being authored pre-merge, but it was not
+  disclosed in the PR description.
+* One registry sentence describes only the `destination=export` run as though it
+  were the complete account; a second `destination=upload` export also ran.
+* The tracker header at the top of this file still reads *"internal-testing
+  build `0.3.0+210`"*, *"awaiting console access + upload authorization"* and
+  *"Last Updated: 2026-09-12 … nothing uploaded to any store or tester track"*.
+  **Pre-existing, not introduced by this branch**, but it now contradicts this
+  file's tail by two platforms and six build numbers.
+
+## What the review confirmed exact
+
+Every hash, size and fingerprint; all three scanner results (33 / 99 / 14 files,
+0 prohibited findings); the independent absence of the builder's username from
+both the archive `Runner` binary and the dSYM DWARF; the bundled `.env`
+byte-identity in both artifacts; the tree-shaking of Feedback and Support Chat;
+`SENTRY_DSN` absent from `.env`; the 217 bump and registry consistency; the
+byte-untouched clinical paths; and all test and analyzer counts
+(94 / 1,605+7 skipped / no issues).
+
+One clarification it added, worth keeping: `Sentry.framework` 8.58.4 is embedded
+in the IPA and `libsentry.so` ships in the AAB. "No DSN" means the SDK is
+present but unconfigured — it does not mean no crash-reporting code is shipped.
