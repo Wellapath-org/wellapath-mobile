@@ -177,10 +177,17 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'compile-time false). INTERNAL TESTING ONLY — must never be promoted '
       'beyond the Play Internal track or the TestFlight internal group. The '
       'number is consumed because signed release artifacts exist, '
-      'independently of store processing: as of this entry NOTHING has been '
-      'uploaded to either console and no Play or TestFlight processing outcome '
-      'has been observed. Builds 211 and 215 were not promoted, replaced or '
-      'deleted',
+      'independently of store processing. UPLOAD STATE: the iOS build was '
+      'uploaded to App Store Connect on 2026-10-02 via the authenticated Xcode '
+      'account flow (xcodebuild -exportArchive, destination=upload, from this '
+      'same archive), and the call returned "Upload succeeded — uploaded '
+      'package is processing". That is the upload CALL succeeding and is NOT '
+      'evidence of TestFlight availability: no processing outcome and no tester '
+      'availability has been observed in the console. The uploaded package was '
+      'repackaged by that upload export, so its bytes are not the '
+      'export-only IPA hashed above; both came from this one archive. The '
+      'Android AAB has NOT been uploaded. Builds 211 and 215 were not '
+      'promoted, replaced or deleted',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.

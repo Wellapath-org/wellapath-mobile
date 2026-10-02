@@ -5652,10 +5652,22 @@ store processing, and must not be reused or rebuilt from different source. The
 registry entry and the advance to **217** are in
 `test/release/build_identity_test.dart`, with `pubspec.yaml` at `0.3.0+217`.
 
-**Nothing has been uploaded to either console.** No Play release, no TestFlight
-submission, no processing outcome observed, no tester availability claimed.
-Both uploads remain founder console actions; engineering has access to neither
-console. Builds 211 and 215 were not promoted, replaced or deleted.
+**iOS UPLOADED 2026-10-02; Android NOT uploaded.** The iOS build was uploaded
+to App Store Connect at the founder's explicit instruction, from this same
+archive, via the authenticated Xcode account flow (`xcodebuild -exportArchive`,
+`destination=upload`). The call returned *"Upload succeeded — uploaded package
+is processing"*. **That is the upload call succeeding and is not evidence of
+TestFlight availability** — no processing outcome and no tester availability has
+been observed in the console, and none is claimed here. No App Store review or
+external beta was submitted: the export carries
+`testFlightInternalTestingOnly = true`, which bars external testing and Beta App
+Review for this build by construction. The Android AAB has **not** been
+uploaded. Builds 211 and 215 were not promoted, replaced or deleted.
+
+A note on artifact identity, because it matters for provenance: the upload
+export repackaged the IPA, so the bytes App Store Connect received are **not**
+the `3b433576…fda85` export-only IPA recorded below. Both were produced from the
+single archive `Runner.xcarchive`, with the same signing identity and profile.
 
 ## Android artifact
 
