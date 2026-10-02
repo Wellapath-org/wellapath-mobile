@@ -5860,3 +5860,65 @@ The Android side is recorded as **uploaded only**. The evidence branch therefore
 stays local until the founder confirms, from a Play Console read, whether build
 216 is **processed/active and available to the existing internal testers** — in
 the founder's own observed wording, not a paraphrase.
+
+---
+
+# Build 216 — Google Play Console state observed: Internal testing ACTIVE
+
+**Date of founder observation:** 2026-10-02 · **Source:** the founder's direct
+Play Console read. Engineering has no Play Console access, so every status
+statement below is the founder's observation, recorded as such.
+
+## Supersession notice — the earlier entries are NOT rewritten
+
+The two preceding entries record Android first as **"not uploaded"** and then as
+**"uploaded to the existing Internal testing track"** with no processing state
+claimed. Both were true when written. The second is **superseded** by this later
+Play Console observation, which supplies the status the earlier entry
+deliberately left open. Both earlier wordings stand verbatim above; the same
+correction is reflected in the build-216 registry entry in
+`test/release/build_identity_test.dart`.
+
+## Founder-observed Play Console state
+
+| | |
+|---|---|
+| App / package | `org.wellapath.app` |
+| Release | `0.3.0 (216)` · version code `216` |
+| Track | the **existing** Google Play **Internal testing** track |
+| Status shown by Play Console | **Active** |
+| Not shown as | draft, uploading, pending, or in review |
+| Availability | active for the **existing internal testers** on that track |
+| Builds 211 and 215 | **retained and available** — neither deleted nor replaced |
+
+**No release ID, activation timestamp or tester count is recorded**, because
+none was observed. Inventing any of them would defeat the purpose of this file.
+
+## Distribution evidence for build 216 — now complete on both platforms
+
+* **Android 216** — founder uploaded to the existing Internal testing track;
+  Play Console status observed as **Active** for the existing internal testers.
+* **iOS 216** — engineering uploaded from the verified archive; **Apple
+  processed it**; it became available through **TestFlight Internal**; the
+  founder installed it and tested it successfully. Still subject to the earlier
+  entry's qualification: that last point is a founder observation, not an
+  automated measurement and not a comprehensive Nigerian geographic validation.
+* **Builds 211 and 215** — retained and available on both platforms.
+* **No external, open-testing or production promotion** on either platform. The
+  iOS export carries `testFlightInternalTestingOnly = true`, which bars external
+  testing and Beta App Review for that build by construction; the Android side
+  rests on the founder's confirmation that only the Internal track was used.
+
+## What this does and does not settle
+
+It settles store **state** for build 216 on both platforms, which is what the
+earlier entries left open. It settles nothing clinical: **CB_211 adjudication
+before any external cohort**, the danger-sign label review, physical-device
+smoke testing beyond the founder's own handset, and the store-submission
+blockers are all untouched. Internal testing being active on both platforms
+does not move any of them.
+
+The uploaded-iOS-container hash caveat from the previous entry stands unchanged:
+App Store Connect received a repackaged export from the verified archive, so the
+uploaded container does **not** carry the export-only IPA's SHA-256, and its own
+hash was never computed.
