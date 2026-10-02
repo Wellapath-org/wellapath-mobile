@@ -5677,6 +5677,12 @@ export repackaged the IPA, so the bytes App Store Connect received are **not**
 the `3b433576…fda85` export-only IPA recorded below. Both were produced from the
 single archive `Runner.xcarchive`, with the same signing identity and profile.
 
+> **Kept verbatim. Partly superseded** — see "corrections from independent
+> review of PR #96" below. The uploaded container's signing **certificate** is
+> corroborated by Xcode's own upload record in the archive
+> (`Distributions[0].certificateSHA1`); the **provisioning profile** is the part
+> that is inferred rather than recorded.
+
 ## Android artifact
 
 | | |
@@ -5686,7 +5692,7 @@ single archive `Runner.xcarchive`, with the same signing identity and profile.
 | Size | 62,409,495 B |
 | Identity | `org.wellapath.app` · versionCode 216 · versionName 0.3.0 |
 | Signature | `jar verified.` — upload certificate SHA-256 `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` |
-| Continuity | **byte-identical fingerprint to builds 211 and 215** — the established upload key signed it, so no signing-ownership change and **no Play App Signing decision arises**. If the console presents one, that contradicts the confirmed state: stop without accepting. |
+| Continuity | **identical SHA-256 fingerprint to builds 211 and 215** (this line originally read "byte-identical", which is imprecise for a digest comparison; all three full fingerprints are now recorded below) — the established upload key signed it, so no signing-ownership change and **no Play App Signing decision arises**. If the console presents one, that contradicts the confirmed state: stop without accepting. |
 
 ## iOS artifact
 
@@ -5714,6 +5720,12 @@ across 117 entries, with the full Dart AOT `App.framework/App` at 7,993,856 B
 and `Flutter` at 9,273,600 B. Recorded explicitly because a 2x size delta
 between consecutive builds is exactly the kind of figure that should be
 explained rather than left to be rediscovered.
+
+> **Kept verbatim. SUPERSEDED — this explanation is WRONG.** The cause is not
+> compression: 215 carries a 63,197,776 B / 5-entry `Symbols/` payload that 216
+> lacks entirely, because `uploadSymbols` was `true` for 215 and `false` for 216.
+> See "Correction 2" below. The app-payload figures in the paragraph above are
+> correct and still stand.
 
 ## Bundled production configuration
 
@@ -5847,6 +5859,11 @@ container has the earlier IPA file's SHA-256**
 (`3b433576cf5314afe661d0ba941cb192b5536949554d870dff8abf52155fda85`) — that hash
 belongs to the export-only IPA on disk, and the uploaded container's own hash
 was never computed and is not recorded.
+
+> **Kept verbatim. Refined below** — Xcode's upload record in the archive
+> corroborates the certificate and team for the uploaded build, so this sentence
+> is sound on those; the **provisioning profile UUID** is not in that record and
+> remains inferred. See "Correction 4" below.
 
 What **is** established for the uploaded build: the single source archive
 `Runner.xcarchive`, the Apple Distribution identity
@@ -5984,8 +6001,12 @@ Measured:
 | `Symbols/` payload | **63,197,776 B in 5 entries** | **absent** |
 | `App.framework/App` | 7,960,832 B | 7,993,856 B |
 
-88,420,485 − 63,197,776 = 25,222,709, and 122 − 5 = 117. The difference is
-**entirely the absent `Symbols/` payload**, not compression.
+88,420,485 − 63,197,776 = 25,222,709 against 216's measured 25,255,769, and
+122 − 5 = 117. The difference is **the absent `Symbols/` payload**, not
+compression. The 33,060 B residual is accounted for by 216's slightly larger
+`App.framework/App` (7,993,856 B vs 215's 7,960,832 B = 33,024 B) plus 36 B
+elsewhere — so "entirely" would be loose; the symbols payload is the whole of the
+*explanation*, not quite the whole of the arithmetic.
 
 **Real cause:** `uploadSymbols` was `false` in both 216 export options plists;
 215's `ExportOptionsUpload.plist` had it `true`.
@@ -6026,28 +6047,66 @@ ST=Lagos, C=NG`. The full fingerprint is now recorded so the chain rests on
 evidence. "Byte-identical" is also imprecise for a digest comparison; the
 accurate phrasing is **identical SHA-256 fingerprint**.
 
-## Correction 4 — the uploaded iOS container's identity is INFERRED, not established
+## Correction 4 — the uploaded container: what is recorded, what is inferred
 
-The record said the Apple Distribution identity and profile were "established"
-for the uploaded build. They are not, strictly:
+**This correction was itself wrong on first writing and is corrected here.** An
+earlier revision of this section claimed the `destination=upload` run "retained
+no evidence … no captured log" and that the "Upload succeeded" string "exists
+only in narrative documents, never in a captured transcript". **Both statements
+are false.** A second independent review found machine-written upload evidence
+inside the archive that this record had failed to look for. Under-reporting your
+own evidence is as much a provenance error as over-reporting it, so it is
+recorded rather than quietly amended.
 
-* The **archive is Apple Development-signed** —
-  `Runner.xcarchive/Info.plist` → `SigningIdentity = "Apple Development: JOHN
-  OLUWASEYI (7F44V7HBXP)"`. The Distribution identity is a property of each
-  *export*, not of the archive.
-* The `destination=upload` run **retained no evidence**: no
-  `DistributionSummary.plist`, no output container, no hash, and no captured log.
-  Only the `destination=export` run left a summary. Build 215, by contrast,
-  preserved `upload215.log` containing its "Upload succeeded" string.
+**What Xcode actually recorded.** `Runner.xcarchive/Info.plist` →
+`ApplicationProperties` gives the archive identity, and a separate top-level
+`Distributions` array records the upload itself:
 
-So for the uploaded container, the signing identity and profile are **inferred**
-from export options that differ from the verified export only in `destination`.
-That is a reasonable inference and is almost certainly correct — App Store
-Connect rejects development-signed uploads — but it is an inference, and the 216
-evidence chain is **weaker than 215's** on exactly the point PR #96 asked
-reviewers to scrutinise. The "Upload succeeded — uploaded package is processing"
-string for 216 exists only in narrative documents, never in a captured
-transcript.
+```
+destination          upload
+uploadDestination    App Store
+uploadedBuildNumber  216
+teamID               2SCUC2CBBS
+certificateSHA1      6F191637AA0968B1E1529044D56E93B89AEEF649
+adamId               6812800867
+providerId           ab532e14-7fc2-4420-9f54-69b76c025c8e
+identifier           5ed4d85c-57e4-4902-a916-cc73dd12d106
+preparationEvent     "Prepared archive for uploading"  state=success  2026-10-02T10:26:54Z
+uploadEvent          "Uploaded to Apple"               state=success  2026-10-02T10:28:48Z
+```
+
+`uploadEvent` at `10:28:48Z` corresponds exactly to the `13:28:48` local (EAT =
+UTC+3) "Upload succeeded" line in the session's terminal output, which
+independently corroborates that transcript rather than relying on it.
+
+**So the uploaded container's signing certificate is RECORDED, not inferred:**
+`certificateSHA1 6F191637AA0968B1E1529044D56E93B89AEEF649` is the same Apple
+Distribution certificate as the verified export, written by Xcode at upload time.
+
+**What genuinely remains unestablished, and only this:**
+
+* **The uploaded container's bytes and hash.** No container was retained and no
+  hash field exists anywhere in the record. The hash is unknown — unchanged.
+* **The provisioning profile UUID** for the upload. The `Distributions` record
+  does not carry it, so the profile (as distinct from the certificate) is
+  inferred from export options identical to the verified export but for
+  `destination`.
+* **No `DistributionSummary.plist` and no standalone log file** for the upload
+  run. That part of the earlier wording was right; "retained no evidence" was
+  not, because the archive record above is evidence.
+
+**On the archive's own signature** — still true: `ApplicationProperties`
+→ `SigningIdentity = "Apple Development: JOHN OLUWASEYI (7F44V7HBXP)"`. The
+archive is Development-signed and the Distribution identity is applied at export.
+(The earlier wording cited this as a top-level `Info.plist` key; it is nested
+under `ApplicationProperties`.)
+
+**Net effect on the comparison with 215:** 216 has no standalone upload log where
+215 preserved `upload215.log`, but 216's archive carries a structured upload
+record with a success state and a matching certificate. The 216 chain is
+therefore **not** weaker overall, as the earlier revision asserted — it is
+differently shaped. The one thing neither build establishes is the uploaded
+container's hash.
 
 ## Minor corrections
 
