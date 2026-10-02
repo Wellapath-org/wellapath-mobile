@@ -5771,3 +5771,92 @@ CB_211 clinical adjudication before any external cohort; the danger-sign label
 review; physical-device smoke testing; and everything in the store-submission
 blockers. A signed artifact on disk is not a store state, and this entry claims
 no store availability of any kind.
+
+---
+
+# Build 216 — founder confirmation: both platforms uploaded, iOS processed and exercised
+
+**Date:** 2026-10-02 · **Source of every statement below:** the founder's
+direct report, recorded as such. Engineering has access to neither store
+console, so nothing here is an engineering measurement of store state.
+
+## Supersession notice — read with the entry above, which is NOT rewritten
+
+The preceding entry states **"The Android AAB has not been uploaded."** That was
+true when written and is **superseded** by this entry. The earlier wording is
+left verbatim above, as is this file's practice: an absence recorded here means
+"not done **as of that entry**", never "impossible". The same correction is
+reflected in the build-216 registry entry in
+`test/release/build_identity_test.dart`.
+
+## Android — UPLOADED ONLY
+
+**The founder uploaded the prepared build-216 AAB to the existing Google Play
+Internal testing track on 2026-10-02.** Attributed to the founder.
+
+| | |
+|---|---|
+| Artifact | `/Users/Shared/wellapath-build-216/src/build/app/outputs/bundle/release/app-release.aab` |
+| SHA-256 | `2135ecf0f2c7fc53091c71ac4ef697c8f9a4ef6f35d3c1a8c9d5b6248b5d66da` |
+| Version | `0.3.0` · version code `216` · package `org.wellapath.app` |
+
+**Recorded status: "uploaded to the existing Internal testing track" — nothing
+further.** No Play release ID, no processing timestamp, no tester count and no
+statement that the build is processed, active or available to testers. None of
+those was observed, and inventing any of them would defeat the purpose of this
+record. The existing Internal testing track and app record were used; no new
+application was created, and no Play App Signing decision arose (the upload
+certificate fingerprint is byte-identical to builds 211 and 215).
+
+## iOS — uploaded, processed, and exercised. Four separate facts.
+
+These are deliberately recorded as distinct claims with distinct sources,
+because they are different kinds of fact and the first does not imply the rest.
+
+1. **Engineering uploaded build 216** to App Store Connect from the verified
+   `Runner.xcarchive`, via the authenticated Xcode account flow
+   (`xcodebuild -exportArchive`, `destination=upload`). The call returned
+   *"Upload succeeded — uploaded package is processing"*. Engineering fact.
+2. **Apple processed it and made it available** through the existing TestFlight
+   internal-testing setup: build `0.3.0 (216)` appeared in TestFlight. Founder
+   observation, 2026-10-02. This is the separate confirmation that the upload
+   call alone never provided.
+3. **The founder installed the TestFlight update** on an iPhone, launched
+   WellaPath and observed that **it worked as expected**. Founder observation.
+4. **This is a founder observation, not an automated measurement**, and not a
+   comprehensive Nigerian geographic validation. No acceptance suite produced
+   it; it is not a clinical sign-off and not a performance result.
+5. **The build remains TestFlight Internal Only.** It was not offered to
+   external testers and was not submitted for Beta App Review; the export
+   carries `testFlightInternalTestingOnly = true`, which bars both for this
+   build by construction rather than by policy.
+
+## The uploaded-container hash caveat, stated precisely
+
+App Store Connect received a **repackaged export** produced from the verified
+archive by the `destination=upload` run. **Do not claim that the uploaded
+container has the earlier IPA file's SHA-256**
+(`3b433576cf5314afe661d0ba941cb192b5536949554d870dff8abf52155fda85`) — that hash
+belongs to the export-only IPA on disk, and the uploaded container's own hash
+was never computed and is not recorded.
+
+What **is** established for the uploaded build: the single source archive
+`Runner.xcarchive`, the Apple Distribution identity
+(cert SHA-1 `6F191637AA0968B1E1529044D56E93B89AEEF649`, Team `2SCUC2CBBS`), the
+existing profile `iOS Team Store Provisioning Profile: org.wellapath.app`
+(UUID `daebf88b-ed39-45b4-914b-a627cf76831d`), and the scanner results over that
+archive and its dSYMs (99 and 14 files, 0 prohibited findings).
+
+## Scope limits on this entry
+
+**No public, external or production distribution** of any kind is claimed on
+either platform. **Builds 211 and 215 remain retained and available**, not
+promoted, replaced or deleted. CB_211 clinical adjudication, the danger-sign
+label review and the store-submission blockers are all untouched by this entry.
+
+## What is still missing for the evidence PR
+
+The Android side is recorded as **uploaded only**. The evidence branch therefore
+stays local until the founder confirms, from a Play Console read, whether build
+216 is **processed/active and available to the existing internal testers** — in
+the founder's own observed wording, not a paraphrase.
