@@ -5860,17 +5860,18 @@ container has the earlier IPA file's SHA-256**
 belongs to the export-only IPA on disk, and the uploaded container's own hash
 was never computed and is not recorded.
 
-> **Kept verbatim. Refined below** — Xcode's upload record in the archive
-> corroborates the certificate and team for the uploaded build, so this sentence
-> is sound on those; the **provisioning profile UUID** is not in that record and
-> remains inferred. See "Correction 4" below.
-
 What **is** established for the uploaded build: the single source archive
 `Runner.xcarchive`, the Apple Distribution identity
 (cert SHA-1 `6F191637AA0968B1E1529044D56E93B89AEEF649`, Team `2SCUC2CBBS`), the
 existing profile `iOS Team Store Provisioning Profile: org.wellapath.app`
 (UUID `daebf88b-ed39-45b4-914b-a627cf76831d`), and the scanner results over that
 archive and its dSYMs (99 and 14 files, 0 prohibited findings).
+
+> **Kept verbatim. Refined below** — this applies to the sentence immediately
+> above, not to the hash limitation before it, which is correct and unqualified.
+> Xcode's upload record in the archive corroborates the **certificate and team**
+> for the uploaded build, so those are recorded; the **provisioning profile
+> UUID** is not in that record and remains inferred. See "Correction 4" below.
 
 ## Scope limits on this entry
 
@@ -5923,11 +5924,13 @@ none was observed. Inventing any of them would defeat the purpose of this file.
 
 * **Android 216** — founder uploaded to the existing Internal testing track;
   Play Console status observed as **Active** for the existing internal testers.
-* **iOS 216** — engineering uploaded from the verified archive; **Apple
-  processed it**; it became available through **TestFlight Internal**; the
-  founder installed it and tested it successfully. Still subject to the earlier
-  entry's qualification: that last point is a founder observation, not an
-  automated measurement and not a comprehensive Nigerian geographic validation.
+* **iOS 216** — **engineering** established the archive and performed the
+  upload. Everything after that is **founder observation**, because engineering
+  has no store-console access: the **founder observed** that Apple processed the
+  build, that it became available through **TestFlight Internal**, and that it
+  installed and launched successfully on an iPhone. Each of those is a founder
+  observation, not an automated measurement and not a comprehensive Nigerian
+  geographic validation.
 * **Builds 211 and 215** — retained and available on both platforms.
 * **No external, open-testing or production promotion** on either platform. The
   iOS export carries `testFlightInternalTestingOnly = true`, which bars external
@@ -6023,14 +6026,45 @@ intact** — the full Dart AOT `App.framework/App` is present at 7,993,856 B
 (larger than 215's 7,960,832 B), and `Flutter` at 9,273,600 B. Nothing the app
 needs to run is missing. Only the symbol payload is.
 
+### The symbolication fallback — a mitigation, NOT an equivalent
+
+**Build 216 was uploaded without Apple-hosted symbols. Matching local dSYMs
+remain preserved with the archive, and their UUIDs match the shipped binaries, so
+downloaded crash reports can be symbolicated locally. Automatic Apple-side
+symbolication is unavailable for this build.**
+
+Independently verified with `dwarfdump --uuid`, against the binaries inside the
+exported IPA — not merely against the archive:
+
+| Binary | UUID |
+|---|---|
+| `Runner` (archive, dSYM, and IPA) | `3EBDB720-FB31-3B47-83B2-0C71936709DD` |
+| `App.framework/App` (dSYM and IPA) | `0C7143A3-8E4B-E618-4C4F-F30216005C2E` |
+
+This is **not** equivalent to uploading symbols: it requires someone to download
+each crash report and symbolicate it by hand against the preserved archive, and
+it does nothing for Apple's own aggregated crash dashboards. It makes the
+regression recoverable, not absent. A second private copy of the archive and its
+complete dSYMs is preserved under `~/wellapath-private-data/build-216-symbols/`
+(mode 700/600, outside any repository) for the observation period.
+
 ## Correction 3 — certificate continuity: true, now actually sourced
 
 The registry asserted 216's Android upload certificate is "byte-identical to
-builds 211 and 215". The claim is **true**, but was unsupported as written:
-**211's fingerprint is recorded nowhere in this repository** (only the subject
-DN "Wellapath upload key (CN=John Oluwaseyi)"), and 215's was recorded only
-truncated. The 215 entry asserted identity with 211 against no 211 fingerprint
-at all — an assertion inherited forward rather than evidence.
+builds 211 and 215". The claim is **true**. One half of the earlier
+reasoning about the prior record was right and the other was wrong:
+
+* **211:** correct — 211's fingerprint is recorded nowhere in this repository,
+  only the subject DN "Wellapath upload key (CN=John Oluwaseyi)".
+* **215:** WRONG as earlier written. **The full Android upload-certificate
+  SHA-256 for build 215 was already present in the base `PROGRESS.md`** (line
+  5304, present verbatim at the base commit `34a331f`); **only the
+  build-identity registry entry was truncated.** An earlier revision of this
+  section claimed 215's was "recorded only truncated" without qualification,
+  which under-reported the repository's own evidence.
+
+This PR independently remeasured the signing identity used for builds 211, 215
+and 216.
 
 Measured first-hand from the preserved artifacts
 (`keytool -printcert -jarfile`):
@@ -6052,10 +6086,18 @@ accurate phrasing is **identical SHA-256 fingerprint**.
 **This correction was itself wrong on first writing and is corrected here.** An
 earlier revision of this section claimed the `destination=upload` run "retained
 no evidence … no captured log" and that the "Upload succeeded" string "exists
-only in narrative documents, never in a captured transcript". **Both statements
-are false.** A second independent review found machine-written upload evidence
-inside the archive that this record had failed to look for. Under-reporting your
-own evidence is as much a provenance error as over-reporting it, so it is
+only in narrative documents, never in a captured transcript".
+
+**Exactly one of those was false.** "Retained no evidence" was wrong — the
+archive holds the `Distributions` record below, which this record had failed to
+look for. But **"exists only in narrative documents" was CORRECT** and was
+wrongly withdrawn: `grep` across the whole build tree finds that phrase in four
+files, all of them narrative, and in no machine-written file. The archive records
+the title "Uploaded to Apple", which is a different string. That statement is
+reinstated here.
+
+Under-reporting your own evidence is as much a provenance error as
+over-reporting it — and so is withdrawing a true statement. Both directions are
 recorded rather than quietly amended.
 
 **What Xcode actually recorded.** `Runner.xcarchive/Info.plist` →
@@ -6075,9 +6117,17 @@ preparationEvent     "Prepared archive for uploading"  state=success  2026-10-02
 uploadEvent          "Uploaded to Apple"               state=success  2026-10-02T10:28:48Z
 ```
 
-`uploadEvent` at `10:28:48Z` corresponds exactly to the `13:28:48` local (EAT =
-UTC+3) "Upload succeeded" line in the session's terminal output, which
-independently corroborates that transcript rather than relying on it.
+**No retained machine-generated artifact contains the literal phrase "Upload
+succeeded."** That phrase exists only in narrative records. Independently, the
+Xcode archive's `Distributions` record establishes build 216, certificate SHA-1
+`6F191637AA0968B1E1529044D56E93B89AEEF649`, upload event "Uploaded to Apple",
+state `success`, and timestamp `2026-10-02T10:28:48Z`.
+
+An earlier revision of this section cited a `13:28:48 EAT "Upload succeeded"`
+line as independent corroboration. **That was wrong twice over:** the session
+transcript is not a retained artifact, and `13:28:48` is merely `10:28:48Z`
+converted to UTC+3 — derived arithmetic, not a second source. The conversion is
+**not** offered as evidence here. The archive record alone establishes the upload.
 
 **So the uploaded container's signing certificate is RECORDED, not inferred:**
 `certificateSHA1 6F191637AA0968B1E1529044D56E93B89AEEF649` is the same Apple
