@@ -5636,6 +5636,11 @@ being live does not move any of them.
 
 # Build 216 BUILT and verified on both platforms — artifacts signed, NOTHING uploaded
 
+> **SUPERSEDED in part.** The "NOTHING uploaded" in this heading was true when
+> written and is no longer. Both platforms were later uploaded: iOS processed and
+> live on TestFlight Internal, Android observed **Active** on the Play Internal
+> testing track. The heading's original wording is kept; see the entries below.
+
 **Date:** 2026-10-02 · **Source:** `develop @
 34a331f4b47395df2084250fd6f53b86d30239e1` (tree `1d35237a…`, the merge of
 PR #94; CI "Flutter Lint & Build Check" **success**, run 36682391970, on that
@@ -5646,6 +5651,9 @@ was referenced by symlink and never copied or read. **Zero `--dart-define` of
 any kind was passed.**
 
 ## CURRENT STATUS: both signed artifacts produced and verified · build 216 CONSUMED · store upload and processing outcomes PENDING
+
+> **SUPERSEDED.** "PENDING" was true when written. Both store outcomes were later
+> observed and are recorded in the entries below. Wording kept, not rewritten.
 
 **216 is consumed** because signed release artifacts exist, independently of
 store processing, and must not be reused or rebuilt from different source. The
@@ -5922,3 +5930,149 @@ The uploaded-iOS-container hash caveat from the previous entry stands unchanged:
 App Store Connect received a repackaged export from the verified archive, so the
 uploaded container does **not** carry the export-only IPA's SHA-256, and its own
 hash was never computed.
+
+---
+
+# Build 216 — corrections from independent review of PR #96
+
+**Date:** 2026-10-02 · **Source:** an independent adversarial review of PR #96
+that re-derived every hash, size, fingerprint, scanner count and test count
+from primary evidence. All quantitative claims verified exact. Two narrative
+claims did not survive, and both were mine. Recorded here rather than quietly
+fixed.
+
+## Correction 1 — a paragraph was DELETED, not superseded, and then cited as standing
+
+Commit `e33c81f` **deleted** the following paragraph from the build-216 entry
+instead of superseding it (`16` added, `4` removed on `PROGRESS.md`). The PR #96
+description then asserted *"PROGRESS.md is append-only here"* and that *"each
+earlier wording stands verbatim"*, quoting this paragraph's first sentence as
+though it were still in the file. It was not: `grep` for it returned nothing.
+
+**Restored verbatim:**
+
+> **Nothing has been uploaded to either console.** No Play release, no TestFlight
+> submission, no processing outcome observed, no tester availability claimed.
+> Both uploads remain founder console actions; engineering has access to neither
+> console. Builds 211 and 215 were not promoted, replaced or deleted.
+
+That paragraph was true when written and is **superseded** by the later
+entries: iOS uploaded by engineering and processed by Apple, Android uploaded by
+the founder and observed **Active** on the Internal testing track.
+
+This is the same failure this file already records against commit `6116ba3` —
+deleting a block rather than superseding it, while asserting it still stood. The
+lesson recorded there was *"the author of a record is the worst person to audit
+it."* That held again: the deletion was caught by independent review, not by the
+author. The claim that this file was append-only across PR #96 is withdrawn.
+
+## Correction 2 — the IPA size difference was NOT zip compression
+
+The previous entry and the registry both explained 216's smaller IPA
+(12,619,526 B vs 215's 26,596,891 B) as *"zip compression, not missing
+content"*. **That explanation is wrong.** It compared 216's *uncompressed* total
+against 215's *compressed* size.
+
+Measured:
+
+| | 215 IPA | 216 IPA |
+|---|---|---|
+| compressed | 26,596,891 B | 12,619,526 B |
+| uncompressed | **88,420,485 B** | **25,255,769 B** |
+| entries | 122 | 117 |
+| top-level dirs | Payload, Signatures, **Symbols** | Payload, Signatures |
+| `Symbols/` payload | **63,197,776 B in 5 entries** | **absent** |
+| `App.framework/App` | 7,960,832 B | 7,993,856 B |
+
+88,420,485 − 63,197,776 = 25,222,709, and 122 − 5 = 117. The difference is
+**entirely the absent `Symbols/` payload**, not compression.
+
+**Real cause:** `uploadSymbols` was `false` in both 216 export options plists;
+215's `ExportOptionsUpload.plist` had it `true`.
+
+**The consequence, previously undisclosed:** **no dSYMs were uploaded to App
+Store Connect for build 216**, where 215 did send them. Apple-side crash
+symbolication for 216 on TestFlight Internal is therefore degraded relative to
+215. This is an operational regression, it was not stated anywhere in the
+evidence record, and it is a consequence of a build-option choice made without
+flagging it.
+
+What the earlier claim got right and remains true: the **app payload is
+intact** — the full Dart AOT `App.framework/App` is present at 7,993,856 B
+(larger than 215's 7,960,832 B), and `Flutter` at 9,273,600 B. Nothing the app
+needs to run is missing. Only the symbol payload is.
+
+## Correction 3 — certificate continuity: true, now actually sourced
+
+The registry asserted 216's Android upload certificate is "byte-identical to
+builds 211 and 215". The claim is **true**, but was unsupported as written:
+**211's fingerprint is recorded nowhere in this repository** (only the subject
+DN "Wellapath upload key (CN=John Oluwaseyi)"), and 215's was recorded only
+truncated. The 215 entry asserted identity with 211 against no 211 fingerprint
+at all — an assertion inherited forward rather than evidence.
+
+Measured first-hand from the preserved artifacts
+(`keytool -printcert -jarfile`):
+
+```
+211  WellaPath-211.aab  94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:
+                        24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36
+215  WellaPath-215.aab  (identical, all 32 bytes)
+216  app-release.aab    (identical, all 32 bytes)
+```
+
+Owner on all three: `CN=John Oluwaseyi, OU=Engineering, O=Wellapath, L=Lagos,
+ST=Lagos, C=NG`. The full fingerprint is now recorded so the chain rests on
+evidence. "Byte-identical" is also imprecise for a digest comparison; the
+accurate phrasing is **identical SHA-256 fingerprint**.
+
+## Correction 4 — the uploaded iOS container's identity is INFERRED, not established
+
+The record said the Apple Distribution identity and profile were "established"
+for the uploaded build. They are not, strictly:
+
+* The **archive is Apple Development-signed** —
+  `Runner.xcarchive/Info.plist` → `SigningIdentity = "Apple Development: JOHN
+  OLUWASEYI (7F44V7HBXP)"`. The Distribution identity is a property of each
+  *export*, not of the archive.
+* The `destination=upload` run **retained no evidence**: no
+  `DistributionSummary.plist`, no output container, no hash, and no captured log.
+  Only the `destination=export` run left a summary. Build 215, by contrast,
+  preserved `upload215.log` containing its "Upload succeeded" string.
+
+So for the uploaded container, the signing identity and profile are **inferred**
+from export options that differ from the verified export only in `destination`.
+That is a reasonable inference and is almost certainly correct — App Store
+Connect rejects development-signed uploads — but it is an inference, and the 216
+evidence chain is **weaker than 215's** on exactly the point PR #96 asked
+reviewers to scrutinise. The "Upload succeeded — uploaded package is processing"
+string for 216 exists only in narrative documents, never in a captured
+transcript.
+
+## Minor corrections
+
+* The registry's own header says entries are *"never edited or removed"*, yet
+  the 216 entry was revised in all four commits of this branch as facts arrived.
+  Defensible while the entry is still being authored pre-merge, but it was not
+  disclosed in the PR description.
+* One registry sentence describes only the `destination=export` run as though it
+  were the complete account; a second `destination=upload` export also ran.
+* The tracker header at the top of this file still reads *"internal-testing
+  build `0.3.0+210`"*, *"awaiting console access + upload authorization"* and
+  *"Last Updated: 2026-09-12 … nothing uploaded to any store or tester track"*.
+  **Pre-existing, not introduced by this branch**, but it now contradicts this
+  file's tail by two platforms and six build numbers.
+
+## What the review confirmed exact
+
+Every hash, size and fingerprint; all three scanner results (33 / 99 / 14 files,
+0 prohibited findings); the independent absence of the builder's username from
+both the archive `Runner` binary and the dSYM DWARF; the bundled `.env`
+byte-identity in both artifacts; the tree-shaking of Feedback and Support Chat;
+`SENTRY_DSN` absent from `.env`; the 217 bump and registry consistency; the
+byte-untouched clinical paths; and all test and analyzer counts
+(94 / 1,605+7 skipped / no issues).
+
+One clarification it added, worth keeping: `Sentry.framework` 8.58.4 is embedded
+in the IPA and `libsentry.so` ships in the AAB. "No DSN" means the SDK is
+present but unconfigured — it does not mean no crash-reporting code is shipped.
