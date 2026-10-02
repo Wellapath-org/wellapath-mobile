@@ -5692,7 +5692,7 @@ single archive `Runner.xcarchive`, with the same signing identity and profile.
 | Size | 62,409,495 B |
 | Identity | `org.wellapath.app` · versionCode 216 · versionName 0.3.0 |
 | Signature | `jar verified.` — upload certificate SHA-256 `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` |
-| Continuity | **identical SHA-256 fingerprint to builds 211 and 215** (this line originally read "byte-identical", which is imprecise for a digest comparison; all three full fingerprints are now recorded below) — the established upload key signed it, so no signing-ownership change and **no Play App Signing decision arises**. If the console presents one, that contradicts the confirmed state: stop without accepting. |
+| Continuity | **identical SHA-256 fingerprint to builds 211 and 215** (this line originally read "byte-identical fingerprint to builds 211 and 215", which was accurate; all three full fingerprints are now recorded below) — the established upload key signed it, so no signing-ownership change and **no Play App Signing decision arises**. If the console presents one, that contradicts the confirmed state: stop without accepting. |
 
 ## iOS artifact
 
@@ -5828,7 +5828,7 @@ record. The existing Internal testing track and app record were used; no new
 application was created, and no Play App Signing decision arose (the upload
 certificate fingerprint is byte-identical to builds 211 and 215).
 
-## iOS — uploaded, processed, and exercised. Four separate facts.
+## iOS — uploaded, processed, and exercised. Separate facts.
 
 These are deliberately recorded as distinct claims with distinct sources,
 because they are different kinds of fact and the first does not imply the rest.
@@ -6050,8 +6050,18 @@ complete dSYMs is preserved under `~/wellapath-private-data/build-216-symbols/`
 
 ## Correction 3 — certificate continuity: true, now actually sourced
 
-The registry asserted 216's Android upload certificate is "byte-identical to
-builds 211 and 215". The claim is **true**. One half of the earlier
+The registry asserted 216's Android upload certificate had a "byte-identical
+fingerprint to builds 211 and 215". The claim is **true**, and so was that
+wording. An earlier revision of this section quoted it as "byte-identical to
+builds 211 and 215" — eliding **fingerprint** inside the quote marks, with no
+ellipsis — and then faulted it as "imprecise for a digest comparison". **That
+criticism was false and is withdrawn:** the two SHA-256 fingerprints are
+genuinely byte-identical, so "byte-identical fingerprint" was accurate. The
+elision shifted the predicate from the fingerprint to the certificate, which is
+the only reason the charge appeared to land. The exact historical wording, at
+`d48e3e2:test/release/build_identity_test.dart:150` and
+`d48e3e2:PROGRESS.md:5669`, is "byte-identical fingerprint to builds 211 and
+215". One half of the earlier
 reasoning about the prior record was right and the other was wrong:
 
 * **211:** correct — 211's fingerprint is recorded nowhere in this repository,
@@ -6078,8 +6088,15 @@ Measured first-hand from the preserved artifacts
 
 Owner on all three: `CN=John Oluwaseyi, OU=Engineering, O=Wellapath, L=Lagos,
 ST=Lagos, C=NG`. The full fingerprint is now recorded so the chain rests on
-evidence. "Byte-identical" is also imprecise for a digest comparison; the
-accurate phrasing is **identical SHA-256 fingerprint**.
+evidence.
+
+An earlier revision of this section ended here by calling "byte-identical"
+"imprecise for a digest comparison" and prescribing "identical SHA-256
+fingerprint" instead. **That criticism is withdrawn as false.** The prior wording
+was "byte-identical **fingerprint** to builds 211 and 215", which is accurate —
+the digests are byte-identical. Both phrasings are correct; the current registry
+wording is kept only because it is more explicit, not because the earlier one was
+wrong.
 
 ## Correction 4 — the uploaded container: what is recorded, what is inferred
 
@@ -6091,10 +6108,14 @@ only in narrative documents, never in a captured transcript".
 **Exactly one of those was false.** "Retained no evidence" was wrong — the
 archive holds the `Distributions` record below, which this record had failed to
 look for. But **"exists only in narrative documents" was CORRECT** and was
-wrongly withdrawn: `grep` across the whole build tree finds that phrase in four
-files, all of them narrative, and in no machine-written file. The archive records
-the title "Uploaded to Apple", which is a different string. That statement is
-reinstated here.
+wrongly withdrawn: `grep` across the whole build tree finds that phrase in
+**three** retained files — `evidence/PROGRESS.md`, `src/PROGRESS.md` and
+`logs/BUILD_216_CONSUMED.md` — **all three narrative**, and in **zero**
+machine-written artifacts. (An earlier revision of this section, and the commit
+message that carried it, said *four*; that count was wrong and is superseded
+here. The history is preserved, not amended.) The archive records the title
+"Uploaded to Apple", which is a different string. That statement is reinstated
+here.
 
 Under-reporting your own evidence is as much a provenance error as
 over-reporting it — and so is withdrawing a true statement. Both directions are
@@ -6161,7 +6182,8 @@ container's hash.
 ## Minor corrections
 
 * The registry's own header says entries are *"never edited or removed"*, yet
-  the 216 entry was revised in all four commits of this branch as facts arrived.
+  the 216 entry was revised repeatedly during this branch as facts arrived; the
+  commit history preserves each correction.
   Defensible while the entry is still being authored pre-merge, but it was not
   disclosed in the PR description.
 * One registry sentence describes only the `destination=export` run as though it
