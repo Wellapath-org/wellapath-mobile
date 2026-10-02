@@ -5631,3 +5631,131 @@ when the artifacts were signed and are unchanged by this confirmation.
 any external cohort; the danger-sign label review; physical-device smoke
 testing; and everything in the store-submission blockers. Internal testing
 being live does not move any of them.
+
+---
+
+# Build 216 BUILT and verified on both platforms — artifacts signed, NOTHING uploaded
+
+**Date:** 2026-10-02 · **Source:** `develop @
+34a331f4b47395df2084250fd6f53b86d30239e1` (tree `1d35237a…`, the merge of
+PR #94; CI "Flutter Lint & Build Check" **success**, run 36682391970, on that
+exact SHA) · **Built in:** `/Users/Shared/wellapath-build-216`, a clean
+detached worktree under the approved neutral root, with a build-local
+`PUB_CACHE` and an explicit neutral iOS `-derivedDataPath`. Signing material
+was referenced by symlink and never copied or read. **Zero `--dart-define` of
+any kind was passed.**
+
+## CURRENT STATUS: both signed artifacts produced and verified · build 216 CONSUMED · store upload and processing outcomes PENDING
+
+**216 is consumed** because signed release artifacts exist, independently of
+store processing, and must not be reused or rebuilt from different source. The
+registry entry and the advance to **217** are in
+`test/release/build_identity_test.dart`, with `pubspec.yaml` at `0.3.0+217`.
+
+**Nothing has been uploaded to either console.** No Play release, no TestFlight
+submission, no processing outcome observed, no tester availability claimed.
+Both uploads remain founder console actions; engineering has access to neither
+console. Builds 211 and 215 were not promoted, replaced or deleted.
+
+## Android artifact
+
+| | |
+|---|---|
+| File | `/Users/Shared/wellapath-build-216/src/build/app/outputs/bundle/release/app-release.aab` — **internal testing only** |
+| SHA256 | `2135ecf0f2c7fc53091c71ac4ef697c8f9a4ef6f35d3c1a8c9d5b6248b5d66da` |
+| Size | 62,409,495 B |
+| Identity | `org.wellapath.app` · versionCode 216 · versionName 0.3.0 |
+| Signature | `jar verified.` — upload certificate SHA-256 `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` |
+| Continuity | **byte-identical fingerprint to builds 211 and 215** — the established upload key signed it, so no signing-ownership change and **no Play App Signing decision arises**. If the console presents one, that contradicts the confirmed state: stop without accepting. |
+
+## iOS artifact
+
+| | |
+|---|---|
+| File | `/Users/Shared/wellapath-build-216/export/WellaPath.ipa` — **internal testing only** |
+| SHA256 | `3b433576cf5314afe661d0ba941cb192b5536949554d870dff8abf52155fda85` |
+| Size | 12,619,526 B (117 entries, 25,255,769 B uncompressed) |
+| Identity | `org.wellapath.app` · 0.3.0 (216) · min iOS 15.0 · arm64 |
+| Signing | **Apple Distribution: Pixus Uganda - SMC LTD**, cert SHA-1 `6F191637AA0968B1E1529044D56E93B89AEEF649`, Team ID `2SCUC2CBBS` |
+| Profile | the **existing** `iOS Team Store Provisioning Profile: org.wellapath.app`, UUID `daebf88b-ed39-45b4-914b-a627cf76831d` |
+| Archive | `/Users/Shared/wellapath-build-216/Runner.xcarchive` (178 MB, not distributable) |
+
+`ITSAppUsesNonExemptEncryption=false` is now committed in source, so no
+export-compliance prompt arises. The export used `destination=export` (no
+upload) and `testFlightInternalTestingOnly=true`, which bars external testing
+and Beta App Review for this build **by construction** rather than by policy.
+`-allowProvisioningUpdates` was deliberately not passed, and **no certificate,
+key, keystore, provisioning profile, API key or account was created or
+replaced**. Xcode raised no agreement or signing-material prompt.
+
+**On the IPA being smaller than 215's (12.6 MB vs 26.6 MB):** this is zip
+compression, not missing content. The uncompressed payload is 25,255,769 B
+across 117 entries, with the full Dart AOT `App.framework/App` at 7,993,856 B
+and `Flutter` at 9,273,600 B. Recorded explicitly because a 2x size delta
+between consecutive builds is exactly the kind of figure that should be
+explained rather than left to be rediscovered.
+
+## Bundled production configuration
+
+Byte-identical to the tracked production `.env` in **both** artifacts —
+sha256 `71ad44e3792843ec48b6618e9d38a1fe9e68edff4d5aa46a623d9ef672dffb96`,
+1,220 B (`base/assets/flutter_assets/.env` in the AAB,
+`Payload/Runner.app/Frameworks/App.framework/flutter_assets/.env` in the IPA).
+
+No DSN and no Sentry auth token in either release binary: `sentry.io`,
+`ingest.sentry` and `sntrys_` are all absent, and `SENTRY_DSN` is not declared
+in `.env` at all. Feedback and Support Chat control strings are absent from
+both `libapp.so` and `App.framework/App` — tree-shaken, because both flags are
+`bool.fromEnvironment` with no default and zero dart-defines were passed.
+
+## Neutral-path scanner — clean on every upload input
+
+| Input set | Files | Prohibited | Input errors | Result |
+|---|---|---|---|---|
+| AAB + embedded native symbol tables + shipped native libs | 33 | 0 | 0 | **CLEAN** |
+| IPA + `Runner.xcarchive` | 99 | 0 | 0 | **CLEAN** |
+| `Runner.xcarchive/dSYMs` (explicit) | 14 | 0 | 0 | **CLEAN** |
+
+Only informational `toolchain_path` hits (`/usr/lib/`, `/opt/homebrew/`), which
+`docs/NEUTRAL_BUILD_POLICY.md` explicitly never treats as a failure.
+
+### A real finding, caught and fixed before any artifact was signed
+
+Before the signed pass, an **unsigned** validation build was run without an
+explicit `-derivedDataPath`. It used Xcode's default personal DerivedData and
+the scanner **failed** it: 79 files, 2 prohibited findings —
+`personal_home_macos` and `configured_personal_name` — both in the `Runner`
+binary. The cause was confirmed by inspection, not guessed.
+
+With the explicit neutral `-derivedDataPath`, that same binary inside the
+archive reports only `toolchain_path /usr/lib/`, and so does
+`dSYMs/Runner.app.dSYM/Contents/Resources/DWARF/Runner`. **Both findings are
+absent.** This closes the build-214 failure mode, where a symbolicated
+`abs_path` exposed the build engineer's username. The contaminated intermediate
+was never signed, never archived and never exported, and has since been deleted
+along with that one personal DerivedData directory — both regenerable, deleted
+permanently (`rm -rf`, not to Trash).
+
+## Verification executed in the build worktree
+
+66 tests passed, 0 failed, across `build_identity_test`,
+`internal_build_config_test`, `home_disclosure_copy_test` (COPY-001),
+`out_of_region_manual_search_test` (UX-002) and `facility_attribution_test`
+(footer reachable, licences, disclaimers, 44px targets).
+
+**No clinical, assessment, ordering or filtering change relative to the
+reviewed 215 source** (`d84fdac`): `lib/core/engine/`,
+`lib/features/assessment/` and `test/engine/` are byte-untouched; only four
+`lib/` files differ, and the locator diff contains no sort, compare, filter,
+rank or `emergency_capable` change — display only.
+
+Source tree clean at the exact build SHA with no tracked file modified: the
+pbxproj was not edited, `DEVELOPMENT_TEAM=2SCUC2CBBS` was passed as a build
+flag.
+
+## Still open, unchanged by this entry
+
+CB_211 clinical adjudication before any external cohort; the danger-sign label
+review; physical-device smoke testing; and everything in the store-submission
+blockers. A signed artifact on disk is not a store state, and this entry claims
+no store availability of any kind.

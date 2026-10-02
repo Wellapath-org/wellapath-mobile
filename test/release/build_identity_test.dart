@@ -134,17 +134,64 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS) with the App '
       'Store profile, exported from a neutral-DerivedData archive that '
       'scans clean',
+  216:
+      'internal-testing build 0.3.0+216 — the COPY-001 disclosure grammar fix '
+      'and the UX-002 out-of-region manual area search, plus the facility '
+      'attribution footer. Built 2026-10-02 from develop @ '
+      '34a331f4b47395df2084250fd6f53b86d30239e1 (tree 1d35237a…, the merge of '
+      'PR #94, CI "Flutter Lint & Build Check" success run 36682391970 on that '
+      'exact SHA) in the approved neutral root '
+      '/Users/Shared/wellapath-build-216 with a build-local PUB_CACHE and zero '
+      'dart-defines. Signing material was referenced by symlink and never '
+      'copied or read. Signed Android AAB sha256 '
+      '2135ecf0f2c7fc53091c71ac4ef697c8f9a4ef6f35d3c1a8c9d5b6248b5d66da '
+      '(62,409,495 B), org.wellapath.app versionCode 216 / versionName 0.3.0, '
+      'jar verified, upload certificate SHA-256 94:E7:C5:74:…:D8:36 — '
+      'byte-identical fingerprint to builds 211 and 215, so the established '
+      'upload key was used and no signing-ownership or Play App Signing '
+      'decision arises. Signed iOS IPA sha256 '
+      '3b433576cf5314afe661d0ba941cb192b5536949554d870dff8abf52155fda85 '
+      '(12,619,526 B; 25,255,769 B uncompressed across 117 entries — smaller '
+      'than 215 purely from zip compression, with the full Dart AOT '
+      'App.framework/App at 7,993,856 B present), org.wellapath.app 0.3.0 '
+      '(216), min iOS 15.0, arm64, signed Apple Distribution: Pixus Uganda - '
+      'SMC LTD (2SCUC2CBBS) cert SHA-1 '
+      '6F191637AA0968B1E1529044D56E93B89AEEF649 with the EXISTING App Store '
+      'profile "iOS Team Store Provisioning Profile: org.wellapath.app" (UUID '
+      'daebf88b-ed39-45b4-914b-a627cf76831d); no certificate, key, keystore or '
+      'profile was created or replaced, and -allowProvisioningUpdates was '
+      'deliberately not passed. Exported with destination=export and '
+      'testFlightInternalTestingOnly=true, so the build cannot be submitted '
+      'for Beta App Review or external testing by construction. Neutral-path '
+      'scanner exit 0 on every upload input: 33 files for the AAB set, 99 for '
+      'the IPA + archive, 14 for the dSYMs — 0 prohibited findings, 0 input '
+      'errors. This specifically clears the build-214 finding: an earlier '
+      'unsigned validation build that used the DEFAULT personal DerivedData '
+      'failed with personal_home_macos and configured_personal_name in the '
+      'Runner binary, and with an explicit neutral -derivedDataPath both '
+      'findings are ABSENT from the archive binary and from '
+      'dSYMs/Runner.app.dSYM DWARF. Bundled .env byte-identical to the tracked '
+      'production file (sha256 71ad44e3…fb96, 1,220 B) in BOTH artifacts; no '
+      'DSN, no Sentry auth token; Feedback and Support Chat control strings '
+      'absent from libapp.so and from App.framework/App (tree-shaken, flags '
+      'compile-time false). INTERNAL TESTING ONLY — must never be promoted '
+      'beyond the Play Internal track or the TestFlight internal group. The '
+      'number is consumed because signed release artifacts exist, '
+      'independently of store processing: as of this entry NOTHING has been '
+      'uploaded to either console and no Play or TestFlight processing outcome '
+      'has been observed. Builds 211 and 215 were not promoted, replaced or '
+      'deleted',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 216 has never been attached to anything: it appears in no tag, no CI
+/// 217 has never been attached to anything: it appears in no tag, no CI
 /// release identifier, no rollback record, no Sentry release and no
-/// registry entry above. 215 was consumed on 2026-09-25 the moment a
+/// registry entry above. 216 was consumed on 2026-10-02 the moment a
 /// signed release AAB existed — before any store processing — so rebuilding
-/// 215 from different source could produce two artifacts that crash triage
+/// 216 from different source could produce two artifacts that crash triage
 /// and Play both treat as the same build.
-const int kCurrentBuildNumber = 216;
+const int kCurrentBuildNumber = 217;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';

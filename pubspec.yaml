@@ -20,10 +20,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # ONE version drives all three platforms: Android versionName/versionCode,
 # iOS CFBundleShortVersionString/CFBundleVersion. Do not set them anywhere else.
 #
-# Build number 215 is the next unused value above every number this project
+# Build number 217 is the next unused value above every number this project
 # has ever attached to a build. The authoritative, append-only registry of
-# consumed numbers — including the distributed 210/211 artifacts and the
-# burned local-verification-only numbers 212–214 — lives in
+# consumed numbers — including the distributed 210/211/215/216 artifacts and
+# the burned local-verification-only numbers 212–214 — lives in
 # test/release/build_identity_test.dart, which fails the build on any
 # regression or reuse.
 #
@@ -31,7 +31,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # v0.2.0-beta.1, v0.2.0-beta.2; CI identifier 0.2.0). See
 # test/release/build_identity_test.dart, which fails the build if this line
 # regresses or reuses a number.
-version: 0.3.0+216
+version: 0.3.0+217
 
 environment:
   sdk: ^3.11.3
