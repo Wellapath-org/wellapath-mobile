@@ -183,12 +183,46 @@ dart run scripts/export_options_tool.dart verify <path>/ExportOptions.plist
 * It verifies any plist however it was produced, **including by hand** — which
   is how build 216 went wrong, so a generator alone would not have caught it.
 * Preserve the output as release evidence alongside the artifact hashes.
-* It resolves keys the way **Apple's parser** does — comments stripped, and the
-  **last** occurrence of a duplicated key wins — and rejects a duplicated policy
-  key outright. An earlier version read the first occurrence, which meant a
-  hand-edited file that `plutil -p` reports as `uploadSymbols => false` could be
-  reported CLEAN. The one check that matters must not disagree with the parser
-  that decides what actually ships.
+
+**Apple's parser decides, not a text scanner.** The verifier shells out to
+`/usr/bin/plutil`:
+
+1. `plutil` must exist and be executable, else **exit 2**. There is deliberately
+   **no regex or string-scanner fallback** — a fallback is the defeated scanner
+   under a different name.
+2. `plutil -lint` must pass. A malformed plist is **never** certified (exit 2).
+3. The file is read through `plutil -convert json`, and the **root** object is
+   inspected: `uploadSymbols` must be **present at the root**, of **boolean**
+   type, and **`true`**.
+
+| Observed | Exit |
+|---|---|
+| root boolean `true` | **0** |
+| root boolean `false` | **1** |
+| root key omitted | **1** |
+| key present only in a nested dictionary or array | **1** |
+| wrong type — string `"true"`, integer `1` | **1** |
+| invalid/unparseable plist, missing file, missing `plutil`, parser failure | **2** |
+
+**Why this is not a scanner.** Two earlier string-scanning versions were
+defeated by independent review. The first read the *first* occurrence of a key
+while Apple resolves the *last*, and matched keys inside XML comments. The
+second, after that was fixed, still had no model of nesting — so an
+`uploadSymbols` buried in the legitimate `provisioningProfiles` sub-dictionary
+was reported CLEAN while Apple saw no root-level key at all, which is the
+"omitted" state this policy calls the build-216 regression. Both escapes shared
+one cause: text has no structure. Apple's parser cannot disagree with itself.
+
+**There is no duplicate-key lint**, by design. `plutil` resolves a duplicated key
+to the last occurrence — exactly what `xcodebuild` does — so a duplicate cannot
+make the verdict differ from what ships. A text-based duplicate check also could
+not tell nesting levels apart, and rejected legitimate files; an inaccurate check
+that fails good input is worse than none.
+
+**The cost, stated plainly:** verification requires macOS. That is where iOS
+archives are exported. A mandatory macOS CI job
+(`macos-export-options-guard`) runs these cases, because a guard whose verdict
+was mocked to keep Linux green would be testing the mock.
 
 ### 5.5 This does NOT replace the archive and dSYM scan
 
@@ -220,3 +254,28 @@ Retention is required even when `uploadSymbols` was `true`: Apple's copy is a
 convenience, not an archive of record. Build 216's archive and dSYMs are
 retained for exactly this reason, because for that build Apple has no copy at
 all.
+
+### 5.7 The guard sits in front of the export, not beside it
+
+A check is only as good as someone's memory of running it. Build 216's
+`ExportOptions.plist` was hand-authored and nothing stood between it and
+`xcodebuild`. Use the wrapper, which cannot be bypassed by forgetting:
+
+```
+dart run scripts/guarded_export.dart \
+    --archive-path=<path>/Runner.xcarchive \
+    --export-options=<path>/ExportOptions.plist \
+    --export-path=<path>/export
+```
+
+It takes the export-options pathname, verifies **that exact pathname**, and
+invokes `xcodebuild -exportArchive` **only** on exit 0 — passing through the same
+pathname it verified. On any non-zero verdict it stops and `xcodebuild` is never
+invoked.
+
+The substitution point matters as much as the verdict: a wrapper that verified
+one file and exported another would satisfy every verifier test while shipping an
+unverified plist. `runGuardedExport` therefore returns the arguments it actually
+used, and a test asserts the verified path is the one passed to
+`-exportOptionsPlist`. Nothing regenerates or substitutes a plist between
+verification and export.

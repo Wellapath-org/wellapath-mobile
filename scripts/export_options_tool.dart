@@ -23,9 +23,15 @@
 /// **Fail closed.** Exit 2 dominates: an incomplete check certifies nothing.
 /// There is no bypass flag and no warning-only mode, deliberately.
 ///
-/// `verify` is a MANDATORY pre-upload step for every iOS distribution export —
-/// see `docs/NEUTRAL_BUILD_POLICY.md`. It is separate from, and does not
-/// replace, the neutral-path scan of the archive and dSYMs.
+/// Verification delegates to Apple's `/usr/bin/plutil`, so it requires macOS. A
+/// missing `plutil` is exit 2, never a pass — see `export_options_policy.dart`
+/// for why there is no string-scanner fallback.
+///
+/// `verify` is a MANDATORY pre-export and pre-upload step — see
+/// `docs/NEUTRAL_BUILD_POLICY.md` §5.4. It is separate from, and does not
+/// replace, the neutral-path scan of the archive and dSYMs. For the real export
+/// path prefer `scripts/guarded_export.dart`, which refuses to invoke
+/// `xcodebuild` unless this verification passes.
 library;
 
 import 'dart:io';
@@ -61,7 +67,7 @@ Never _usage(String problem) {
       '--mode=internal-testing|app-store --destination=export|upload '
       '--team-id=TEAMID [--out=PATH]',
     )
-    ..writeln('  dart run scripts/export_options_tool.dart verify <plist>...');
+    ..writeln('  dart run scripts/export_options_tool.dart verify PLIST...');
   exit(_exitUnusable);
 }
 
@@ -107,24 +113,33 @@ Never _generate(List<String> args) {
     teamId: teamId,
   );
 
-  // Verify what we just produced. A generator that is not checked against the
-  // same policy as a hand-written file is a second place for the rule to drift.
-  final violations = verifyExportOptions(plist);
-  if (violations.isNotEmpty) {
+  if (out == null) {
+    stdout.write(plist);
+    exit(_exitOk);
+  }
+
+  File(out).writeAsStringSync(plist);
+
+  // Verify what we just wrote, through the same parser a release engineer would
+  // use. A generator that is not checked against the policy it implements is a
+  // second place for the rule to drift. Skipped only when plutil is absent,
+  // because then nothing can be verified anywhere and `verify` will say so.
+  final verdict = verifyExportOptionsFile(path: out);
+  if (verdict.outcome == VerificationOutcome.violation) {
     stderr.writeln(
       'internal error: generated plist violates the policy it implements:',
     );
-    for (final violation in violations) {
-      stderr.writeln('  - $violation');
+    for (final message in verdict.messages) {
+      stderr.writeln('  - $message');
     }
     exit(_exitUnusable);
   }
 
-  if (out == null) {
-    stdout.write(plist);
-  } else {
-    File(out).writeAsStringSync(plist);
-    stdout.writeln('wrote $out (mode=$modeRaw, destination=$destinationRaw)');
+  stdout.writeln('wrote $out (mode=$modeRaw, destination=$destinationRaw)');
+  if (verdict.outcome == VerificationOutcome.unusable) {
+    stdout.writeln(
+      'note: could not self-verify — ${verdict.messages.join('; ')}',
+    );
   }
   exit(_exitOk);
 }
@@ -134,40 +149,25 @@ Never _verify(List<String> paths) {
     _usage('verify needs at least one plist path');
   }
 
-  var violationCount = 0;
+  var violations = 0;
   var unusable = 0;
 
   for (final path in paths) {
-    final file = File(path);
-    if (!file.existsSync()) {
-      stderr.writeln('UNUSABLE $path: no such file');
-      unusable++;
-      continue;
-    }
+    final verdict = verifyExportOptionsFile(path: path);
 
-    final String contents;
-    try {
-      contents = file.readAsStringSync();
-    } on FileSystemException catch (error) {
-      stderr.writeln('UNUSABLE $path: ${error.message}');
-      unusable++;
-      continue;
-    }
-
-    if (contents.trim().isEmpty) {
-      stderr.writeln('UNUSABLE $path: file is empty');
-      unusable++;
-      continue;
-    }
-
-    final violations = verifyExportOptions(contents);
-    if (violations.isEmpty) {
-      stdout.writeln('OK $path');
-    } else {
-      for (final violation in violations) {
-        stdout.writeln('FAIL $path: $violation');
-      }
-      violationCount += violations.length;
+    switch (verdict.outcome) {
+      case VerificationOutcome.pass:
+        stdout.writeln('OK $path');
+      case VerificationOutcome.violation:
+        for (final message in verdict.messages) {
+          stdout.writeln('FAIL $path: $message');
+        }
+        violations += verdict.messages.length;
+      case VerificationOutcome.unusable:
+        for (final message in verdict.messages) {
+          stderr.writeln('UNUSABLE $path: $message');
+        }
+        unusable++;
     }
   }
 
@@ -181,9 +181,9 @@ Never _verify(List<String> paths) {
     exit(_exitUnusable);
   }
 
-  if (violationCount > 0) {
+  if (violations > 0) {
     stdout.writeln(
-      'export-options verify: $violationCount violation(s) — '
+      'export-options verify: $violations violation(s) — '
       'DO NOT EXPORT OR UPLOAD',
     );
     exit(_exitViolation);

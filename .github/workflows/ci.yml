@@ -44,9 +44,15 @@ jobs:
         if: steps.check_flutter.outputs.flutter_exists == 'true'
         run: dart format --output=none --set-exit-if-changed .
 
-      - name: Run the full test suite
+      # The `plutil` tag marks export-options verification tests that delegate
+      # their verdict to Apple's /usr/bin/plutil, which does not exist here.
+      # They are EXCLUDED on Linux because the dependency is absent, and run in
+      # the mandatory macos-export-options-guard job below. They are not skipped
+      # to keep this job green, and there is no string-scanner fallback to make
+      # them portable — two such scanners were already defeated by review.
+      - name: Run the full test suite (excluding macOS-only plutil tests)
         if: steps.check_flutter.outputs.flutter_exists == 'true'
-        run: flutter test
+        run: flutter test --exclude-tags plutil
 
       # CI holds no signing material, and release signing now fails closed, so
       # a plain `flutter build apk --release` here would (correctly) fail. The
@@ -79,3 +85,56 @@ jobs:
           fi
           echo "CI artifact is unsigned and therefore not distributable, as required."
           sha256sum "$apk"
+
+  macos-export-options-guard:
+    name: iOS Export Options Guard (macOS)
+    runs-on: macos-latest
+
+    # Mandatory, not optional. The iOS symbol-upload guard delegates its verdict
+    # to Apple's /usr/bin/plutil, so these cases can only be judged on macOS.
+    # Build 216 reached App Store Connect with uploadSymbols false; this job is
+    # what makes that detectable in CI rather than only at release time.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Confirm Apple's plutil is present
+        run: |
+          test -x /usr/bin/plutil || {
+            echo "::error::/usr/bin/plutil is missing — the export-options guard cannot be verified"
+            exit 1
+          }
+          /usr/bin/plutil -lint /System/Library/CoreServices/SystemVersion.plist
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run the export-options guard tests (plutil-backed)
+        run: flutter test --tags plutil
+
+      - name: Prove the guard rejects a symbols-disabled plist end to end
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          dart run scripts/export_options_tool.dart generate \
+            --mode=app-store --destination=upload --team-id=TESTTEAM00 \
+            --out="$work/good.plist"
+          dart run scripts/export_options_tool.dart verify "$work/good.plist"
+          echo "compliant plist accepted (exit 0) — as expected"
+
+          sed 's|<true/>|<false/>|' "$work/good.plist" > "$work/bad.plist"
+          # plutil must agree this resolves to false before we assert anything.
+          /usr/bin/plutil -extract uploadSymbols json -o - "$work/bad.plist" | grep -qx false
+
+          if dart run scripts/export_options_tool.dart verify "$work/bad.plist"; then
+            echo "::error::the guard ACCEPTED a plist with uploadSymbols false"
+            exit 1
+          fi
+          echo "symbols-disabled plist rejected (non-zero) — guard is live"
+

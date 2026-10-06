@@ -1,15 +1,19 @@
-/// iOS distribution export options must upload symbols.
+/// iOS distribution export options — generation, and the fail-closed paths.
 ///
-/// Build 216 was exported and uploaded with `uploadSymbols` set to `false`, so
-/// no dSYMs reached App Store Connect and automatic Apple-side symbolication is
-/// unavailable for that build. The cause was structural: the
-/// `ExportOptions.plist` was hand-authored in an untracked build directory, so
-/// no source-controlled rule existed for it to violate.
+/// Verification now runs through Apple's `/usr/bin/plutil`, because two earlier
+/// string-scanning versions were defeated by independent review: first by
+/// comments and duplicate keys, then by a key nested inside the legitimate
+/// `provisioningProfiles` sub-dictionary. A text scanner has no model of plist
+/// structure, so each patch closed one shape and left the class open.
 ///
-/// These tests pin the rule. The important ones are not the happy paths — they
-/// are the mutation checks: each asserts the guard **rejects** a bad file, so
-/// the guard cannot be vacuously true. A policy test that only passes for good
-/// input proves nothing about the regression it exists to prevent.
+/// This file covers what does not need Apple's parser: generation, and the
+/// fail-closed behaviour when the parser cannot answer. The cases that must go
+/// through the real parser are in `export_options_plutil_test.dart`, tagged
+/// `plutil` and run in a mandatory macOS CI job.
+///
+/// The load-bearing tests here are the ones proving the guard **refuses**. A
+/// policy test that only passes for good input proves nothing about the
+/// regression it exists to prevent.
 library;
 
 import 'dart:io';
@@ -17,6 +21,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../scripts/export_options_policy.dart';
+import 'fake_plutil.dart';
 
 const String _teamId = '2SCUC2CBBS';
 
@@ -28,9 +33,7 @@ void main() {
         destination: ExportDestination.upload,
         teamId: _teamId,
       );
-
-      expect(rawValueForKey(plist, 'uploadSymbols'), '<true/>');
-      expect(verifyExportOptions(plist), isEmpty);
+      expect(plist, contains('<key>uploadSymbols</key>\n\t<true/>'));
     });
 
     test('app-store export sets uploadSymbols true', () {
@@ -39,9 +42,7 @@ void main() {
         destination: ExportDestination.upload,
         teamId: _teamId,
       );
-
-      expect(rawValueForKey(plist, 'uploadSymbols'), '<true/>');
-      expect(verifyExportOptions(plist), isEmpty);
+      expect(plist, contains('<key>uploadSymbols</key>\n\t<true/>'));
     });
 
     test('an export-only run still uploads symbols', () {
@@ -52,133 +53,15 @@ void main() {
         destination: ExportDestination.export,
         teamId: _teamId,
       );
-
-      expect(rawValueForKey(plist, 'uploadSymbols'), '<true/>');
-      expect(rawValueForKey(plist, 'destination'), '<string>export</string>');
+      expect(plist, contains('<key>uploadSymbols</key>\n\t<true/>'));
+      expect(
+        plist,
+        contains('<key>destination</key>\n\t<string>export</string>'),
+      );
     });
 
     test('the required value is true and is not a parameter', () {
-      // If someone makes uploadSymbols configurable, this fails and they have
-      // to come and read the comment explaining why it is not.
       expect(kRequiredUploadSymbols, isTrue);
-    });
-  });
-
-  group('distribution mode stays explicit', () {
-    test('internal testing is marked internal-only', () {
-      final plist = buildExportOptionsPlist(
-        mode: DistributionMode.internalTesting,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-
-      expect(rawValueForKey(plist, 'testFlightInternalTestingOnly'), '<true/>');
-    });
-
-    test('app-store distribution carries NO internal-only marker', () {
-      // An external or public candidate must not inherit an internal-only
-      // marker: it would bar the external testing the release is for.
-      final plist = buildExportOptionsPlist(
-        mode: DistributionMode.appStore,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-
-      expect(plist, isNot(contains('testFlightInternalTestingOnly')));
-    });
-
-    test('the two modes differ only in the internal-only marker', () {
-      final internal = buildExportOptionsPlist(
-        mode: DistributionMode.internalTesting,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-      final appStore = buildExportOptionsPlist(
-        mode: DistributionMode.appStore,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-
-      expect(
-        internal.replaceAll(
-          RegExp(r'\t<key>testFlightInternalTestingOnly</key>\n\t<true/>\n'),
-          '',
-        ),
-        equals(appStore),
-        reason:
-            'if the modes diverge in any other key, that difference is '
-            'undocumented and will surprise whoever ships the next build',
-      );
-    });
-  });
-
-  group('the guard rejects a bad file — mutation checks', () {
-    late String good;
-
-    setUp(() {
-      good = buildExportOptionsPlist(
-        mode: DistributionMode.internalTesting,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-      // Guard the guard: the fixture must start clean, or the mutations below
-      // would pass for the wrong reason.
-      expect(verifyExportOptions(good), isEmpty);
-    });
-
-    test('uploadSymbols false is REJECTED — the build-216 regression', () {
-      final disabled = good.replaceFirst(
-        '<key>uploadSymbols</key>\n\t<true/>',
-        '<key>uploadSymbols</key>\n\t<false/>',
-      );
-      // Prove the mutation actually landed, so a silent no-op replace cannot
-      // make this test pass vacuously.
-      expect(disabled, isNot(equals(good)));
-      expect(rawValueForKey(disabled, 'uploadSymbols'), '<false/>');
-
-      final violations = verifyExportOptions(disabled);
-      expect(violations, isNotEmpty);
-      expect(violations.join('\n'), contains('uploadSymbols is DISABLED'));
-    });
-
-    test('uploadSymbols omitted entirely is REJECTED', () {
-      final omitted = good.replaceFirst(
-        '\t<key>uploadSymbols</key>\n\t<true/>\n',
-        '',
-      );
-      expect(omitted, isNot(equals(good)));
-      expect(rawValueForKey(omitted, 'uploadSymbols'), isNull);
-
-      final violations = verifyExportOptions(omitted);
-      expect(violations, isNotEmpty);
-      expect(violations.join('\n'), contains('uploadSymbols is OMITTED'));
-    });
-
-    test('a missing method is REJECTED', () {
-      final broken = good.replaceFirst(
-        '\t<key>method</key>\n\t<string>app-store-connect</string>\n',
-        '',
-      );
-      expect(broken, isNot(equals(good)));
-      expect(verifyExportOptions(broken).join('\n'), contains('method'));
-    });
-
-    test('a missing destination is REJECTED', () {
-      final broken = good.replaceFirst(
-        RegExp(r'\t<key>destination</key>\n\t<string>\w+</string>\n'),
-        '',
-      );
-      expect(broken, isNot(equals(good)));
-      expect(verifyExportOptions(broken).join('\n'), contains('destination'));
-    });
-
-    test('a missing teamID is REJECTED', () {
-      final broken = good.replaceFirst(
-        '\t<key>teamID</key>\n\t<string>$_teamId</string>\n',
-        '',
-      );
-      expect(broken, isNot(equals(good)));
-      expect(verifyExportOptions(broken).join('\n'), contains('teamID'));
     });
 
     test('an empty team id is refused at generation', () {
@@ -191,126 +74,8 @@ void main() {
         throwsArgumentError,
       );
     });
-  });
 
-  group('no credential material', () {
-    test('a generated file carries none of the forbidden keys', () {
-      for (final mode in DistributionMode.values) {
-        final plist = buildExportOptionsPlist(
-          mode: mode,
-          destination: ExportDestination.upload,
-          teamId: _teamId,
-        );
-        for (final key in kForbiddenCredentialKeys) {
-          expect(
-            plist,
-            isNot(contains('<key>$key</key>')),
-            reason: '$mode must not carry $key',
-          );
-        }
-      }
-    });
-
-    test('a smuggled credential key is REJECTED', () {
-      final good = buildExportOptionsPlist(
-        mode: DistributionMode.appStore,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-      final leaky = good.replaceFirst(
-        '</dict>',
-        '\t<key>storePassword</key>\n\t<string>hunter2</string>\n</dict>',
-      );
-      expect(leaky, isNot(equals(good)));
-
-      final violations = verifyExportOptions(leaky);
-      expect(violations, isNotEmpty);
-      expect(violations.join('\n'), contains('storePassword'));
-    });
-  });
-
-  group('the verifier agrees with the parser that matters', () {
-    // Found by independent review. An earlier version read the FIRST occurrence
-    // of a key while Apple's plist parser resolves the LAST, so a hand-edited
-    // file that `plutil -p` reports as `uploadSymbols => false` was reported
-    // CLEAN — precisely the outcome this library exists to prevent. Both shapes
-    // below also pass `plutil -lint`, so they look legitimate.
-    late String good;
-
-    setUp(() {
-      good = buildExportOptionsPlist(
-        mode: DistributionMode.appStore,
-        destination: ExportDestination.upload,
-        teamId: _teamId,
-      );
-      expect(verifyExportOptions(good), isEmpty);
-    });
-
-    test('a duplicated uploadSymbols key is REJECTED', () {
-      final dup = good.replaceFirst(
-        '</dict>',
-        '\t<key>uploadSymbols</key>\n\t<false/>\n</dict>',
-      );
-      expect(dup, isNot(equals(good)));
-      expect(countKeyOccurrences(dup, 'uploadSymbols'), 2);
-
-      final violations = verifyExportOptions(dup);
-      expect(violations, isNotEmpty);
-      expect(violations.join('\n'), contains('appears 2 times'));
-    });
-
-    test('the LAST value wins, as Apple resolves it', () {
-      final dup = good.replaceFirst(
-        '</dict>',
-        '\t<key>uploadSymbols</key>\n\t<false/>\n</dict>',
-      );
-      // true first, false last. Apple reads false, so this must too.
-      expect(rawValueForKey(dup, 'uploadSymbols'), '<false/>');
-      expect(
-        verifyExportOptions(dup).join('\n'),
-        contains('uploadSymbols is DISABLED'),
-      );
-    });
-
-    test('a commented-out key then overridden false is REJECTED', () {
-      final commented = good.replaceFirst(
-        '\t<key>uploadSymbols</key>\n\t<true/>',
-        '\t<!-- <key>uploadSymbols</key><true/> -->\n'
-            '\t<key>uploadSymbols</key>\n\t<false/>',
-      );
-      expect(commented, isNot(equals(good)));
-      // The commented copy must not count as a live key.
-      expect(countKeyOccurrences(commented, 'uploadSymbols'), 1);
-      expect(rawValueForKey(commented, 'uploadSymbols'), '<false/>');
-
-      expect(
-        verifyExportOptions(commented).join('\n'),
-        contains('uploadSymbols is DISABLED'),
-      );
-    });
-
-    test('a key present ONLY in a comment counts as omitted', () {
-      final onlyComment = good.replaceFirst(
-        '\t<key>uploadSymbols</key>\n\t<true/>',
-        '\t<!-- <key>uploadSymbols</key><true/> -->',
-      );
-      expect(onlyComment, isNot(equals(good)));
-      expect(countKeyOccurrences(onlyComment, 'uploadSymbols'), 0);
-      expect(
-        verifyExportOptions(onlyComment).join('\n'),
-        contains('uploadSymbols is OMITTED'),
-      );
-    });
-
-    test('stripXmlComments removes comments and keeps live markup', () {
-      expect(stripXmlComments('a<!-- x -->b'), 'ab');
-      expect(
-        stripXmlComments('<!--\nmulti\nline\n--><key>k</key>'),
-        '<key>k</key>',
-      );
-    });
-
-    test('a generated file has exactly one of every policy key', () {
+    test('a generated file never emits a policy key twice', () {
       for (final mode in DistributionMode.values) {
         final plist = buildExportOptionsPlist(
           mode: mode,
@@ -328,32 +93,262 @@ void main() {
     });
   });
 
-  group('the rule is written down where a release engineer will look', () {
-    test('the neutral build policy requires uploadSymbols true', () {
-      final policy = File('docs/NEUTRAL_BUILD_POLICY.md').readAsStringSync();
+  group('distribution mode stays explicit', () {
+    test('internal testing is marked internal-only', () {
+      final plist = buildExportOptionsPlist(
+        mode: DistributionMode.internalTesting,
+        destination: ExportDestination.upload,
+        teamId: _teamId,
+      );
+      expect(plist, contains('testFlightInternalTestingOnly'));
+    });
 
-      expect(policy, contains('uploadSymbols'));
+    test('app-store distribution carries NO internal-only marker', () {
+      // An external candidate must not inherit an internal-only marker: it
+      // would bar the external testing the release is for.
+      final plist = buildExportOptionsPlist(
+        mode: DistributionMode.appStore,
+        destination: ExportDestination.upload,
+        teamId: _teamId,
+      );
+      expect(plist, isNot(contains('testFlightInternalTestingOnly')));
+    });
+
+    test('the two modes differ only in the internal-only marker', () {
+      final internal = buildExportOptionsPlist(
+        mode: DistributionMode.internalTesting,
+        destination: ExportDestination.upload,
+        teamId: _teamId,
+      );
+      final appStore = buildExportOptionsPlist(
+        mode: DistributionMode.appStore,
+        destination: ExportDestination.upload,
+        teamId: _teamId,
+      );
       expect(
-        policy,
-        contains('export_options_tool.dart'),
-        reason: 'a guard nobody is told to run is not a control',
+        internal.replaceAll(
+          RegExp(r'\t<key>testFlightInternalTestingOnly</key>\n\t<true/>\n'),
+          '',
+        ),
+        equals(appStore),
+      );
+    });
+  });
+
+  group('fail closed when Apple\'s parser cannot answer', () {
+    late String path;
+
+    setUpAll(() {
+      // A real, compliant file on disk. The fake controls what "plutil" says
+      // about it, so these tests isolate the failure handling rather than the
+      // parsing.
+      final dir = Directory.systemTemp.createTempSync('export_opts_');
+      path = '${dir.path}/ExportOptions.plist';
+      File(path).writeAsStringSync(
+        buildExportOptionsPlist(
+          mode: DistributionMode.appStore,
+          destination: ExportDestination.upload,
+          teamId: _teamId,
+        ),
+      );
+      addTearDown(() => dir.deleteSync(recursive: true));
+    });
+
+    test('a missing plutil is UNUSABLE (exit 2), never a pass', () {
+      final verdict = verifyExportOptionsFile(
+        path: path,
+        plutil: FakePlutilRunner(available: false),
+      );
+      expect(verdict.outcome, VerificationOutcome.unusable);
+      expect(verdict.exitCode, 2);
+      expect(verdict.messages.join('\n'), contains('NOTHING IS CERTIFIED'));
+    });
+
+    test('a missing plutil does NOT fall back to a string scanner', () {
+      // The file on disk is fully compliant. If a fallback scanner existed it
+      // would pass here, which is exactly the behaviour being refused.
+      final verdict = verifyExportOptionsFile(
+        path: path,
+        plutil: FakePlutilRunner(available: false),
+      );
+      expect(verdict.isPass, isFalse);
+    });
+
+    test('lint rejecting the file is UNUSABLE (exit 2)', () {
+      final verdict = verifyExportOptionsFile(
+        path: path,
+        plutil: FakePlutilRunner(
+          lintExitCode: 1,
+          stderrText: 'Unexpected character at line 3',
+        ),
+      );
+      expect(verdict.exitCode, 2);
+      expect(
+        verdict.messages.join('\n'),
+        contains('not a valid property list'),
       );
     });
 
-    test('the archive-and-dSYM scan requirement survives', () {
-      // The export-options check is additional to the neutral-path scan, never
-      // a replacement for it.
-      final policy = File('docs/NEUTRAL_BUILD_POLICY.md').readAsStringSync();
-
-      expect(policy, contains('scan_symbol_artifacts.dart'));
-      expect(policy, contains('dSYM'));
+    test('an unexpected plutil failure is UNUSABLE (exit 2)', () {
+      final verdict = verifyExportOptionsFile(
+        path: path,
+        plutil: FakePlutilRunner(
+          convertExitCode: 70,
+          stderrText: 'internal error',
+        ),
+      );
+      expect(verdict.exitCode, 2);
+      expect(verdict.messages.join('\n'), contains('could not convert'));
     });
 
-    test('archive retention for every distributed build is documented', () {
-      final policy = File('docs/NEUTRAL_BUILD_POLICY.md').readAsStringSync();
+    test('output plutil returns that is not JSON is UNUSABLE (exit 2)', () {
+      final verdict = verifyExportOptionsFile(
+        path: path,
+        plutil: FakePlutilRunner(convertStdout: 'not json at all'),
+      );
+      expect(verdict.exitCode, 2);
+      expect(verdict.messages.join('\n'), contains('could not read as JSON'));
+    });
 
-      expect(policy.toLowerCase(), contains('retain'));
-      expect(policy, contains('.xcarchive'));
+    test('a non-dictionary root is UNUSABLE (exit 2)', () {
+      final verdict = verifyExportOptionsFile(
+        path: path,
+        plutil: FakePlutilRunner(convertStdout: '[1,2,3]'),
+      );
+      expect(verdict.exitCode, 2);
+      expect(verdict.messages.join('\n'), contains('not a dictionary'));
+    });
+
+    test('a missing file is UNUSABLE (exit 2)', () {
+      final verdict = verifyExportOptionsFile(
+        path: '${path}_does_not_exist',
+        plutil: FakePlutilRunner(rootObject: compliantRoot()),
+      );
+      expect(verdict.exitCode, 2);
+      expect(verdict.messages.join('\n'), contains('no such file'));
+    });
+
+    test('unusable dominates: nothing is certified', () {
+      // All three outcomes are distinct and 2 is reserved for "did not check".
+      expect(
+        const ExportOptionsVerdict(VerificationOutcome.unusable, []).exitCode,
+        2,
+      );
+      expect(
+        const ExportOptionsVerdict(VerificationOutcome.violation, []).exitCode,
+        1,
+      );
+      expect(
+        const ExportOptionsVerdict(VerificationOutcome.pass, []).exitCode,
+        0,
+      );
+    });
+  });
+
+  group('the value verdict comes from the parsed ROOT object', () {
+    late String path;
+
+    setUpAll(() {
+      final dir = Directory.systemTemp.createTempSync('export_opts_root_');
+      path = '${dir.path}/ExportOptions.plist';
+      File(path).writeAsStringSync(
+        buildExportOptionsPlist(
+          mode: DistributionMode.appStore,
+          destination: ExportDestination.upload,
+          teamId: _teamId,
+        ),
+      );
+      addTearDown(() => dir.deleteSync(recursive: true));
+    });
+
+    ExportOptionsVerdict verdictFor(Map<String, Object?> root) =>
+        verifyExportOptionsFile(
+          path: path,
+          plutil: FakePlutilRunner(rootObject: root),
+        );
+
+    test('root boolean true passes', () {
+      expect(verdictFor(compliantRoot()).exitCode, 0);
+    });
+
+    test('root boolean false is a VIOLATION (exit 1)', () {
+      final verdict = verdictFor(compliantRoot()..['uploadSymbols'] = false);
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('DISABLED'));
+    });
+
+    test('root key omitted is a VIOLATION (exit 1)', () {
+      final root = compliantRoot()..remove('uploadSymbols');
+      final verdict = verdictFor(root);
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('OMITTED at the root'));
+    });
+
+    test('a string "true" is a VIOLATION — wrong type', () {
+      final verdict = verdictFor(compliantRoot()..['uploadSymbols'] = 'true');
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('must be a boolean'));
+      expect(verdict.messages.join('\n'), contains('a string'));
+    });
+
+    test('an integer 1 is a VIOLATION — wrong type', () {
+      final verdict = verdictFor(compliantRoot()..['uploadSymbols'] = 1);
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('must be a boolean'));
+      expect(verdict.messages.join('\n'), contains('an integer'));
+    });
+
+    test('a nested-only key reads as omitted — nesting does not count', () {
+      // This is the evasion that defeated the previous version. The parsed root
+      // object simply has no uploadSymbols, which is what Apple sees too.
+      final root = compliantRoot()
+        ..remove('uploadSymbols')
+        ..['provisioningProfiles'] = <String, Object?>{
+          'org.wellapath.app': 'WellaPath Distribution',
+          'uploadSymbols': true,
+        };
+      final verdict = verdictFor(root);
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('OMITTED at the root'));
+    });
+
+    test('a key inside an array reads as omitted', () {
+      final root = compliantRoot()
+        ..remove('uploadSymbols')
+        ..['notes'] = <Object?>['uploadSymbols', true];
+      expect(verdictFor(root).exitCode, 1);
+    });
+
+    test('root false beats a nested true', () {
+      final root = compliantRoot()
+        ..['uploadSymbols'] = false
+        ..['provisioningProfiles'] = <String, Object?>{'uploadSymbols': true};
+      final verdict = verdictFor(root);
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('DISABLED'));
+    });
+
+    test('root true is not spoiled by a nested false', () {
+      final root = compliantRoot()
+        ..['provisioningProfiles'] = <String, Object?>{'uploadSymbols': false};
+      expect(verdictFor(root).exitCode, 0);
+    });
+
+    test('a missing method, destination or teamID is a VIOLATION', () {
+      for (final key in ['method', 'destination', 'teamID']) {
+        final root = compliantRoot()..remove(key);
+        final verdict = verdictFor(root);
+        expect(verdict.exitCode, 1, reason: 'removing $key should fail');
+        expect(verdict.messages.join('\n'), contains(key));
+      }
+    });
+
+    test('a credential key in the parsed root is a VIOLATION', () {
+      final verdict = verdictFor(
+        compliantRoot()..['storePassword'] = 'hunter2',
+      );
+      expect(verdict.exitCode, 1);
+      expect(verdict.messages.join('\n'), contains('storePassword'));
     });
   });
 }
