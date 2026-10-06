@@ -6443,3 +6443,36 @@ or feature-flag change. No AAB, IPA or archive produced. No build number
 consumed. Build 217 remains unbuilt, unsigned, untagged and undistributed; build
 216 remains internal-only; builds 211 and 215 remain retained. TOOLING-001
 (formatter drift) remains open and untouched.
+
+## Falsifiability — six mutations, and a first run that had to be discarded
+
+Each mutation applied independently to the committed code, both suites run, then
+reverted. Every mutation asserts its anchor text exists before editing, so a
+silent no-op cannot masquerade as a pass.
+
+| Mutation | Result |
+|---|---|
+| lint result ignored | **CAUGHT** (fake-parser suite) |
+| nested key accepted | **CAUGHT** (both suites) |
+| wrong type accepted | **CAUGHT** (both suites) |
+| missing `plutil` treated as success | **CAUGHT** — *"an unanswerable check must not become a pass"* |
+| export proceeds after verifier failure | **CAUGHT** |
+| verifier checks one plist, export receives another | **CAUGHT** — *"the exported plist must be byte-for-byte the pathname that was verified"* |
+
+**The first attempt at this was invalid and is discarded, not quietly re-run.**
+The mutations were reverted with `git checkout --` while the `plutil` rewrite of
+`scripts/export_options_policy.dart` was still **uncommitted**. The first revert
+therefore restored the previous *string-scanner* version and destroyed the
+rewrite. Mutations 2–6 were then applied to code that no longer contained their
+anchor text — the edits were no-ops — and the suites "failed" only because the
+reverted file could not compile against the new tests. Those CAUGHT results were
+artefacts of a broken build, not evidence of anything.
+
+Two things were wrong and both are worth recording. The mechanical error was
+using `git checkout --` as an undo for uncommitted work. The judgement error was
+reading a red suite as a caught mutation without checking *why* it was red; a
+compile failure and a failed assertion are not the same signal, and only the
+second one means the guard works. The rewrite was reconstructed, committed first
+so reverts became safe, and all six mutations were re-run with anchor assertions
+added. The table above is from that second run.
+
