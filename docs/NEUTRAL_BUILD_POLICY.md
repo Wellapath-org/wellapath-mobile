@@ -113,3 +113,104 @@ Immediately before **every** symbol upload:
 This is an explicit, reviewed release step. No automatic build or
 upload hook runs the scanner; wiring it into CI is a separate,
 reviewed change.
+
+---
+
+## 5. iOS distribution export options — symbols must travel with the build
+
+**Why this section exists.** Build 216 was exported and uploaded with
+`uploadSymbols` set to `false`. No dSYMs reached App Store Connect, so automatic
+Apple-side symbolication is unavailable for that build. The cause was not a
+reviewed decision that turned out badly — it was that the `ExportOptions.plist`
+was **hand-authored in an untracked build directory**. Nothing in version
+control described what a distribution export must contain, so nothing could
+disagree with it. Section 2's scanner had the same gap before it was written:
+a rule that lives only in someone's memory is not a control.
+
+### 5.1 The rule
+
+**Every potentially distributable iOS export — `destination=export` and
+`destination=upload` alike — must set `uploadSymbols` to `true`.** This applies
+to build **217 and every later build**. An export-only run is the artifact that
+gets hashed and scanned before anyone uploads anything; if it lacks symbols it
+is not the thing that later gets uploaded.
+
+`uploadSymbols` is **not** a tunable. `scripts/export_options_policy.dart`
+holds it as the constant `kRequiredUploadSymbols` and exposes no parameter to
+disable it, so the generator cannot express the 216 regression.
+
+### 5.2 Distribution mode is explicit, and is not this rule
+
+`testFlightInternalTestingOnly` is **deliberately not** forced on for every
+release. It bars external testing and Beta App Review by construction, which is
+correct for an internal cohort and wrong for an external or public candidate.
+The generator therefore requires an explicit `--mode`:
+
+* `--mode=internal-testing` → emits `testFlightInternalTestingOnly`
+* `--mode=app-store` → emits no internal-only marker
+
+There is no default. An internal-only marker must never be inherited silently,
+and its absence on an external candidate must never be accidental.
+
+### 5.3 Generating the file
+
+```
+dart run scripts/export_options_tool.dart generate \
+    --mode=internal-testing|app-store \
+    --destination=export|upload \
+    --team-id=<TEAM ID> \
+    --out=<path>/ExportOptions.plist
+```
+
+A team identifier is an organisation identifier, not a secret. **Keystore paths,
+passwords, key aliases and certificate private material never belong in an
+export-options file**; `verifyExportOptions` rejects a file that carries any of
+them.
+
+### 5.4 Mandatory pre-export and pre-upload verification
+
+Immediately before **every** `xcodebuild -exportArchive`, whether exporting or
+uploading:
+
+```
+dart run scripts/export_options_tool.dart verify <path>/ExportOptions.plist
+```
+
+* Exit contract: `0` = clean · `1` = policy violation · `2` = input unusable,
+  nothing certified. **Fail closed**, exactly as in section 2.
+* **Any non-zero exit stops the release step.** There is no bypass flag and no
+  warning-only mode, deliberately.
+* It verifies any plist however it was produced, **including by hand** — which
+  is how build 216 went wrong, so a generator alone would not have caught it.
+* Preserve the output as release evidence alongside the artifact hashes.
+
+### 5.5 This does NOT replace the archive and dSYM scan
+
+The export-options check and the neutral-path scan are **separate mandatory
+gates** and neither substitutes for the other. Section 4 stands unchanged: the
+archive, the `.dSYM` bundles and the DWARF binaries inside them must still be
+scanned with `scripts/scan_symbol_artifacts.dart` before any symbol upload, and
+re-scanned after every rebuild.
+
+With `uploadSymbols: true` the dSYMs now actually leave the machine, so that
+scan matters **more** than it did for 216, not less: a contaminated dSYM that
+previously stayed local would reach Apple.
+
+### 5.6 Archive retention for every distributed build
+
+**Retain the matching `.xcarchive`, with its complete dSYM contents, for every
+build distributed to any cohort — internal or external — for at least the life
+of that build's observation period.**
+
+Without the matching archive, a crash report from a distributed build cannot be
+symbolicated at all once Apple-side symbols are missing or expired. The archive
+is the only copy of the debug information that maps a crash address back to a
+line of code, and the UUIDs must match the shipped binaries — verify with
+`dwarfdump --uuid` against the binaries inside the exported `.ipa`, not merely
+against the archive, since an archive can be rebuilt while the shipped artifact
+cannot.
+
+Retention is required even when `uploadSymbols` was `true`: Apple's copy is a
+convenience, not an archive of record. Build 216's archive and dSYMs are
+retained for exactly this reason, because for that build Apple has no copy at
+all.

@@ -1,28 +1,46 @@
 # WellaPath Mobile — Progress Tracker
 
-**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`  
-**Current state:** PR #78 merged and re-verified from the merged tree; **awaiting console access + upload authorization**  
-**Branch:** `develop` @ `5a1930b` merge, `9cce8e5` after the Step 2 record (== `origin/develop`, CI green)  
+**Phase:** Release — internal testing live on both platforms at `0.3.0+216` · `org.wellapath.app`  
+**Current state:** build **216 signed, internally distributed and evidenced** on both platforms (PR #96 merged). Console access is **no longer a blocker** — both uploads were performed and both store states observed. **217 is the next unused candidate and is unbuilt, unsigned, untagged and undistributed.**  
+**Branch:** `develop` @ `56ac2c9` (PR #96 merge, CI green)  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
 **Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-12 — tracker header refreshed to the post-merge state; nothing uploaded to any store or tester track
+**Last Updated:** 2026-10-06 — tracker header refreshed to the post-PR-#96 state; build 216 remains INTERNAL TESTING ONLY on both platforms
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
 > history; the newest entry is always at the **end** of the file.
 >
-> **Where things stand:** PR #78 merged as `5a1930b` (parents `69be422` +
-> `5e16a6b`) — identifier resolved to **org.wellapath.app** on both platforms
-> (`RC-BLK-010` closed), build `0.3.0+210`, environment gates in, iOS privacy
-> manifest in (`RC-BLK-009` manifest half closed), signed AAB and unsigned
-> iOS build verified, store package under `docs/store/`. PR #76 remains
-> **OPEN and deliberately excluded**. Next action is upload to the internal
-> tracks per `docs/store/CONSOLE_RUNBOOK.md`, which **requires console access
-> and explicit authorization and has not been performed**. Open blockers:
-> `RC-BLK-002-FOLLOWON` (signing key on one machine — enrol Play App Signing
-> at first upload); support email + privacy-policy URL (founder); external
-> beta blocked by `016` (CB_211); store submission blocked by `005`, `006`
-> and iOS codesigning (the console half of `009`).
+> **Where things stand:** build `0.3.0+216` is signed, distributed to internal
+> testing on **both** platforms, and evidenced in full (PR #96, merge
+> `56ac2c9`). Android: founder-uploaded to the existing Play **Internal
+> testing** track and observed **Active** for the existing internal testers.
+> iOS: engineering-uploaded from the verified archive, then Apple processing,
+> TestFlight availability and a successful install were each observed by the
+> founder. **Console access is no longer awaited** — it exists and has been
+> used. Identifier `org.wellapath.app` on both platforms; the upload
+> certificate fingerprint is identical across builds 211, 215 and 216, so no
+> Play App Signing decision arises.
+>
+> **Build 216 is INTERNAL TESTING ONLY** and was not promoted to any external,
+> open-testing or production cohort. Builds 211 and 215 remain retained and
+> available. **Build 217 is the next unused candidate: unbuilt, unsigned,
+> untagged and undistributed.**
+>
+> **Known limitation on 216:** it was exported with `uploadSymbols: false`, so
+> no dSYMs reached App Store Connect and automatic Apple-side symbolication is
+> unavailable for that build. The matching archive and dSYMs are retained and
+> their UUIDs match the shipped binaries, so crash reports can be symbolicated
+> locally. `docs/NEUTRAL_BUILD_POLICY.md` §5 now requires
+> `uploadSymbols: true` for 217 and later, with a source-controlled generator
+> and a mandatory pre-upload verifier.
+>
+> **Still open:** CB_211 clinical adjudication before any external cohort
+> (`RC-BLK-016`); the danger-sign label review; physical-device smoke testing
+> beyond the founder's own handset; support email + privacy-policy URL
+> (founder); and store submission (`RC-BLK-005`, `006`). PR #76 remains
+> **OPEN and deliberately excluded**. Internal testing being live on both
+> platforms does not move any of them.
 
 ---
 
@@ -6207,3 +6225,109 @@ byte-untouched clinical paths; and all test and analyzer counts
 One clarification it added, worth keeping: `Sentry.framework` 8.58.4 is embedded
 in the IPA and `libsentry.so` ships in the AAB. "No DSN" means the SDK is
 present but unconfigured — it does not mean no crash-reporting code is shipped.
+
+---
+
+# Release hardening — iOS symbol-upload guard, tracker refresh, tooling follow-up
+
+**Date:** 2026-10-06 · **Base:** `develop` @ `56ac2c9` (PR #96 merge) ·
+**Scope:** release tooling and documentation only. **No build, no artifact, no
+build-number consumption, no store action.**
+
+## Why — the root cause of the build-216 symbol gap, stated precisely
+
+Build 216 was exported with `uploadSymbols: false`, so no dSYMs reached App
+Store Connect. The cause was **not** a reviewed decision that turned out badly.
+It was structural: the `ExportOptions.plist` was **hand-authored in the
+untracked neutral build root**. A search of the tracked tree at the base commit
+finds no export-options file, no generator and no `uploadSymbols` reference
+anywhere outside prose — `scripts/` contained only the neutral-path scanner. No
+source-controlled rule existed for the plist to violate, so a symbols-disabled
+export could not be caught by anything.
+
+That is the same gap the neutral-path scanner closed for build paths, and it is
+closed here the same way: by writing the rule down somewhere a machine reads it.
+
+## What was added
+
+* **`scripts/export_options_policy.dart`** — the rule. `uploadSymbols` is the
+  constant `kRequiredUploadSymbols = true` and is **not a parameter**, so the
+  generator cannot express the 216 regression. `verifyExportOptions` inspects a
+  plist **however it was produced, including by hand**, and returns actionable
+  violations. A generator alone would not have caught 216, because 216's file
+  was hand-written.
+* **`scripts/export_options_tool.dart`** — `generate` and `verify` CLI. Exit
+  contract matches the scanner: `0` clean · `1` violation · `2` unusable input,
+  nothing certified. Fail closed, no bypass flag, no warning-only mode.
+* **`test/release/export_options_policy_test.dart`** — the load-bearing tests
+  are mutation checks that prove the guard **rejects** bad input, each asserting
+  the mutation actually landed first so it cannot pass vacuously. (Count-free by
+  choice: a hard-coded test count in a record like this rots the moment anyone
+  adds a case.)
+* **`docs/NEUTRAL_BUILD_POLICY.md` §5** — the rule, the explicit-mode
+  requirement, the mandatory pre-export and pre-upload verify step, an explicit
+  statement that it does **not** replace the archive and dSYM scan, and archive
+  retention for every distributed build.
+
+## Distribution mode stays explicit — deliberately not hardcoded
+
+`testFlightInternalTestingOnly` is **not** forced on for every future release.
+It bars external testing and Beta App Review by construction, which is right for
+an internal cohort and wrong for an external or public candidate. `--mode` has
+**no default**: `internal-testing` emits the marker, `app-store` does not, and
+a test asserts the two modes differ in nothing else.
+
+## Proof the guard fails when symbols are disabled
+
+Run against the **real, unmodified build-216 plists** — the files that actually
+shipped the regression:
+
+```
+$ dart run scripts/export_options_tool.dart verify \
+    /Users/Shared/wellapath-build-216/ExportOptions216.plist \
+    /Users/Shared/wellapath-build-216/ExportOptionsUpload216.plist
+FAIL …/ExportOptions216.plist: uploadSymbols is DISABLED (<false/>). …
+FAIL …/ExportOptionsUpload216.plist: uploadSymbols is DISABLED (<false/>). …
+export-options verify: 2 violation(s) — DO NOT EXPORT OR UPLOAD
+EXIT CODE: 1
+```
+
+Exit codes measured: compliant generated file **0**; `uploadSymbols` flipped to
+false **1**; `uploadSymbols` removed entirely **1**. The guard would have
+blocked build 216 before upload. The two 216 plists were read only and were not
+modified.
+
+## Scope limits held
+
+No clinical engine, assessment, telemetry, Sentry, facility artifact, store
+track or feature-flag change — the diff touches `scripts/`, `test/release/`,
+`docs/NEUTRAL_BUILD_POLICY.md` and `PROGRESS.md` only. **No AAB, IPA or archive
+was produced and no build number was consumed.** Build 217 remains unbuilt,
+unsigned, untagged and undistributed; build 216 remains internal-only; builds
+211 and 215 remain retained.
+
+## Tracker header refreshed
+
+The top-of-file header still described build `0.3.0+210` and "awaiting console
+access + upload authorization", which the merged 216 record contradicts by two
+platforms and six build numbers. It now states the post-PR-#96 position. Only
+the top-level current-state block was touched; **every dated historical entry is
+unchanged**, as is this file's practice of refreshing the header while history
+accumulates below.
+
+## Tooling follow-up — formatter drift (NOT fixed here, by instruction)
+
+`test/scripts/symbol_artifact_scanner_test.dart` is reported as needing
+reformatting by the **local** Dart 3.12.2 formatter, while CI's floating `3.x`
+stable formatter is satisfied with it as committed. The drift is **pre-existing
+on `develop`**, predates this branch, and this branch does not touch the file.
+
+It was deliberately **not** reformatted: doing so would flip the drift the other
+way and break the CI check that currently passes. Recorded here as a standalone
+tooling item, because no prior record of it existed:
+
+> **TOOLING-001 — local/CI Dart formatter version drift.** Pin one formatter
+> version across local and CI (or align CI's floating `3.x` with the declared
+> toolchain) and reformat affected files in a single dedicated change. Affected
+> today: `test/scripts/symbol_artifact_scanner_test.dart`. Do not fix piecemeal
+> inside unrelated PRs — it will oscillate.
