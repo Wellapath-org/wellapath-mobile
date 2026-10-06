@@ -229,6 +229,105 @@ void main() {
     });
   });
 
+  group('the verifier agrees with the parser that matters', () {
+    // Found by independent review. An earlier version read the FIRST occurrence
+    // of a key while Apple's plist parser resolves the LAST, so a hand-edited
+    // file that `plutil -p` reports as `uploadSymbols => false` was reported
+    // CLEAN — precisely the outcome this library exists to prevent. Both shapes
+    // below also pass `plutil -lint`, so they look legitimate.
+    late String good;
+
+    setUp(() {
+      good = buildExportOptionsPlist(
+        mode: DistributionMode.appStore,
+        destination: ExportDestination.upload,
+        teamId: _teamId,
+      );
+      expect(verifyExportOptions(good), isEmpty);
+    });
+
+    test('a duplicated uploadSymbols key is REJECTED', () {
+      final dup = good.replaceFirst(
+        '</dict>',
+        '\t<key>uploadSymbols</key>\n\t<false/>\n</dict>',
+      );
+      expect(dup, isNot(equals(good)));
+      expect(countKeyOccurrences(dup, 'uploadSymbols'), 2);
+
+      final violations = verifyExportOptions(dup);
+      expect(violations, isNotEmpty);
+      expect(violations.join('\n'), contains('appears 2 times'));
+    });
+
+    test('the LAST value wins, as Apple resolves it', () {
+      final dup = good.replaceFirst(
+        '</dict>',
+        '\t<key>uploadSymbols</key>\n\t<false/>\n</dict>',
+      );
+      // true first, false last. Apple reads false, so this must too.
+      expect(rawValueForKey(dup, 'uploadSymbols'), '<false/>');
+      expect(
+        verifyExportOptions(dup).join('\n'),
+        contains('uploadSymbols is DISABLED'),
+      );
+    });
+
+    test('a commented-out key then overridden false is REJECTED', () {
+      final commented = good.replaceFirst(
+        '\t<key>uploadSymbols</key>\n\t<true/>',
+        '\t<!-- <key>uploadSymbols</key><true/> -->\n'
+            '\t<key>uploadSymbols</key>\n\t<false/>',
+      );
+      expect(commented, isNot(equals(good)));
+      // The commented copy must not count as a live key.
+      expect(countKeyOccurrences(commented, 'uploadSymbols'), 1);
+      expect(rawValueForKey(commented, 'uploadSymbols'), '<false/>');
+
+      expect(
+        verifyExportOptions(commented).join('\n'),
+        contains('uploadSymbols is DISABLED'),
+      );
+    });
+
+    test('a key present ONLY in a comment counts as omitted', () {
+      final onlyComment = good.replaceFirst(
+        '\t<key>uploadSymbols</key>\n\t<true/>',
+        '\t<!-- <key>uploadSymbols</key><true/> -->',
+      );
+      expect(onlyComment, isNot(equals(good)));
+      expect(countKeyOccurrences(onlyComment, 'uploadSymbols'), 0);
+      expect(
+        verifyExportOptions(onlyComment).join('\n'),
+        contains('uploadSymbols is OMITTED'),
+      );
+    });
+
+    test('stripXmlComments removes comments and keeps live markup', () {
+      expect(stripXmlComments('a<!-- x -->b'), 'ab');
+      expect(
+        stripXmlComments('<!--\nmulti\nline\n--><key>k</key>'),
+        '<key>k</key>',
+      );
+    });
+
+    test('a generated file has exactly one of every policy key', () {
+      for (final mode in DistributionMode.values) {
+        final plist = buildExportOptionsPlist(
+          mode: mode,
+          destination: ExportDestination.upload,
+          teamId: _teamId,
+        );
+        for (final key in kPolicyKeys) {
+          expect(
+            countKeyOccurrences(plist, key),
+            lessThanOrEqualTo(1),
+            reason: '$mode emits $key more than once',
+          );
+        }
+      }
+    });
+  });
+
   group('the rule is written down where a release engineer will look', () {
     test('the neutral build policy requires uploadSymbols true', () {
       final policy = File('docs/NEUTRAL_BUILD_POLICY.md').readAsStringSync();

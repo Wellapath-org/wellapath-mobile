@@ -183,6 +183,12 @@ dart run scripts/export_options_tool.dart verify <path>/ExportOptions.plist
 * It verifies any plist however it was produced, **including by hand** — which
   is how build 216 went wrong, so a generator alone would not have caught it.
 * Preserve the output as release evidence alongside the artifact hashes.
+* It resolves keys the way **Apple's parser** does — comments stripped, and the
+  **last** occurrence of a duplicated key wins — and rejects a duplicated policy
+  key outright. An earlier version read the first occurrence, which meant a
+  hand-edited file that `plutil -p` reports as `uploadSymbols => false` could be
+  reported CLEAN. The one check that matters must not disagree with the parser
+  that decides what actually ships.
 
 ### 5.5 This does NOT replace the archive and dSYM scan
 

@@ -124,18 +124,55 @@ String buildExportOptionsPlist({
   return lines.join('\n');
 }
 
+/// Keys this policy reasons about. A duplicate of any of them is a violation,
+/// because a reader resolving the wrong one reaches a different conclusion than
+/// Apple does.
+const List<String> kPolicyKeys = [
+  'uploadSymbols',
+  'method',
+  'destination',
+  'teamID',
+  'signingStyle',
+  'stripSwiftSymbols',
+  'testFlightInternalTestingOnly',
+];
+
+/// Removes XML comments from [xml].
+///
+/// Without this, a key commented out and overridden below it satisfies a
+/// presence check while Apple's parser never sees the commented copy at all.
+String stripXmlComments(String xml) =>
+    xml.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+
+/// Number of live (non-commented) `<key>$key</key>` occurrences in [plistXml].
+int countKeyOccurrences(String plistXml, String key) => RegExp(
+  '<key>${RegExp.escape(key)}</key>',
+).allMatches(stripXmlComments(plistXml)).length;
+
 /// Reads the value node that follows `<key>$key</key>` in [plistXml].
 ///
 /// Returns the raw node text (`'<true/>'`, `'<false/>'`, `'<string>x</string>'`)
 /// or `null` when the key is absent. Deliberately a small scanner rather than a
 /// package dependency: this runs from `scripts/` on both macOS and Linux CI with
 /// nothing but the Dart SDK.
+///
+/// Two deliberate choices, both so this agrees with the parser that actually
+/// matters:
+///
+///  * Comments are stripped first. A commented-out key is not a key.
+///  * When a key appears more than once this returns the **last** value, because
+///    that is what Apple's plist parser resolves to. An earlier version took the
+///    first, which meant a file `plutil` reads as `uploadSymbols => false` could
+///    be reported CLEAN — the exact outcome this library exists to prevent.
+///    [verifyExportOptions] additionally rejects duplicates outright, so this is
+///    defence in depth rather than the only guard.
 String? rawValueForKey(String plistXml, String key) {
+  final stripped = stripXmlComments(plistXml);
   final keyNode = '<key>$key</key>';
-  final keyIndex = plistXml.indexOf(keyNode);
+  final keyIndex = stripped.lastIndexOf(keyNode);
   if (keyIndex < 0) return null;
 
-  final rest = plistXml.substring(keyIndex + keyNode.length);
+  final rest = stripped.substring(keyIndex + keyNode.length);
   final match = RegExp(
     r'^\s*(<(?:true|false)\s*/>|<(string|integer|real)>.*?</\2>)',
     dotAll: true,
@@ -152,6 +189,21 @@ String? rawValueForKey(String plistXml, String key) {
 /// `scripts/scan_symbol_artifacts.dart` has none.
 List<String> verifyExportOptions(String plistXml) {
   final violations = <String>[];
+
+  // Duplicates first: until they are ruled out, no other answer about this file
+  // is trustworthy. Apple resolves the last occurrence, a careless reader the
+  // first, and the two can disagree about whether symbols are uploaded.
+  for (final key in kPolicyKeys) {
+    final occurrences = countKeyOccurrences(plistXml, key);
+    if (occurrences > 1) {
+      violations.add(
+        '"$key" appears $occurrences times. A duplicated key is ambiguous: '
+        'Apple resolves the LAST occurrence, so a file whose first '
+        '$key looks correct can still take effect as the opposite. '
+        'Keep exactly one.',
+      );
+    }
+  }
 
   final uploadSymbols = rawValueForKey(plistXml, 'uploadSymbols');
   if (uploadSymbols == null) {

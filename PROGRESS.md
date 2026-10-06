@@ -6293,9 +6293,16 @@ EXIT CODE: 1
 ```
 
 Exit codes measured: compliant generated file **0**; `uploadSymbols` flipped to
-false **1**; `uploadSymbols` removed entirely **1**. The guard would have
-blocked build 216 before upload. The two 216 plists were read only and were not
-modified.
+false **1**; `uploadSymbols` removed entirely **1**. The two 216 plists were read
+only and were not modified.
+
+**Stated precisely:** run against 216's inputs the guard **rejects** them, so it
+would have blocked that upload **had it been run**. Nothing in CI invokes it —
+`verify` is a mandatory *release step* in `docs/NEUTRAL_BUILD_POLICY.md` §5.4,
+exactly as §2 already says of the neutral-path scanner ("no automatic build or
+upload hook runs the scanner; wiring it into CI is a separate, reviewed
+change"). The claim is about policy compliance, not automation, and is not
+evidence that a future export cannot skip the step.
 
 ## Scope limits held
 
