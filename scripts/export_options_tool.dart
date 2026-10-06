@@ -135,12 +135,21 @@ Never _generate(List<String> args) {
     exit(_exitUnusable);
   }
 
-  stdout.writeln('wrote $out (mode=$modeRaw, destination=$destinationRaw)');
+  // Fail closed rather than reporting success for a file nothing verified.
+  // Writing a plist and exiting 0 while admitting in passing that it was never
+  // checked is the shape of claim this policy exists to prevent.
   if (verdict.outcome == VerificationOutcome.unusable) {
-    stdout.writeln(
-      'note: could not self-verify — ${verdict.messages.join('; ')}',
-    );
+    stderr
+      ..writeln('wrote $out, but it could NOT be verified:')
+      ..writeln('  - ${verdict.messages.join('\n  - ')}')
+      ..writeln(
+        'NOTHING IS CERTIFIED about that file. Generate it on a machine with '
+        '$kPlutilPath, or verify it there before exporting.',
+      );
+    exit(_exitUnusable);
   }
+
+  stdout.writeln('wrote $out (mode=$modeRaw, destination=$destinationRaw)');
   exit(_exitOk);
 }
 

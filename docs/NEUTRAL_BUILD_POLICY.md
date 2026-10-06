@@ -164,7 +164,7 @@ dart run scripts/export_options_tool.dart generate \
 
 A team identifier is an organisation identifier, not a secret. **Keystore paths,
 passwords, key aliases and certificate private material never belong in an
-export-options file**; `verifyExportOptions` rejects a file that carries any of
+export-options file**; `verifyExportOptionsFile` rejects a file that carries any of
 them.
 
 ### 5.4 Mandatory pre-export and pre-upload verification
@@ -203,6 +203,17 @@ dart run scripts/export_options_tool.dart verify <path>/ExportOptions.plist
 | key present only in a nested dictionary or array | **1** |
 | wrong type — string `"true"`, integer `1` | **1** |
 | invalid/unparseable plist, missing file, missing `plutil`, parser failure | **2** |
+
+Three shapes are **exit 2 (fail closed)** rather than being verified, and that is
+a known limitation rather than a judgement about them: a **binary** plist
+(`plutil -convert binary1`), a **UTF-16** plist, and a plist containing a
+`<data>` or `<date>` value. The first two are rejected because the file is read
+as UTF-8 text before `plutil` is consulted; the third because `-convert json`
+refuses those types. All three are valid input to `xcodebuild`, so a release
+using one would be blocked and would need either conversion to UTF-8 XML or a
+change here to query the single key with `plutil -extract` instead of converting
+the whole file. Failing closed is the right direction, but it is not the same as
+verifying.
 
 **Why this is not a scanner.** Two earlier string-scanning versions were
 defeated by independent review. The first read the *first* occurrence of a key
@@ -259,7 +270,7 @@ all.
 
 A check is only as good as someone's memory of running it. Build 216's
 `ExportOptions.plist` was hand-authored and nothing stood between it and
-`xcodebuild`. Use the wrapper, which cannot be bypassed by forgetting:
+`xcodebuild`. Use the wrapper:
 
 ```
 dart run scripts/guarded_export.dart \
@@ -279,3 +290,10 @@ unverified plist. `runGuardedExport` therefore returns the arguments it actually
 used, and a test asserts the verified path is the one passed to
 `-exportOptionsPlist`. Nothing regenerates or substitutes a plist between
 verification and export.
+
+**What this does NOT guarantee.** Nothing forces a release engineer through this
+wrapper: calling `xcodebuild -exportArchive` directly still works and skips the
+check entirely, exactly as §4 concedes for the neutral-path scanner. The wrapper
+removes the chance of *forgetting* the check when you use it; it does not make the
+check unavoidable. Making it unavoidable would mean removing direct `xcodebuild`
+invocation from the documented release path, which is a separate, reviewed change.

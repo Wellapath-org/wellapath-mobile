@@ -6476,3 +6476,69 @@ second one means the guard works. The rewrite was reconstructed, committed first
 so reverts became safe, and all six mutations were re-run with anchor assertions
 added. The table above is from that second run.
 
+
+## Round-2 review: the verifier held, the CI proof did not
+
+An adversarial review attempted 24+ evasion shapes against the `plutil`-backed
+verifier — binary and JSON-format plists, UTF-16, a BOM, `<data>` values,
+numeric entities spelling the key name, whitespace inside the `<key>` tag,
+symlinks, a directory as the path, a 20 MB file, duplicates in both orders.
+**No file was found that the guard reports CLEAN while Apple resolves root
+`uploadSymbols` as false or absent.** Every exit-0 verdict agreed with
+`plutil -extract`; every shape capable of disagreeing failed closed at exit 2.
+The delegation design held where both string scanners did not.
+
+**One blocking defect, and it was mine, in CI rather than in the guard.** The
+mandatory macOS job's end-to-end step used
+`plutil -extract uploadSymbols json -o - … | grep -qx false` as its
+precondition. `plutil` refuses a bare scalar in JSON format — *"Invalid object in
+plist for JSON format"*, exit 1 — so under `set -euo pipefail` the step aborted
+**before** reaching its own assertion. The job therefore failed on every run
+(observed: `iOS Export Options Guard (macOS)` fail, 3m47s) and the proof it
+claimed to perform was never executed.
+
+The galling part is that this exact `plutil` behaviour is documented three lines
+deep in `test/release/export_options_plutil_test.dart`, and the entry above
+records discovering and fixing it **in the test helper**. The fix was not carried
+into the CI step. Finding a trap, writing it down, and then walking into it in the
+next file is a different failure from not knowing.
+
+Fixed, and the step is now exercised locally end to end before being trusted:
+
+* precondition uses `-extract uploadSymbols raw -o -` (verified: prints `false`,
+  exit 0);
+* the bad fixture is produced with `plutil -replace uploadSymbols -bool false`
+  instead of `sed 's|<true/>|<false/>|'`, which also flipped `stripSwiftSymbols`
+  — confirmed `stripSwiftSymbols` now stays `true`;
+* the assertion requires **exit 1 exactly**, not merely non-zero, so a plist
+  mis-classified as unusable (2) can no longer satisfy the proof.
+
+**Claims corrected in the same pass**, all of them mine and all overstated:
+
+* docs §5.7 said the wrapper "cannot be bypassed by forgetting". Nothing forces a
+  release engineer through it — `xcodebuild -exportArchive` still works directly
+  and skips the check, exactly as §4 concedes for the scanner. Now says what it
+  actually guarantees.
+* docs §5.3 named `verifyExportOptions`; the function is
+  `verifyExportOptionsFile`.
+* The exit table did not mention that a **binary** plist, a **UTF-16** plist, or
+  one containing `<data>`/`<date>` is exit 2 rather than verified — fail-closed,
+  but all three are valid `xcodebuild` input, so a release using one would be
+  blocked. Recorded as a known limitation with the fix direction (`-extract` per
+  key instead of whole-file `-convert json`), not papered over.
+* `generate --out` previously exited **0** with a passing note when `plutil` was
+  absent, i.e. reported success for a file nothing had verified. Now exits 2.
+
+## Known gaps, deliberately not fixed here
+
+* **Only the presence of `method`, `destination` and `teamID` is checked, never
+  their values.** `method=development` together with `uploadSymbols=true` is
+  certified CLEAN. Out of scope for a symbol-upload guard, but a real gap and
+  worth its own change.
+* **A duplicated key produces no warning.** Correct about what ships — `plutil`
+  resolves the last occurrence exactly as `xcodebuild` does — but a file whose
+  visible first value is overridden later is a human-legibility hazard, and
+  `plutil` surfaces no duplicate signal to key a structure-aware check off.
+* Mutations 1, 4, 5 and 6 are caught **only** by the Linux-runnable suite; the
+  `--tags plutil` suite passes under all four. Both run in CI, so coverage holds,
+  but the macOS job alone would not catch them.

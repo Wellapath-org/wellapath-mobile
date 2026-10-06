@@ -128,13 +128,27 @@ jobs:
           dart run scripts/export_options_tool.dart verify "$work/good.plist"
           echo "compliant plist accepted (exit 0) — as expected"
 
-          sed 's|<true/>|<false/>|' "$work/good.plist" > "$work/bad.plist"
-          # plutil must agree this resolves to false before we assert anything.
-          /usr/bin/plutil -extract uploadSymbols json -o - "$work/bad.plist" | grep -qx false
+          # Flip ONLY uploadSymbols, using Apple's own tool so nothing else in
+          # the file changes (a sed on <true/> would also flip stripSwiftSymbols).
+          cp "$work/good.plist" "$work/bad.plist"
+          /usr/bin/plutil -replace uploadSymbols -bool false "$work/bad.plist"
 
-          if dart run scripts/export_options_tool.dart verify "$work/bad.plist"; then
-            echo "::error::the guard ACCEPTED a plist with uploadSymbols false"
+          # plutil must agree this now resolves to false before we assert
+          # anything about the guard. NOTE: `-extract <key> json` is wrong here —
+          # plutil refuses a bare scalar with "Invalid object in plist for JSON
+          # format", which under `set -euo pipefail` aborts this step before the
+          # assertion below ever runs. Use `raw`.
+          test "$(/usr/bin/plutil -extract uploadSymbols raw -o - "$work/bad.plist")" = "false"
+
+          # Assert the exact exit code, not merely "non-zero": a bad plist
+          # mis-classified as unusable (2) must not satisfy this proof.
+          set +e
+          dart run scripts/export_options_tool.dart verify "$work/bad.plist"
+          rc=$?
+          set -e
+          if [ "$rc" -ne 1 ]; then
+            echo "::error::expected exit 1 (policy violation) for a symbols-disabled plist, got $rc"
             exit 1
           fi
-          echo "symbols-disabled plist rejected (non-zero) — guard is live"
+          echo "symbols-disabled plist rejected with exit 1 — guard is live"
 
