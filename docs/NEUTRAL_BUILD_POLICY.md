@@ -303,10 +303,24 @@ that:
 
 * `extraArguments` **may not supply or override `-exportOptionsPlist`** in any
   form — bare flag, inline `-exportOptionsPlist=/path`, double-dashed, or any
-  casing. `xcodebuild` takes the *later* value of a repeated flag, so a smuggled
-  second one would make the verification meaningless. Such a call is refused with
-  exit 2 **before** verification and before any invocation. Unrelated extras such
-  as `-allowProvisioningUpdates` pass through untouched.
+  casing. Such a call is refused with exit 2 **before** verification and before
+  any invocation. Unrelated extras such as `-allowProvisioningUpdates` pass
+  through untouched.
+
+  **What this check is and is not for.** Measured on Xcode 26.6 (Build 17F113),
+  `xcodebuild` **refuses** a repeated flag outright — `error: option
+  '-exportOptionsPlist' may only be provided once`, **exit 64**, nothing exported
+  — rather than preferring the later value. So the wrapper is not what prevents a
+  substituted plist here; Apple's own argument parser does. The check exists so
+  the refusal is **attributable and early**: a message naming the misuse, before
+  verification and before any invocation, instead of an opaque exit 64 from a tool
+  that has already been handed the command.
+
+  An earlier revision of this section claimed `xcodebuild` "takes the later value
+  of a repeated flag". That was false — an untested extrapolation from the
+  separate and correct finding that Apple resolves a duplicated plist **key** to
+  the last one (§5.4). Duplicate plist keys and duplicate CLI flags behave
+  differently.
 * `xcodebuild` is resolved through the fixed absolute path
   **`/usr/bin/xcodebuild`**, never `PATH`, for the same reason `plutil` is. A
   review of an earlier version demonstrated the asymmetry by placing a fake

@@ -147,9 +147,15 @@ void main() {
   });
 
   group('extraArguments may not override the verified plist path', () {
-    // The wrapper is authoritative for which plist is exported. xcodebuild takes
-    // the LATER value of a repeated flag, so a smuggled second
-    // -exportOptionsPlist would make the verification meaningless.
+    // The wrapper is authoritative for which plist is exported.
+    //
+    // Measured on Xcode 26.6: xcodebuild REFUSES a repeated flag — "option
+    // '-exportOptionsPlist' may only be provided once", exit 64, nothing
+    // exported. It does not prefer the later value, as an earlier revision of
+    // this comment wrongly claimed. So these tests pin an ATTRIBUTABILITY
+    // property, not a safety one: the misuse is named and refused here, before
+    // verification and before any invocation, rather than surfacing as an opaque
+    // exit 64 from a tool already handed the command.
     PlutilRunner good() => FakePlutilRunner(rootObject: compliantRoot());
 
     test('the bare flag followed by another path is REJECTED', () {

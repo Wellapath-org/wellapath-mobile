@@ -106,9 +106,11 @@ class GuardedExportResult {
 /// Whether [argument] supplies or overrides [kExportOptionsFlag] in any form.
 ///
 /// Matches the bare flag, an inline `-exportOptionsPlist=/path` form, and a
-/// double-dashed spelling, case-insensitively. Deliberately broad: the cost of a
-/// false positive is one rejected unrelated argument, and the cost of a false
-/// negative is an export that used a plist nobody verified.
+/// double-dashed spelling, case-insensitively — and deliberately **nothing
+/// more**. A name that merely starts with the flag, such as
+/// `-exportOptionsPlistExtra`, is NOT matched: no real `xcodebuild` flag can be
+/// formed by appending to this one, so accepting it is harmless and
+/// `xcodebuild` rejects it itself as an invalid option.
 bool overridesExportOptions(String argument) {
   final normalised = argument.toLowerCase().replaceAll(RegExp(r'^-+'), '');
   return normalised == kExportOptionsFlag.substring(1).toLowerCase() ||
@@ -130,9 +132,21 @@ GuardedExportResult runGuardedExport({
   List<String> extraArguments = const [],
 }) {
   // Checked FIRST, before anything else and certainly before any invocation:
-  // this wrapper is authoritative for which plist is exported, and a caller
-  // smuggling a second -exportOptionsPlist would make the verified path
-  // irrelevant — xcodebuild would take the later one.
+  // this wrapper is authoritative for which plist is exported.
+  //
+  // Measured on Xcode 26.6 (Build 17F113): a repeated flag is REFUSED by
+  // xcodebuild itself — `error: option '-exportOptionsPlist' may only be
+  // provided once`, exit 64, nothing exported. It does NOT prefer the later
+  // value. (An earlier revision of this comment claimed it did, extrapolating
+  // from the separate and correct finding that Apple resolves a duplicated plist
+  // KEY to the last one. Duplicate plist keys and duplicate CLI flags are not
+  // the same thing, and the CLI behaviour had not been run.)
+  //
+  // So this check is not what stands between a caller and a substituted plist —
+  // xcodebuild would refuse anyway. It is here so the refusal is attributable
+  // and early: a clear message naming the misuse, before verification and before
+  // any invocation, instead of an opaque exit 64 from a tool that has already
+  // been handed the command.
   for (final argument in extraArguments) {
     if (overridesExportOptions(argument)) {
       return GuardedExportResult(
@@ -141,9 +155,10 @@ GuardedExportResult runGuardedExport({
         verdict: ExportOptionsVerdict(VerificationOutcome.unusable, [
           'extraArguments may not supply or override $kExportOptionsFlag '
               '(got "$argument"). This wrapper is authoritative for the plist '
-              'path it verified; a second one would make that verification '
-              'meaningless because xcodebuild takes the later value. Nothing '
-              'was exported.',
+              'path it verified. xcodebuild itself refuses a repeated flag '
+              '("option \'$kExportOptionsFlag\' may only be provided once", '
+              'exit 64), so this is refused here first to make the misuse '
+              'attributable rather than opaque. Nothing was exported.',
         ]),
       );
     }

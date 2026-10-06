@@ -6634,3 +6634,59 @@ No `method` or `destination` **value** validation. Binary, UTF-16 and
 manual `xcodebuild` remains outside the wrapper's technical guarantee. Build 217
 remains unbuilt, unsigned, untagged and undistributed; build 216 remains
 internal-only; builds 211 and 215 remain retained. TOOLING-001 remains open.
+
+## Correction — the stated rationale for the `extraArguments` check was false
+
+The entry above, the commit message of `ba779c3`, the PR #98 body,
+`scripts/guarded_export.dart` (both a comment and the **user-facing refusal
+message**) and `docs/NEUTRAL_BUILD_POLICY.md` §5.7 all asserted that
+**"`xcodebuild` takes the later value of a repeated flag"**. That is **false**.
+
+Measured on this project's toolchain, `xcodebuild -version` → Xcode 26.6, Build
+17F113:
+
+```
+$ /usr/bin/xcodebuild -exportArchive -archivePath /nonexistent_zzz.xcarchive \
+    -exportPath … -exportOptionsPlist A.plist -exportOptionsPlist B.plist
+xcodebuild: error: option '-exportOptionsPlist' may only be provided once
+exit 64
+```
+
+Both plists were valid, so it is the duplication and not a bad file. Control with
+a single flag reaches `error: archive not found at path …`, exit 65 — option
+parsing succeeded there, which confirms exit 64 is genuinely about option
+handling. `xcodebuild` **refuses the command and exports nothing**; it does not
+prefer the later value.
+
+**Where the error came from.** It was an untested extrapolation from a separate
+and *correct* finding of this project's own: Apple resolves a duplicated plist
+**key** to the last occurrence (§5.4, pinned by a test against real `plutil`).
+Duplicate plist keys and duplicate CLI flags are different mechanisms, and the
+CLI behaviour had never been run. The plist half was measured; the CLI half was
+assumed and then written into a permanent governance document and into the error
+text a release engineer reads at the moment of refusal.
+
+**The hardening itself stands and is not being removed.** What changes is why it
+exists. It is not the thing preventing a substituted plist — Apple's argument
+parser already refuses that. It is there so the refusal is **attributable and
+early**: a message naming the misuse, before verification and before any
+invocation, instead of an opaque exit 64 from a tool that has already been handed
+the command. Corrected in all five locations; the earlier commit is not amended.
+
+**Also corrected:** `overridesExportOptions`'s doc comment called the matcher
+"deliberately broad" while the implementation is deliberately narrow — a name
+that merely starts with the flag, such as `-exportOptionsPlistExtra`, is not
+matched, which is correct because no real `xcodebuild` flag can be formed by
+appending to this one.
+
+### Known matcher gap, reported not fixed
+
+`overridesExportOptions` can be slipped by an argument carrying a control
+character or surrounding whitespace — `'-exportOptionsPlist\u0000'` normalises to
+something that does not match, and the NUL is then truncated at the process
+boundary, so a genuine second flag token would reach `argv`. **Not exploitable
+today:** `main()` never passes `extraArguments` (the parameter has no CLI
+surface, so a Dart caller would have to embed the NUL deliberately), and
+`xcodebuild` refuses the duplicate regardless. Left unfixed to keep this PR to
+its agreed scope; the fix would be to reject any argument containing a control
+character, or to compare after stripping NUL and whitespace.
