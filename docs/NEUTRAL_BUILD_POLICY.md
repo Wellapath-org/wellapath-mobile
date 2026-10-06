@@ -297,3 +297,37 @@ check entirely, exactly as §4 concedes for the neutral-path scanner. The wrappe
 removes the chance of *forgetting* the check when you use it; it does not make the
 check unavoidable. Making it unavoidable would mean removing direct `xcodebuild`
 invocation from the documented release path, which is a separate, reviewed change.
+
+**The wrapper is authoritative for the plist path.** Two hardenings follow from
+that:
+
+* `extraArguments` **may not supply or override `-exportOptionsPlist`** in any
+  form — bare flag, inline `-exportOptionsPlist=/path`, double-dashed, or any
+  casing. `xcodebuild` takes the *later* value of a repeated flag, so a smuggled
+  second one would make the verification meaningless. Such a call is refused with
+  exit 2 **before** verification and before any invocation. Unrelated extras such
+  as `-allowProvisioningUpdates` pass through untouched.
+* `xcodebuild` is resolved through the fixed absolute path
+  **`/usr/bin/xcodebuild`**, never `PATH`, for the same reason `plutil` is. A
+  review of an earlier version demonstrated the asymmetry by placing a fake
+  `xcodebuild` first on `PATH` and watching it get invoked. A missing or
+  non-executable `/usr/bin/xcodebuild` is exit 2 **before** export. Tests inject a
+  process runner at the `XcodebuildRunner` seam; they do **not** put a fake
+  earlier on `PATH`, because that is the behaviour the fixed path exists to rule
+  out.
+
+### 5.8 Build 217 and later: the wrapper is the release path
+
+**For build 217 and every later build, the iOS export must go through
+`scripts/guarded_export.dart`.** A direct `xcodebuild -exportArchive` invocation
+is **not acceptable** for those builds.
+
+**Preserve the wrapper's successful verification and export output as release
+evidence**, alongside the artifact hashes and the neutral-path scan output. The
+log is the record that the plist which was exported is the plist that was
+verified — that is the whole claim, and an unrecorded claim is not evidence.
+
+This is a procedural requirement, not a technical one: as §5.7 says, nothing
+prevents someone calling `xcodebuild` by hand. The requirement exists because
+build 216 was exported by hand with `uploadSymbols: false` and nothing in the
+process noticed.

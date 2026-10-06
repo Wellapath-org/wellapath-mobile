@@ -122,8 +122,12 @@ Never _generate(List<String> args) {
 
   // Verify what we just wrote, through the same parser a release engineer would
   // use. A generator that is not checked against the policy it implements is a
-  // second place for the rule to drift. Skipped only when plutil is absent,
-  // because then nothing can be verified anywhere and `verify` will say so.
+  // second place for the rule to drift.
+  //
+  // This verification is never skipped. If `plutil` is unavailable the generator
+  // FAILS CLOSED with exit 2 (see below) rather than reporting success for a
+  // file nothing checked — an earlier version exited 0 with a passing note,
+  // which is the shape of claim this policy exists to prevent.
   final verdict = verifyExportOptionsFile(path: out);
   if (verdict.outcome == VerificationOutcome.violation) {
     stderr.writeln(

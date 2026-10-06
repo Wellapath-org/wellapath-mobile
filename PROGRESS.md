@@ -6542,3 +6542,95 @@ Fixed, and the step is now exercised locally end to end before being trusted:
 * Mutations 1, 4, 5 and 6 are caught **only** by the Linux-runnable suite; the
   `--tags plutil` suite passes under all four. Both run in CI, so coverage holds,
   but the macOS job alone would not catch them.
+
+---
+
+# Export-options guard — follow-up hardening (PR after #97)
+
+**Date:** 2026-10-06 · **Base:** `develop` @ `2eb4a2c` (PR #97 merge) ·
+**Scope:** release tooling and documentation only. **No build, no artifact, no
+build-number consumption, no store action, no runtime/clinical/telemetry/Sentry
+change.**
+
+PR #97 was accepted as complete at merge `2eb4a2ca3ef40becbaa1f79b97a7a7b51197eecc`.
+Its review raised four non-blocking items, all addressed here.
+
+## 1. Stale comment corrected
+
+`scripts/export_options_tool.dart` still said the post-generate verification was
+"Skipped only when plutil is absent". Sixteen lines below, the code exits **2**
+instead of skipping — it has not skipped since `cc8fad0`. The comment now states
+that the generator **fails closed with exit 2** when `/usr/bin/plutil` is
+unavailable, and why: an earlier version exited 0 with a passing note, which is
+the shape of claim this policy exists to prevent.
+
+## 2. `extraArguments` can no longer override the verified plist
+
+`runGuardedExport` now **refuses** any `extraArguments` entry that supplies or
+overrides `-exportOptionsPlist` — bare flag, inline `-exportOptionsPlist=/path`,
+double-dashed, any casing. `xcodebuild` takes the *later* value of a repeated
+flag, so a smuggled second one would make the verification meaningless while
+every verifier test still passed.
+
+The check runs **first**, before verification and before any invocation, and
+returns exit 2. Unrelated extras such as `-allowProvisioningUpdates` pass through
+untouched and the verified path still lands at `-exportOptionsPlist`. Six tests
+cover it: bare flag plus path, inline form, double-dashed and odd-case
+spellings, rejection while the plist itself is fine, a benign extra passing
+through, and a matcher test pinning which spellings are and are not caught
+(`-exportOptionsPlistExtra` and `exportOptionsPlistish` must **not** be).
+
+## 3. `xcodebuild` resolved through a fixed absolute path
+
+Previously `Process.runSync('xcodebuild', …)` resolved through `PATH`. The PR #97
+review demonstrated the consequence by putting a fake `xcodebuild` first on
+`PATH` and watching it get invoked — an asymmetry, since `plutil` was already
+absolute "on purpose: a `PATH` lookup could resolve to something else".
+
+Now `kXcodebuildPath = '/usr/bin/xcodebuild'`, fixed. A missing or
+non-executable binary there is **exit 2 before export**. Testability moved to an
+injected `XcodebuildRunner` seam rather than `PATH` manipulation — deliberately,
+because a fake reachable through `PATH` is the exact behaviour the fixed path
+exists to rule out, and a test that relies on it would be re-creating the hole.
+
+## 4. Correction note on the earlier record — the transcript is NOT rewritten
+
+The verify transcript quoted in the round-1 entry above is **left exactly as
+written**. Three corrections to it, recorded here rather than edited in:
+
+* It renders the message as `uploadSymbols is DISABLED (<false/>)`. **Current
+  output is `(false)`** — the wording changed in `bc8f548` when the verdict moved
+  from the string scanner to `plutil`, and the transcript predates that. Every
+  substantive figure it supports still reproduces exactly: both plists FAIL, 2
+  violations, `DO NOT EXPORT OR UPLOAD`, exit 1.
+* The claim that the mandatory macOS job "runs the `plutil`-tagged cases" did not
+  disclose the skip. **The job runs 14 tagged cases: 13 pass and 1 is explicitly
+  skipped** — the build-216 evidence case — because those private plists are
+  absent from the CI runner. The test reports the skip with its reason rather
+  than passing silently.
+* Consequently **CI does not prove the build-216 result.** The two real
+  build-216 plists were verified **locally**, and both **fail with exit 1**,
+  Apple resolving `<false/>` for each via
+  `plutil -extract uploadSymbols xml1 -o -`. Reproduced independently by review.
+
+## 5. Build 217 release path — `docs/NEUTRAL_BUILD_POLICY.md` §5.8
+
+Recorded as a procedural requirement: **for build 217 and later the iOS export
+must go through `scripts/guarded_export.dart`, and a direct
+`xcodebuild -exportArchive` is not acceptable.** The wrapper's successful
+verification and export output must be **preserved as release evidence**
+alongside the artifact hashes and the neutral-path scan output — the log is the
+record that the plist exported is the plist verified, and an unrecorded claim is
+not evidence.
+
+Procedural, not technical: nothing prevents a hand invocation, as §5.7 states.
+The requirement exists because build 216 was exported by hand with
+`uploadSymbols: false` and nothing in the process noticed.
+
+## Settled decisions carried forward unchanged
+
+No `method` or `destination` **value** validation. Binary, UTF-16 and
+`<data>`-bearing plists remain documented fail-closed **exit 2** inputs. Direct
+manual `xcodebuild` remains outside the wrapper's technical guarantee. Build 217
+remains unbuilt, unsigned, untagged and undistributed; build 216 remains
+internal-only; builds 211 and 215 remain retained. TOOLING-001 remains open.
