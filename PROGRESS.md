@@ -1,28 +1,46 @@
 # WellaPath Mobile — Progress Tracker
 
-**Phase:** Release — store-ready internal-testing build `0.3.0+210` · `org.wellapath.app`  
-**Current state:** PR #78 merged and re-verified from the merged tree; **awaiting console access + upload authorization**  
-**Branch:** `develop` @ `5a1930b` merge, `9cce8e5` after the Step 2 record (== `origin/develop`, CI green)  
+**Phase:** Release — internal testing live on both platforms at `0.3.0+216` · `org.wellapath.app`  
+**Current state:** build **216 signed, internally distributed and evidenced** on both platforms (PR #96 merged). Console access is **no longer a blocker** — both uploads were performed and both store states observed. **217 is the next unused candidate and is unbuilt, unsigned, untagged and undistributed.**  
+**Branch:** `develop` @ `56ac2c9` (PR #96 merge, CI green)  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
 **Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-09-12 — tracker header refreshed to the post-merge state; nothing uploaded to any store or tester track
+**Last Updated:** 2026-10-06 — tracker header refreshed to the post-PR-#96 state; build 216 remains INTERNAL TESTING ONLY on both platforms
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
 > history; the newest entry is always at the **end** of the file.
 >
-> **Where things stand:** PR #78 merged as `5a1930b` (parents `69be422` +
-> `5e16a6b`) — identifier resolved to **org.wellapath.app** on both platforms
-> (`RC-BLK-010` closed), build `0.3.0+210`, environment gates in, iOS privacy
-> manifest in (`RC-BLK-009` manifest half closed), signed AAB and unsigned
-> iOS build verified, store package under `docs/store/`. PR #76 remains
-> **OPEN and deliberately excluded**. Next action is upload to the internal
-> tracks per `docs/store/CONSOLE_RUNBOOK.md`, which **requires console access
-> and explicit authorization and has not been performed**. Open blockers:
-> `RC-BLK-002-FOLLOWON` (signing key on one machine — enrol Play App Signing
-> at first upload); support email + privacy-policy URL (founder); external
-> beta blocked by `016` (CB_211); store submission blocked by `005`, `006`
-> and iOS codesigning (the console half of `009`).
+> **Where things stand:** build `0.3.0+216` is signed, distributed to internal
+> testing on **both** platforms, and evidenced in full (PR #96, merge
+> `56ac2c9`). Android: founder-uploaded to the existing Play **Internal
+> testing** track and observed **Active** for the existing internal testers.
+> iOS: engineering-uploaded from the verified archive, then Apple processing,
+> TestFlight availability and a successful install were each observed by the
+> founder. **Console access is no longer awaited** — it exists and has been
+> used. Identifier `org.wellapath.app` on both platforms; the upload
+> certificate fingerprint is identical across builds 211, 215 and 216, so no
+> Play App Signing decision arises.
+>
+> **Build 216 is INTERNAL TESTING ONLY** and was not promoted to any external,
+> open-testing or production cohort. Builds 211 and 215 remain retained and
+> available. **Build 217 is the next unused candidate: unbuilt, unsigned,
+> untagged and undistributed.**
+>
+> **Known limitation on 216:** it was exported with `uploadSymbols: false`, so
+> no dSYMs reached App Store Connect and automatic Apple-side symbolication is
+> unavailable for that build. The matching archive and dSYMs are retained and
+> their UUIDs match the shipped binaries, so crash reports can be symbolicated
+> locally. `docs/NEUTRAL_BUILD_POLICY.md` §5 now requires
+> `uploadSymbols: true` for 217 and later, with a source-controlled generator
+> and a mandatory pre-upload verifier.
+>
+> **Still open:** CB_211 clinical adjudication before any external cohort
+> (`RC-BLK-016`); the danger-sign label review; physical-device smoke testing
+> beyond the founder's own handset; support email + privacy-policy URL
+> (founder); and store submission (`RC-BLK-005`, `006`). PR #76 remains
+> **OPEN and deliberately excluded**. Internal testing being live on both
+> platforms does not move any of them.
 
 ---
 
@@ -6207,3 +6225,320 @@ byte-untouched clinical paths; and all test and analyzer counts
 One clarification it added, worth keeping: `Sentry.framework` 8.58.4 is embedded
 in the IPA and `libsentry.so` ships in the AAB. "No DSN" means the SDK is
 present but unconfigured — it does not mean no crash-reporting code is shipped.
+
+---
+
+# Release hardening — iOS symbol-upload guard, tracker refresh, tooling follow-up
+
+**Date:** 2026-10-06 · **Base:** `develop` @ `56ac2c9` (PR #96 merge) ·
+**Scope:** release tooling and documentation only. **No build, no artifact, no
+build-number consumption, no store action.**
+
+## Why — the root cause of the build-216 symbol gap, stated precisely
+
+Build 216 was exported with `uploadSymbols: false`, so no dSYMs reached App
+Store Connect. The cause was **not** a reviewed decision that turned out badly.
+It was structural: the `ExportOptions.plist` was **hand-authored in the
+untracked neutral build root**. A search of the tracked tree at the base commit
+finds no export-options file, no generator and no `uploadSymbols` reference
+anywhere outside prose — `scripts/` contained only the neutral-path scanner. No
+source-controlled rule existed for the plist to violate, so a symbols-disabled
+export could not be caught by anything.
+
+That is the same gap the neutral-path scanner closed for build paths, and it is
+closed here the same way: by writing the rule down somewhere a machine reads it.
+
+## What was added
+
+* **`scripts/export_options_policy.dart`** — the rule. `uploadSymbols` is the
+  constant `kRequiredUploadSymbols = true` and is **not a parameter**, so the
+  generator cannot express the 216 regression. `verifyExportOptions` inspects a
+  plist **however it was produced, including by hand**, and returns actionable
+  violations. A generator alone would not have caught 216, because 216's file
+  was hand-written.
+* **`scripts/export_options_tool.dart`** — `generate` and `verify` CLI. Exit
+  contract matches the scanner: `0` clean · `1` violation · `2` unusable input,
+  nothing certified. Fail closed, no bypass flag, no warning-only mode.
+* **`test/release/export_options_policy_test.dart`** — the load-bearing tests
+  are mutation checks that prove the guard **rejects** bad input, each asserting
+  the mutation actually landed first so it cannot pass vacuously. (Count-free by
+  choice: a hard-coded test count in a record like this rots the moment anyone
+  adds a case.)
+* **`docs/NEUTRAL_BUILD_POLICY.md` §5** — the rule, the explicit-mode
+  requirement, the mandatory pre-export and pre-upload verify step, an explicit
+  statement that it does **not** replace the archive and dSYM scan, and archive
+  retention for every distributed build.
+
+## Distribution mode stays explicit — deliberately not hardcoded
+
+`testFlightInternalTestingOnly` is **not** forced on for every future release.
+It bars external testing and Beta App Review by construction, which is right for
+an internal cohort and wrong for an external or public candidate. `--mode` has
+**no default**: `internal-testing` emits the marker, `app-store` does not, and
+a test asserts the two modes differ in nothing else.
+
+## Proof the guard fails when symbols are disabled
+
+Run against the **real, unmodified build-216 plists** — the files that actually
+shipped the regression:
+
+```
+$ dart run scripts/export_options_tool.dart verify \
+    /Users/Shared/wellapath-build-216/ExportOptions216.plist \
+    /Users/Shared/wellapath-build-216/ExportOptionsUpload216.plist
+FAIL …/ExportOptions216.plist: uploadSymbols is DISABLED (<false/>). …
+FAIL …/ExportOptionsUpload216.plist: uploadSymbols is DISABLED (<false/>). …
+export-options verify: 2 violation(s) — DO NOT EXPORT OR UPLOAD
+EXIT CODE: 1
+```
+
+Exit codes measured: compliant generated file **0**; `uploadSymbols` flipped to
+false **1**; `uploadSymbols` removed entirely **1**. The two 216 plists were read
+only and were not modified.
+
+**Stated precisely:** run against 216's inputs the guard **rejects** them, so it
+would have blocked that upload **had it been run**. Nothing in CI invokes it —
+`verify` is a mandatory *release step* in `docs/NEUTRAL_BUILD_POLICY.md` §5.4,
+exactly as **§4 "Mandatory pre-upload procedure"** already says of the
+neutral-path scanner ("No automatic build or upload hook runs the scanner;
+wiring it into CI is a separate, reviewed change"). An earlier revision of this
+entry cited that quotation to **§2**; the quotation is genuine and verbatim at
+`docs/NEUTRAL_BUILD_POLICY.md:113`, but the section number was wrong and is
+corrected here. The claim is about policy compliance, not automation, and is not
+evidence that a future export cannot skip the step.
+
+## Scope limits held
+
+No clinical engine, assessment, telemetry, Sentry, facility artifact, store
+track or feature-flag change — the diff touches `scripts/`, `test/release/`,
+`docs/NEUTRAL_BUILD_POLICY.md` and `PROGRESS.md` only. **No AAB, IPA or archive
+was produced and no build number was consumed.** Build 217 remains unbuilt,
+unsigned, untagged and undistributed; build 216 remains internal-only; builds
+211 and 215 remain retained.
+
+## Tracker header refreshed
+
+The top-of-file header still described build `0.3.0+210` and "awaiting console
+access + upload authorization", which the merged 216 record contradicts by two
+platforms and six build numbers. It now states the post-PR-#96 position. Only
+the top-level current-state block was touched; **every dated historical entry is
+unchanged**, as is this file's practice of refreshing the header while history
+accumulates below.
+
+## Tooling follow-up — formatter drift (NOT fixed here, by instruction)
+
+`test/scripts/symbol_artifact_scanner_test.dart` is reported as needing
+reformatting by the **local** Dart 3.12.2 formatter, while CI's floating `3.x`
+stable formatter is satisfied with it as committed. The drift is **pre-existing
+on `develop`**, predates this branch, and this branch does not touch the file.
+
+It was deliberately **not** reformatted: doing so would flip the drift the other
+way and break the CI check that currently passes. Recorded here as a standalone
+tooling item, because no prior record of it existed:
+
+> **TOOLING-001 — local/CI Dart formatter version drift.** Pin one formatter
+> version across local and CI (or align CI's floating `3.x` with the declared
+> toolchain) and reformat affected files in a single dedicated change. Affected
+> today: `test/scripts/symbol_artifact_scanner_test.dart`. Do not fix piecemeal
+> inside unrelated PRs — it will oscillate.
+
+---
+
+# Release hardening, round 2 — the export-options guard now delegates to `plutil`
+
+**Date:** 2026-10-06 · **Base:** `develop` @ `56ac2c9` · **Scope:** release
+tooling, documentation and CI only. **No build, no artifact, no build-number
+consumption, no store action.**
+
+## Why the string scanner was abandoned
+
+Two successive string-scanning versions of the verifier were defeated by
+independent adversarial review:
+
+1. It read the **first** occurrence of a key while Apple resolves the **last**,
+   and it matched keys inside XML comments. A hand-edited file that `plutil -p`
+   reported as `uploadSymbols => false` was certified CLEAN.
+2. After that was patched, it still had **no model of nesting**. An
+   `uploadSymbols` buried in the legitimate `provisioningProfiles`
+   sub-dictionary — a plausible indentation slip — was certified CLEAN while
+   Apple saw no root-level key at all, i.e. the "omitted" state this policy calls
+   the build-216 regression. The file passed `plutil -lint`, so it looked
+   entirely legitimate.
+
+Both escapes had one cause: **text has no structure.** Each patch closed the
+shape that had been found and left the class open, so a third round was likely.
+Patching further would have been whack-a-mole on the one check standing between
+build 217 and a repeat of 216.
+
+## What replaced it
+
+**Apple's parser decides.** `verifyExportOptionsFile` shells out to
+`/usr/bin/plutil`: confirm it exists and is executable (else exit 2), `-lint`
+the file (malformed ⇒ exit 2), `-convert json`, then inspect the **root** object
+— `uploadSymbols` must be present at the root, boolean, and true. A keypath is
+rooted, so a nested key is simply absent from the root object, which is exactly
+what Apple sees. **There is no regex fallback**; a fallback would be the defeated
+scanner under another name, and its absence is itself asserted by a test.
+
+**The guard now sits in front of the export.** `scripts/guarded_export.dart`
+takes the export-options pathname, verifies that exact pathname, and invokes
+`xcodebuild -exportArchive` only on exit 0, passing through the same pathname.
+On any non-zero verdict `xcodebuild` is never invoked. `runGuardedExport`
+returns the arguments it used, and a test asserts the verified path is the one
+handed to `-exportOptionsPlist` — because a wrapper that verified one file and
+exported another would satisfy every verifier test while shipping an unverified
+plist.
+
+**No duplicate-key lint**, deliberately removed. `plutil` resolves a duplicate to
+the last occurrence, exactly as `xcodebuild` does, so a duplicate cannot make the
+verdict differ from what ships. Worse, the text-based check could not tell
+nesting levels apart and rejected a legitimate file with root `uploadSymbols`
+true plus an unrelated same-named key inside `provisioningProfiles` — a false
+positive, and the policy requires that no supplementary check disagree with
+Apple's parse. An inaccurate check that fails good input is worse than none.
+
+## The cost, stated rather than hidden
+
+Verification now **requires macOS**. A mandatory CI job
+(`macos-export-options-guard`) runs the `plutil`-tagged cases and additionally
+proves end-to-end that a symbols-disabled plist is rejected. The Linux job
+excludes that tag because the dependency is absent there — **not** skipped to keep
+it green, **not** mocked, and **not** fallen back to the scanner. A guard whose
+verdict was mocked would be testing the mock.
+
+## Regression cases, all exercised against the real parser
+
+Compliant generated plist passes · root `false` fails · root omitted fails ·
+nested inside `provisioningProfiles` fails · nested inside an array fails ·
+nested true with root omitted fails · root false plus nested true fails · nested
+false plus root true **passes** (only the root matters) · root string `"true"`
+fails · root integer `1` fails · duplicated key fails with Apple resolving the
+last occurrence · malformed/unparseable plist is exit 2 · empty file is exit 2 ·
+**both real build-216 plists fail**, naming `uploadSymbols`. Missing `plutil` and
+an unexpected `plutil` error are exit 2, exercised through an injected fake so
+they can be proven on any platform.
+
+## A note on how one of these tests was wrong first
+
+The first run of the `plutil` suite failed 8 of 14 cases. The cause was in the
+**test helper**, not the policy code: it asked for `plutil -extract <key> json`,
+which plutil refuses for a bare scalar ("Invalid object in plist for JSON
+format"). Switched to `-extract <key> xml1`, which also preserves the **type**, so
+a boolean `true` is distinguishable from the string `"true"` and the integer `1`.
+Recorded because a green suite that was briefly red for a reason unrelated to the
+code under test is worth being honest about.
+
+## Citation correction
+
+An earlier entry attributed the quotation "No automatic build or upload hook runs
+the scanner; wiring it into CI is a separate, reviewed change" to **§2**. The
+quotation is genuine and verbatim at `docs/NEUTRAL_BUILD_POLICY.md:113`, but it
+sits in **§4 "Mandatory pre-upload procedure"**. Corrected in place above; the
+earlier commit is not amended.
+
+## Scope limits held
+
+No clinical engine, assessment, telemetry, Sentry, facility artifact, store track
+or feature-flag change. No AAB, IPA or archive produced. No build number
+consumed. Build 217 remains unbuilt, unsigned, untagged and undistributed; build
+216 remains internal-only; builds 211 and 215 remain retained. TOOLING-001
+(formatter drift) remains open and untouched.
+
+## Falsifiability — six mutations, and a first run that had to be discarded
+
+Each mutation applied independently to the committed code, both suites run, then
+reverted. Every mutation asserts its anchor text exists before editing, so a
+silent no-op cannot masquerade as a pass.
+
+| Mutation | Result |
+|---|---|
+| lint result ignored | **CAUGHT** (fake-parser suite) |
+| nested key accepted | **CAUGHT** (both suites) |
+| wrong type accepted | **CAUGHT** (both suites) |
+| missing `plutil` treated as success | **CAUGHT** — *"an unanswerable check must not become a pass"* |
+| export proceeds after verifier failure | **CAUGHT** |
+| verifier checks one plist, export receives another | **CAUGHT** — *"the exported plist must be byte-for-byte the pathname that was verified"* |
+
+**The first attempt at this was invalid and is discarded, not quietly re-run.**
+The mutations were reverted with `git checkout --` while the `plutil` rewrite of
+`scripts/export_options_policy.dart` was still **uncommitted**. The first revert
+therefore restored the previous *string-scanner* version and destroyed the
+rewrite. Mutations 2–6 were then applied to code that no longer contained their
+anchor text — the edits were no-ops — and the suites "failed" only because the
+reverted file could not compile against the new tests. Those CAUGHT results were
+artefacts of a broken build, not evidence of anything.
+
+Two things were wrong and both are worth recording. The mechanical error was
+using `git checkout --` as an undo for uncommitted work. The judgement error was
+reading a red suite as a caught mutation without checking *why* it was red; a
+compile failure and a failed assertion are not the same signal, and only the
+second one means the guard works. The rewrite was reconstructed, committed first
+so reverts became safe, and all six mutations were re-run with anchor assertions
+added. The table above is from that second run.
+
+
+## Round-2 review: the verifier held, the CI proof did not
+
+An adversarial review attempted 24+ evasion shapes against the `plutil`-backed
+verifier — binary and JSON-format plists, UTF-16, a BOM, `<data>` values,
+numeric entities spelling the key name, whitespace inside the `<key>` tag,
+symlinks, a directory as the path, a 20 MB file, duplicates in both orders.
+**No file was found that the guard reports CLEAN while Apple resolves root
+`uploadSymbols` as false or absent.** Every exit-0 verdict agreed with
+`plutil -extract`; every shape capable of disagreeing failed closed at exit 2.
+The delegation design held where both string scanners did not.
+
+**One blocking defect, and it was mine, in CI rather than in the guard.** The
+mandatory macOS job's end-to-end step used
+`plutil -extract uploadSymbols json -o - … | grep -qx false` as its
+precondition. `plutil` refuses a bare scalar in JSON format — *"Invalid object in
+plist for JSON format"*, exit 1 — so under `set -euo pipefail` the step aborted
+**before** reaching its own assertion. The job therefore failed on every run
+(observed: `iOS Export Options Guard (macOS)` fail, 3m47s) and the proof it
+claimed to perform was never executed.
+
+The galling part is that this exact `plutil` behaviour is documented three lines
+deep in `test/release/export_options_plutil_test.dart`, and the entry above
+records discovering and fixing it **in the test helper**. The fix was not carried
+into the CI step. Finding a trap, writing it down, and then walking into it in the
+next file is a different failure from not knowing.
+
+Fixed, and the step is now exercised locally end to end before being trusted:
+
+* precondition uses `-extract uploadSymbols raw -o -` (verified: prints `false`,
+  exit 0);
+* the bad fixture is produced with `plutil -replace uploadSymbols -bool false`
+  instead of `sed 's|<true/>|<false/>|'`, which also flipped `stripSwiftSymbols`
+  — confirmed `stripSwiftSymbols` now stays `true`;
+* the assertion requires **exit 1 exactly**, not merely non-zero, so a plist
+  mis-classified as unusable (2) can no longer satisfy the proof.
+
+**Claims corrected in the same pass**, all of them mine and all overstated:
+
+* docs §5.7 said the wrapper "cannot be bypassed by forgetting". Nothing forces a
+  release engineer through it — `xcodebuild -exportArchive` still works directly
+  and skips the check, exactly as §4 concedes for the scanner. Now says what it
+  actually guarantees.
+* docs §5.3 named `verifyExportOptions`; the function is
+  `verifyExportOptionsFile`.
+* The exit table did not mention that a **binary** plist, a **UTF-16** plist, or
+  one containing `<data>`/`<date>` is exit 2 rather than verified — fail-closed,
+  but all three are valid `xcodebuild` input, so a release using one would be
+  blocked. Recorded as a known limitation with the fix direction (`-extract` per
+  key instead of whole-file `-convert json`), not papered over.
+* `generate --out` previously exited **0** with a passing note when `plutil` was
+  absent, i.e. reported success for a file nothing had verified. Now exits 2.
+
+## Known gaps, deliberately not fixed here
+
+* **Only the presence of `method`, `destination` and `teamID` is checked, never
+  their values.** `method=development` together with `uploadSymbols=true` is
+  certified CLEAN. Out of scope for a symbol-upload guard, but a real gap and
+  worth its own change.
+* **A duplicated key produces no warning.** Correct about what ships — `plutil`
+  resolves the last occurrence exactly as `xcodebuild` does — but a file whose
+  visible first value is overridden later is a human-legibility hazard, and
+  `plutil` surfaces no duplicate signal to key a structure-aware check off.
+* Mutations 1, 4, 5 and 6 are caught **only** by the Linux-runnable suite; the
+  `--tags plutil` suite passes under all four. Both run in CI, so coverage holds,
+  but the macOS job alone would not catch them.

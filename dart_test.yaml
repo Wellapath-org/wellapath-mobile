@@ -1,0 +1,11 @@
+# Test tags for this package.
+#
+# `plutil` marks tests that require Apple's /usr/bin/plutil. They are the
+# authoritative export-options verification cases: the guard delegates its
+# verdict to Apple's parser, so a test that mocked that verdict would be testing
+# the mock. They run in a dedicated, mandatory macOS CI job and are excluded
+# from the Linux job — excluded because the dependency is absent there, not
+# skipped to keep a platform green.
+tags:
+  plutil:
+    description: Requires Apple's /usr/bin/plutil (macOS only).

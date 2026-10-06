@@ -113,3 +113,187 @@ Immediately before **every** symbol upload:
 This is an explicit, reviewed release step. No automatic build or
 upload hook runs the scanner; wiring it into CI is a separate,
 reviewed change.
+
+---
+
+## 5. iOS distribution export options — symbols must travel with the build
+
+**Why this section exists.** Build 216 was exported and uploaded with
+`uploadSymbols` set to `false`. No dSYMs reached App Store Connect, so automatic
+Apple-side symbolication is unavailable for that build. The cause was not a
+reviewed decision that turned out badly — it was that the `ExportOptions.plist`
+was **hand-authored in an untracked build directory**. Nothing in version
+control described what a distribution export must contain, so nothing could
+disagree with it. Section 2's scanner had the same gap before it was written:
+a rule that lives only in someone's memory is not a control.
+
+### 5.1 The rule
+
+**Every potentially distributable iOS export — `destination=export` and
+`destination=upload` alike — must set `uploadSymbols` to `true`.** This applies
+to build **217 and every later build**. An export-only run is the artifact that
+gets hashed and scanned before anyone uploads anything; if it lacks symbols it
+is not the thing that later gets uploaded.
+
+`uploadSymbols` is **not** a tunable. `scripts/export_options_policy.dart`
+holds it as the constant `kRequiredUploadSymbols` and exposes no parameter to
+disable it, so the generator cannot express the 216 regression.
+
+### 5.2 Distribution mode is explicit, and is not this rule
+
+`testFlightInternalTestingOnly` is **deliberately not** forced on for every
+release. It bars external testing and Beta App Review by construction, which is
+correct for an internal cohort and wrong for an external or public candidate.
+The generator therefore requires an explicit `--mode`:
+
+* `--mode=internal-testing` → emits `testFlightInternalTestingOnly`
+* `--mode=app-store` → emits no internal-only marker
+
+There is no default. An internal-only marker must never be inherited silently,
+and its absence on an external candidate must never be accidental.
+
+### 5.3 Generating the file
+
+```
+dart run scripts/export_options_tool.dart generate \
+    --mode=internal-testing|app-store \
+    --destination=export|upload \
+    --team-id=<TEAM ID> \
+    --out=<path>/ExportOptions.plist
+```
+
+A team identifier is an organisation identifier, not a secret. **Keystore paths,
+passwords, key aliases and certificate private material never belong in an
+export-options file**; `verifyExportOptionsFile` rejects a file that carries any of
+them.
+
+### 5.4 Mandatory pre-export and pre-upload verification
+
+Immediately before **every** `xcodebuild -exportArchive`, whether exporting or
+uploading:
+
+```
+dart run scripts/export_options_tool.dart verify <path>/ExportOptions.plist
+```
+
+* Exit contract: `0` = clean · `1` = policy violation · `2` = input unusable,
+  nothing certified. **Fail closed**, exactly as in section 2.
+* **Any non-zero exit stops the release step.** There is no bypass flag and no
+  warning-only mode, deliberately.
+* It verifies any plist however it was produced, **including by hand** — which
+  is how build 216 went wrong, so a generator alone would not have caught it.
+* Preserve the output as release evidence alongside the artifact hashes.
+
+**Apple's parser decides, not a text scanner.** The verifier shells out to
+`/usr/bin/plutil`:
+
+1. `plutil` must exist and be executable, else **exit 2**. There is deliberately
+   **no regex or string-scanner fallback** — a fallback is the defeated scanner
+   under a different name.
+2. `plutil -lint` must pass. A malformed plist is **never** certified (exit 2).
+3. The file is read through `plutil -convert json`, and the **root** object is
+   inspected: `uploadSymbols` must be **present at the root**, of **boolean**
+   type, and **`true`**.
+
+| Observed | Exit |
+|---|---|
+| root boolean `true` | **0** |
+| root boolean `false` | **1** |
+| root key omitted | **1** |
+| key present only in a nested dictionary or array | **1** |
+| wrong type — string `"true"`, integer `1` | **1** |
+| invalid/unparseable plist, missing file, missing `plutil`, parser failure | **2** |
+
+Three shapes are **exit 2 (fail closed)** rather than being verified, and that is
+a known limitation rather than a judgement about them: a **binary** plist
+(`plutil -convert binary1`), a **UTF-16** plist, and a plist containing a
+`<data>` or `<date>` value. The first two are rejected because the file is read
+as UTF-8 text before `plutil` is consulted; the third because `-convert json`
+refuses those types. All three are valid input to `xcodebuild`, so a release
+using one would be blocked and would need either conversion to UTF-8 XML or a
+change here to query the single key with `plutil -extract` instead of converting
+the whole file. Failing closed is the right direction, but it is not the same as
+verifying.
+
+**Why this is not a scanner.** Two earlier string-scanning versions were
+defeated by independent review. The first read the *first* occurrence of a key
+while Apple resolves the *last*, and matched keys inside XML comments. The
+second, after that was fixed, still had no model of nesting — so an
+`uploadSymbols` buried in the legitimate `provisioningProfiles` sub-dictionary
+was reported CLEAN while Apple saw no root-level key at all, which is the
+"omitted" state this policy calls the build-216 regression. Both escapes shared
+one cause: text has no structure. Apple's parser cannot disagree with itself.
+
+**There is no duplicate-key lint**, by design. `plutil` resolves a duplicated key
+to the last occurrence — exactly what `xcodebuild` does — so a duplicate cannot
+make the verdict differ from what ships. A text-based duplicate check also could
+not tell nesting levels apart, and rejected legitimate files; an inaccurate check
+that fails good input is worse than none.
+
+**The cost, stated plainly:** verification requires macOS. That is where iOS
+archives are exported. A mandatory macOS CI job
+(`macos-export-options-guard`) runs these cases, because a guard whose verdict
+was mocked to keep Linux green would be testing the mock.
+
+### 5.5 This does NOT replace the archive and dSYM scan
+
+The export-options check and the neutral-path scan are **separate mandatory
+gates** and neither substitutes for the other. Section 4 stands unchanged: the
+archive, the `.dSYM` bundles and the DWARF binaries inside them must still be
+scanned with `scripts/scan_symbol_artifacts.dart` before any symbol upload, and
+re-scanned after every rebuild.
+
+With `uploadSymbols: true` the dSYMs now actually leave the machine, so that
+scan matters **more** than it did for 216, not less: a contaminated dSYM that
+previously stayed local would reach Apple.
+
+### 5.6 Archive retention for every distributed build
+
+**Retain the matching `.xcarchive`, with its complete dSYM contents, for every
+build distributed to any cohort — internal or external — for at least the life
+of that build's observation period.**
+
+Without the matching archive, a crash report from a distributed build cannot be
+symbolicated at all once Apple-side symbols are missing or expired. The archive
+is the only copy of the debug information that maps a crash address back to a
+line of code, and the UUIDs must match the shipped binaries — verify with
+`dwarfdump --uuid` against the binaries inside the exported `.ipa`, not merely
+against the archive, since an archive can be rebuilt while the shipped artifact
+cannot.
+
+Retention is required even when `uploadSymbols` was `true`: Apple's copy is a
+convenience, not an archive of record. Build 216's archive and dSYMs are
+retained for exactly this reason, because for that build Apple has no copy at
+all.
+
+### 5.7 The guard sits in front of the export, not beside it
+
+A check is only as good as someone's memory of running it. Build 216's
+`ExportOptions.plist` was hand-authored and nothing stood between it and
+`xcodebuild`. Use the wrapper:
+
+```
+dart run scripts/guarded_export.dart \
+    --archive-path=<path>/Runner.xcarchive \
+    --export-options=<path>/ExportOptions.plist \
+    --export-path=<path>/export
+```
+
+It takes the export-options pathname, verifies **that exact pathname**, and
+invokes `xcodebuild -exportArchive` **only** on exit 0 — passing through the same
+pathname it verified. On any non-zero verdict it stops and `xcodebuild` is never
+invoked.
+
+The substitution point matters as much as the verdict: a wrapper that verified
+one file and exported another would satisfy every verifier test while shipping an
+unverified plist. `runGuardedExport` therefore returns the arguments it actually
+used, and a test asserts the verified path is the one passed to
+`-exportOptionsPlist`. Nothing regenerates or substitutes a plist between
+verification and export.
+
+**What this does NOT guarantee.** Nothing forces a release engineer through this
+wrapper: calling `xcodebuild -exportArchive` directly still works and skips the
+check entirely, exactly as §4 concedes for the neutral-path scanner. The wrapper
+removes the chance of *forgetting* the check when you use it; it does not make the
+check unavoidable. Making it unavoidable would mean removing direct `xcodebuild`
+invocation from the documented release path, which is a separate, reviewed change.
