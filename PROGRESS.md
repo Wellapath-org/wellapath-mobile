@@ -2,10 +2,11 @@
 
 **Phase:** Release — internal testing live on both platforms at `0.3.0+216` · `org.wellapath.app`  
 **Current state:** build **216 signed, internally distributed and evidenced** on both platforms (PR #96 merged). Console access is **no longer a blocker** — both uploads were performed and both store states observed. **217 is the next unused candidate and is unbuilt, unsigned, untagged and undistributed.**  
-**Branch:** `develop` @ `56ac2c9` (PR #96 merge, CI green)  
+**Branch:** `develop` @ `2eb4a2c` (PR #97 merge — the iOS symbol-upload guard, CI green)  
+**Open:** PR #98 `chore/export-guard-hardening` @ `226ed13` — guard hardening, **unmerged**  
 **Engineer OS:** macOS (migrated from Windows 11 — see the migration section)  
 **Toolchain:** Flutter 3.44.4 / Dart 3.12.2 (`RC-BLK-013` — CLAUDE.md still declares 3.41.5 / 3.11.3)  
-**Last Updated:** 2026-10-06 — tracker header refreshed to the post-PR-#96 state; build 216 remains INTERNAL TESTING ONLY on both platforms
+**Last Updated:** 2026-10-09 — session close; build 216 remains INTERNAL TESTING ONLY on both platforms and 217 remains unbuilt
 
 > This file is append-only and now covers E1.6 → E3 → E4 → E6 → E8 → E9 →
 > I1/W1 → I2/W2–W3 → Release → Store readiness. The heading below is kept for
@@ -6690,3 +6691,81 @@ surface, so a Dart caller would have to embed the NUL deliberately), and
 `xcodebuild` refuses the duplicate regardless. Left unfixed to keep this PR to
 its agreed scope; the fix would be to reject any argument containing a control
 character, or to compare after stripping NUL and whitespace.
+
+---
+
+# Session close — 2026-10-09
+
+State of play at the end of this working session. Nothing below is a new claim;
+it is a status summary so the next session does not have to reconstruct it.
+
+## Landed on `develop`
+
+| Merge | What |
+|---|---|
+| `56ac2c9` (PR #96) | Build 216 recorded as consumed and evidenced; candidate advanced to 217 |
+| `2eb4a2c` (PR #97) | iOS export-options guard: `plutil`-backed verifier, guarded export wrapper, mandatory macOS CI job, policy §5 |
+
+`develop` is at **`2eb4a2c`**.
+
+## Open and UNMERGED: PR #98 `chore/export-guard-hardening`
+
+Head **`226ed13`**. Four review items from PR #97 plus one correction:
+
+1. stale `export_options_tool.dart` comment corrected — the generator fails
+   closed with exit 2, it does not skip verification;
+2. `extraArguments` may no longer supply or override `-exportOptionsPlist`;
+3. `xcodebuild` resolved through the fixed `/usr/bin/xcodebuild`, with
+   testability on an injected runner rather than `PATH`;
+4. correction note added beside the round-1 transcript, which is **not**
+   rewritten;
+5. plus the correction recorded immediately above — the claim that `xcodebuild`
+   "takes the later value of a repeated flag" was **false** (Xcode 26.6 refuses a
+   repeat outright, exit 64) and was corrected in six places.
+
+Also records policy **§5.8**: for build 217 and later the iOS export must go
+through `scripts/guarded_export.dart`, a direct `xcodebuild -exportArchive` is
+not acceptable, and the wrapper's verification/export output must be preserved as
+release evidence.
+
+### Gate state for PR #98
+
+* **CI: GREEN at `226ed13`** — Linux `Flutter Lint & Build Check` pass (8m11s),
+  `iOS Export Options Guard (macOS)` pass (2m54s), run 37448104009.
+* **Independent review: OUTSTANDING at this head.** The last review verdict was
+  REQUEST CHANGES against the earlier head `ba779c3`; its blocking finding is
+  fixed, but no review has run against `226ed13`. **Do not merge on the strength
+  of the green CI alone.**
+
+### One decision left open
+
+`overridesExportOptions` can be slipped by an argument carrying a control
+character or surrounding whitespace (`'-exportOptionsPlist\u0000'`). **Not
+exploitable today** — `main()` never passes `extraArguments`, so a Dart caller
+would have to embed the NUL deliberately, and `xcodebuild` refuses a duplicated
+flag regardless. Deliberately left unfixed to keep PR #98 to its agreed four
+items. Founder to decide whether it belongs in PR #98 or a later change.
+
+## Unchanged by all of the above
+
+Build **217 remains unbuilt, unsigned, untagged and undistributed**;
+`pubspec.yaml` is `0.3.0+217`, `kCurrentBuildNumber` is 217, and there is no 217
+registry entry. Build **216 remains internal testing only** on both platforms and
+was never promoted to any external, open-testing or production cohort. Builds
+**211 and 215 remain retained and available**. No store track was changed in
+either PR, and no artifact was produced or build number consumed.
+
+Still open and untouched by this work: **CB_211** clinical adjudication before
+any external cohort, the danger-sign label review, physical-device smoke testing
+beyond the founder's own handset, support email and privacy-policy URL, and the
+store-submission blockers. **TOOLING-001** (local/CI Dart formatter drift on
+`test/scripts/symbol_artifact_scanner_test.dart`) remains open by design.
+
+## Build 216's known limitation, restated so it is not lost
+
+216 was exported with `uploadSymbols: false`, so **no dSYMs reached App Store
+Connect** and automatic Apple-side symbolication is unavailable for that build.
+The matching archive and dSYMs are retained — including a private copy at
+`~/wellapath-private-data/build-216-symbols/` (mode 700/600, outside any
+repository) — and their UUIDs match the shipped binaries, so crash reports can be
+symbolicated locally. That is a mitigation, not an equivalent.
