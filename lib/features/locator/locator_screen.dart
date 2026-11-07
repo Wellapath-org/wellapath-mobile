@@ -9,6 +9,7 @@ import '../../core/network/staged_artifact_loader.dart';
 import '../../core/telemetry/contract/telemetry_event.dart';
 import '../../core/telemetry/telemetry.dart';
 import '../../core/storage/storage_service.dart';
+import '../../shared/widgets/emergency_call_row.dart';
 import 'facility_attribution.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
@@ -460,6 +461,26 @@ class _LocatorScreenState extends State<LocatorScreen> {
   int get _shownCount =>
       _usingManualSearch ? _manualResults.length : _results.length;
 
+  /// True on every path where the locator lists no facility (WP-024): the
+  /// facilities download failed or cannot start (offline, no cached
+  /// `/config`), is still in progress, location is unavailable or denied and
+  /// no manual search has produced results yet, the position is outside the
+  /// covered region, or a search returned nothing.
+  ///
+  /// Defined from what is on screen rather than from each state flag, so a
+  /// future no-results state is covered without having to remember this.
+  /// Not shown during the brief initial location fix, when the map and its
+  /// "Finding available facilities" indicator are up.
+  ///
+  /// A technical fallback only. It never depends on urgency or on any
+  /// triage output, and it does not replace or reorder anything the
+  /// locator shows when it does have facilities.
+  bool get _showsNoFacilities {
+    if (_facilitiesLoadFailed || _waitingForFacilities) return true;
+    if (_loading) return false;
+    return _shownCount == 0;
+  }
+
   String get _locationLabel {
     if (_usingManualSearch) {
       if (_manualSearched && _selectedState != null) {
@@ -488,6 +509,15 @@ class _LocatorScreenState extends State<LocatorScreen> {
             // between, so the toggle would be a control that does nothing.
             if (!_locationDenied && !_outsideCoverage) _buildViewToggle(),
             Expanded(child: _buildBody()),
+            // WP-024: with nothing listed, the locator must not be a dead end
+            // for someone who needs help now. The same control, wording and
+            // dial action as the home screen (emergency_call_row.dart). Kept
+            // outside the scrolling body so it is visible without scrolling.
+            if (_showsNoFacilities)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: EmergencyCallRow(onTap: callEmergencyNumber),
+              ),
             // Attribution is a licence condition of the facility data, not a
             // feature of a particular view, so it sits outside _buildBody()
             // and stays put whichever state the body is in.
