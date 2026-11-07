@@ -6,10 +6,10 @@ sign-off):
 
 | | |
 |---|---|
-| Canonical (markdown wins) | `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft, dated 2026-11-07, with P6 adopted (SHA-256 `2afecf1a6613404b64c1247cf1ce6a36c5c8d4e5124281e589d898788852d184`) |
+| Canonical (markdown wins) | `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft, dated 2026-11-07, with P6 adopted (SHA-256 `7ee44c30f223b78cde448f940bf77068943bab2e6e93c5a372e3bdac0e490166`) |
 | Machine-readable | `WELLAPATH_ENGINEERING/community_api_v1.openapi.yaml` (OpenAPI 3.1, `1.0.0-draft`) |
-| Mobile copy of the OpenAPI file | [`community_api_v1.openapi.yaml`](community_api_v1.openapi.yaml), copied verbatim on 2026-11-08 (after P6) |
-| SHA-256 of the copy | `1b10781919dcd15e8b5033d8d744222e997a16352a1b82216f0378a7b4ae64fa` |
+| Mobile copy of the OpenAPI file | [`community_api_v1.openapi.yaml`](community_api_v1.openapi.yaml), copied verbatim on 2026-11-08 (after the P6 follow-up) |
+| SHA-256 of the copy | `b88749cf946edeea40031ea502d025beebd8656999eb75f7f15b150b5fcbb533` |
 | Governing decision | `WELLAPATH_ENGINEERING/ADR_COMMUNITY_AUTH_AND_DATA.md` (ADR-001) incl. amendments A1–A4 |
 
 The v0.1 text is in git history (`d46d822`). Do not edit the copied YAML in

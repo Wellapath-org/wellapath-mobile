@@ -6924,3 +6924,12 @@ OpenAPI `logout` operation were amended and the copy here re-pinned
 * **Verification (Flutter 3.47.6):** `flutter analyze` no issues;
   `dart format` 0 changed; `flutter test --exclude-tags plutil`
   1,943 passed / 7 skipped; `--tags plutil` 14 passed.
+
+# 2026-11-08 — Community: P6 follow-up (founder decisions)
+
+Logout rate limits approved as implemented; the cross-account combined
+logout is not approved (a bearer of one account never revokes anything on
+the strength of another account's refresh token). Server-side only: the
+client already signs out with its own refresh token and no bearer, so no
+client change. Re-copied the amended canonical OpenAPI file and updated the
+hashes in `docs/community/API_CONTRACT.md`.
