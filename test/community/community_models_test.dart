@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wellapath_mobile/features/community/domain/comment.dart';
 import 'package:wellapath_mobile/features/community/domain/community_ids.dart';
@@ -11,6 +13,8 @@ import 'package:wellapath_mobile/features/community/domain/professional_verifica
 import 'package:wellapath_mobile/features/community/domain/public_author.dart';
 import 'package:wellapath_mobile/features/community/domain/report.dart';
 import 'package:wellapath_mobile/features/community/domain/space.dart';
+
+import 'support/openapi_spec.dart';
 
 final DateTime _t = DateTime.utc(2026, 11, 7, 10, 15);
 
@@ -557,6 +561,77 @@ void main() {
       });
       expect(CommunityProfile(displayName: 'Ade_O.2').displayName, 'Ade_O.2');
       expect(CommunityProfile(displayName: 'Mum of 2').displayName, 'Mum of 2');
+    });
+
+    // Founder decision 2026-11-08 (contract §7.2): trim first, then validate,
+    // send and store the trimmed value. The cases are the shared list in the
+    // pinned OpenAPI copy (`x-wellapath-display-name-cases`), which the
+    // backend suite runs too, so the two sides cannot drift.
+    group('shared display-name cases', () {
+      final Map<String, Object?> displayName =
+          ((OpenApiSpec.load().schema('ProfileUpdate')['properties']!
+                  as Map<String, Object?>)['display_name']!
+              as Map<String, Object?>);
+      final List<Map<String, Object?>> cases = <Map<String, Object?>>[
+        for (final Object? c
+            in displayName['x-wellapath-display-name-cases']! as List<Object?>)
+          c! as Map<String, Object?>,
+      ];
+
+      test('the list covers every boundary the decision names', () {
+        final Set<String> outcomes = <String>{
+          for (final Map<String, Object?> c in cases)
+            (c['rule'] as String?) ?? 'ok',
+        };
+        expect(
+          outcomes,
+          containsAll(<String>[
+            'ok',
+            'min_length',
+            'max_length',
+            'not_allowed_value',
+            'pattern',
+          ]),
+        );
+      });
+
+      for (final Map<String, Object?> c in cases) {
+        final String input = c['input']! as String;
+        final String? stored = c['stored'] as String?;
+        final String? rule = c['rule'] as String?;
+        test('${jsonEncode(input)} -> ${stored ?? rule}', () {
+          if (stored != null) {
+            expect(CommunityProfile.validateDisplayName(input), stored);
+            expect(CommunityProfile.updateBody(input), <String, dynamic>{
+              'display_name': stored,
+            }, reason: 'the client sends the trimmed value');
+            expect(CommunityProfile(displayName: input).displayName, stored);
+          } else {
+            expect(
+              () => CommunityProfile.validateDisplayName(input),
+              throwsA(
+                isA<CommunityValidationException>()
+                    .having(
+                      (CommunityValidationException e) => e.field,
+                      'field',
+                      'display_name',
+                    )
+                    .having(
+                      (CommunityValidationException e) => e.rule,
+                      'rule',
+                      rule,
+                    ),
+              ),
+            );
+          }
+        });
+      }
+
+      test('the trim set is ECMAScript trim, not Dart trim (U+0085 kept)', () {
+        expect(trimLikeServer('\u00a0 Sunny  Mum \u3000'), 'Sunny  Mum');
+        expect(trimLikeServer('\u0085x'), '\u0085x');
+        expect('\u0085x'.trim(), 'x', reason: 'why String.trim is not used');
+      });
     });
 
     // P7 (founder-approved 2026-11-08): the same cases as the backend suite

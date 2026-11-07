@@ -51,17 +51,19 @@ class CommunityProfile {
   /// 7 or more digits in total, anywhere in the name, is a phone number.
   static const int maxDigits = 6;
 
-  /// `display_name` rules (§7.2):
-  /// - 3–30 chars after trim, pattern `^[A-Za-z0-9 _.-]+$`;
-  /// - no run of two or more spaces;
+  /// `display_name` rules (§7.2), identical to the backend:
+  /// - leading and trailing whitespace is trimmed first ([trimLikeServer],
+  ///   founder decision 2026-11-08); every rule runs on the trimmed value,
+  ///   and the trimmed value is what is sent and stored;
+  /// - 3–30 chars after trim: empty, whitespace-only or shorter is
+  ///   `min_length`, longer is `max_length`;
   /// - must not contain 7 or more digits in total, and must not be
   ///   email-like ([emailLike]): `not_allowed_value`, checked before the
-  ///   pattern (P7). A display name is public; those are contact details.
+  ///   pattern (P7). A display name is public; those are contact details;
+  /// - pattern `^[A-Za-z0-9 _.-]+$` and no run of two or more spaces;
+  ///   interior whitespace is not changed.
   static String validateDisplayName(String raw) {
-    final String trimmed = raw.trim();
-    if (trimmed.isEmpty) {
-      throw const CommunityValidationException('display_name', 'required');
-    }
+    final String trimmed = trimLikeServer(raw);
     if (trimmed.length < CommunityLimits.displayNameMin) {
       throw const CommunityValidationException('display_name', 'min_length');
     }

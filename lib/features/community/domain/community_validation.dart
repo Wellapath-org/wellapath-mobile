@@ -53,6 +53,39 @@ abstract final class CommunityLimits {
   static const String deleteAccountPhrase = 'DELETE MY ACCOUNT';
 }
 
+/// Removes leading and trailing whitespace exactly as ECMAScript
+/// `String.prototype.trim` does, which is what the backend uses (contract
+/// §7.2, founder decision 2026-11-08). Dart's own [String.trim] also strips
+/// U+0085 (NEL), so it is not used where the two sides must agree.
+String trimLikeServer(String value) {
+  int start = 0;
+  int end = value.length;
+  while (start < end && _isEcmaWhitespace(value.codeUnitAt(start))) {
+    start++;
+  }
+  while (end > start && _isEcmaWhitespace(value.codeUnitAt(end - 1))) {
+    end--;
+  }
+  return value.substring(start, end);
+}
+
+/// ECMAScript WhiteSpace + LineTerminator: TAB, LF, VT, FF, CR, SPACE,
+/// U+00A0, U+1680, U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, U+3000,
+/// U+FEFF.
+bool _isEcmaWhitespace(int c) {
+  return (c >= 0x09 && c <= 0x0D) ||
+      c == 0x20 ||
+      c == 0xA0 ||
+      c == 0x1680 ||
+      (c >= 0x2000 && c <= 0x200A) ||
+      c == 0x2028 ||
+      c == 0x2029 ||
+      c == 0x202F ||
+      c == 0x205F ||
+      c == 0x3000 ||
+      c == 0xFEFF;
+}
+
 /// Trims [body] and enforces [min]..[max] characters.
 String validateBody(
   String body, {

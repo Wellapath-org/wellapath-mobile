@@ -11,7 +11,11 @@
 /// - Refresh is **single-flight**: concurrent callers share one request.
 /// - On 409 `refresh_race` the stored token is re-read; the refresh is
 ///   retried once only if it changed (another isolate won). Otherwise the
-///   user must sign in again.
+///   race is unresolved: before clearing, the client sends A4 logout (P6)
+///   with the token it presented, best effort and without waiting, so the
+///   server's reuse detection revokes the family (SEC-007: a thief who
+///   rotated first would otherwise keep it). Then the user must sign in
+///   again.
 /// - On 401 from refresh (`refresh_invalid`, `refresh_reused`,
 ///   `refresh_expired`, `session_revoked`) every token is cleared.
 /// - 429 and network errors leave the stored token alone and surface to the
@@ -166,6 +170,14 @@ class CommunitySessionManager extends ChangeNotifier
             presented = stored;
             continue;
           }
+          _revokeRacedFamily(presented!);
+          await _clearTokens();
+          return null;
+        }
+        if (e.code == CommunityErrorCode.conflict &&
+            e.reason == 'refresh_race') {
+          // A second race on the retried token: unresolved too.
+          _revokeRacedFamily(presented!);
           await _clearTokens();
           return null;
         }
@@ -180,6 +192,22 @@ class CommunitySessionManager extends ChangeNotifier
     }
     await _clearTokens();
     return null;
+  }
+
+  /// SEC-007: tell the server about an unresolved `refresh_race` before the
+  /// local session is dropped. A4 logout with the (already used) token makes
+  /// the server treat it as reuse and revoke the whole family, so a thief
+  /// who rotated first loses it too. Fire and forget: the response is
+  /// neutral (204) and never awaited, and a failure is only logged, so
+  /// sign-in-again is never delayed or blocked.
+  void _revokeRacedFamily(String usedToken) {
+    unawaited(
+      _api.logout(refreshToken: usedToken).catchError((Object e) {
+        debugPrint(
+          'community refresh_race: logout call failed (${e.runtimeType})',
+        );
+      }),
+    );
   }
 
   Future<void> _adopt(TokenPair pair) async {

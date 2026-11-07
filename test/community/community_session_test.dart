@@ -264,8 +264,126 @@ void main() {
               .map((RecordedRequest r) => (r.body! as Map)['refresh_token']),
           <String>[wprt('old'), wprt('winner')],
         );
+        await pumpEventQueue();
+        expect(
+          h.to('/v1/auth/logout'),
+          isEmpty,
+          reason: 'a resolved race revokes nothing',
+        );
       },
     );
+
+    group('SEC-007: an unresolved refresh_race tells the server', () {
+      FakeReply race() => FakeReply(
+        409,
+        errorBody('conflict', details: {'reason': 'refresh_race'}),
+      );
+
+      test(
+        'sends P6 logout with the presented token, then clears locally',
+        () async {
+          final _Harness h = _Harness((RecordedRequest r) async {
+            if (r.path == '/v1/auth/logout') return const FakeReply(204);
+            return race();
+          });
+          h.store.values[CommunitySecureKeys.refreshToken] = wprt('old');
+          expect(await h.session.accessToken(), isNull);
+          expect(
+            h.store.values.containsKey(CommunitySecureKeys.refreshToken),
+            isFalse,
+          );
+          await pumpEventQueue();
+          final RecordedRequest logout = h.to('/v1/auth/logout').single;
+          expect(logout.header('authorization'), isNull);
+          expect(logout.body, <String, Object?>{'refresh_token': wprt('old')});
+          expect(h.session.state, CommunitySignInState.signedOut);
+        },
+      );
+
+      test(
+        'is non-blocking: a logout that never answers delays nothing',
+        () async {
+          final Completer<FakeReply> never = Completer<FakeReply>();
+          final _Harness h = _Harness((RecordedRequest r) async {
+            if (r.path == '/v1/auth/logout') return never.future;
+            return race();
+          });
+          h.store.values[CommunitySecureKeys.refreshToken] = wprt('old');
+          expect(
+            await h.session.accessToken().timeout(const Duration(seconds: 2)),
+            isNull,
+          );
+          expect(await h.session.hasStoredSession(), isFalse);
+          await pumpEventQueue();
+          expect(h.to('/v1/auth/logout'), hasLength(1));
+          never.complete(const FakeReply(204));
+          await pumpEventQueue();
+        },
+      );
+
+      test('is best effort: a failing logout is swallowed', () async {
+        for (final FakeReply failure in <FakeReply>[
+          const FakeReply(503),
+          const FakeReply(429, {}, {'retry-after': '30'}),
+          const FakeReply(500),
+        ]) {
+          final _Harness h = _Harness((RecordedRequest r) async {
+            if (r.path == '/v1/auth/logout') return failure;
+            return race();
+          });
+          h.store.values[CommunitySecureKeys.refreshToken] = wprt('old');
+          expect(await h.session.accessToken(), isNull);
+          await pumpEventQueue();
+          expect(h.to('/v1/auth/logout'), hasLength(1));
+          expect(await h.session.hasStoredSession(), isFalse);
+        }
+      });
+
+      test(
+        'a second race on the retried token revokes that token\'s family',
+        () async {
+          late final _Harness h;
+          h = _Harness((RecordedRequest r) async {
+            if (r.path == '/v1/auth/logout') return const FakeReply(204);
+            final String presented =
+                (r.body! as Map)['refresh_token'] as String;
+            if (presented == wprt('old')) {
+              h.store.values[CommunitySecureKeys.refreshToken] = wprt('winner');
+            }
+            return race();
+          });
+          h.store.values[CommunitySecureKeys.refreshToken] = wprt('old');
+          expect(await h.session.accessToken(), isNull);
+          await pumpEventQueue();
+          expect(
+            h
+                .to('/v1/auth/logout')
+                .map((RecordedRequest r) => (r.body! as Map)['refresh_token']),
+            <String>[wprt('winner')],
+          );
+          expect(await h.session.hasStoredSession(), isFalse);
+        },
+      );
+
+      test(
+        'a 401 from refresh sends no extra logout (the server already acted)',
+        () async {
+          final _Harness h = _Harness((RecordedRequest r) async {
+            return FakeReply(
+              401,
+              errorBody(
+                'unauthenticated',
+                details: {'reason': 'refresh_reused'},
+              ),
+            );
+          });
+          h.store.values[CommunitySecureKeys.refreshToken] = wprt('r');
+          expect(await h.session.accessToken(), isNull);
+          await pumpEventQueue();
+          expect(h.to('/v1/auth/logout'), isEmpty);
+        },
+      );
+    });
 
     test('409 refresh_race with unchanged storage: sign in again', () async {
       final _Harness h = _Harness((RecordedRequest r) async {
