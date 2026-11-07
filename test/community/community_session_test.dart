@@ -431,6 +431,28 @@ void main() {
       expect(await h.session.hasStoredSession(), isFalse);
     });
 
+    test(
+      'P8: sign-out keeps the install device_id; the next sign-in reuses it',
+      () async {
+        final _Harness h = _Harness((RecordedRequest r) async {
+          if (r.path == '/v1/auth/logout') return const FakeReply(204);
+          return _signInOk(r);
+        });
+        await h.session.verifyOtp(email: 'a@b.ng', code: '123456');
+        final String device = await h.session.deviceId();
+        await h.session.signOut();
+        expect(h.store.values[CommunitySecureKeys.deviceId], device);
+        await h.session.verifyOtp(email: 'a@b.ng', code: '123456');
+        expect(
+          h
+              .to('/v1/auth/otp/verify')
+              .map((RecordedRequest r) => (r.body! as Map)['device_id'])
+              .toSet(),
+          <Object?>{device},
+        );
+      },
+    );
+
     test('forgetDevice (after deletion) erases every Community key', () async {
       final _Harness h = _Harness(_signInOk);
       await h.session.verifyOtp(email: 'a@b.ng', code: '123456');

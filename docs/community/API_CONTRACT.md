@@ -6,10 +6,10 @@ sign-off):
 
 | | |
 |---|---|
-| Canonical (markdown wins) | `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft, dated 2026-11-07, with P6 adopted (SHA-256 `7ee44c30f223b78cde448f940bf77068943bab2e6e93c5a372e3bdac0e490166`) |
+| Canonical (markdown wins) | `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft, dated 2026-11-07, with P6 adopted and the 2026-11-08 Appendix P decisions applied (SHA-256 `680c6faa15cffb82638882de53becb8ed492ecabffbd34de3444466cbb7ce0bd`) |
 | Machine-readable | `WELLAPATH_ENGINEERING/community_api_v1.openapi.yaml` (OpenAPI 3.1, `1.0.0-draft`) |
-| Mobile copy of the OpenAPI file | [`community_api_v1.openapi.yaml`](community_api_v1.openapi.yaml), copied verbatim on 2026-11-08 (after the P6 follow-up) |
-| SHA-256 of the copy | `b88749cf946edeea40031ea502d025beebd8656999eb75f7f15b150b5fcbb533` |
+| Mobile copy of the OpenAPI file | [`community_api_v1.openapi.yaml`](community_api_v1.openapi.yaml), copied verbatim on 2026-11-08 (after the Appendix P decisions) |
+| SHA-256 of the copy | `58b255df128713e6420203fcb50581223a6eb7cdb43977dd20d5f4515cd1dac5` |
 | Governing decision | `WELLAPATH_ENGINEERING/ADR_COMMUNITY_AUTH_AND_DATA.md` (ADR-001) incl. amendments A1–A4 |
 
 The v0.1 text is in git history (`d46d822`). Do not edit the copied YAML in
@@ -44,6 +44,17 @@ hash disagree.
   `Authorization` header, nothing refreshed first. Any 2xx (the server's
   neutral `204`) is success; local tokens are cleared whatever the answer.
   Only when no refresh token is stored does it send the in-memory bearer.
+
+- **2026-11-08 founder decisions (Appendix P).** P1: export for every
+  role, self-deletion for members only (422 `privileged_account` is shown
+  as "hand over the role first"). P8: sign-out keeps the install's
+  `device_id`; account deletion erases it (`forgetDevice`). C6: any bad
+  refresh token is 401 `refresh_invalid`, which clears the session. D-019:
+  on 409 `refresh_race` the client retries once only if storage changed.
+  C3 and C7(d) are mirrored by the in-memory backend (a repeated
+  restrict/suspend is 422 `already_in_state` with no audit row;
+  `comment_reply` goes only to earlier commenters with a visible comment
+  and an active account).
 
 ## Mobile-only notes (not contract changes)
 

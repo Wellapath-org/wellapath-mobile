@@ -20,6 +20,8 @@
 /// `/admin`.
 library;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../domain/comment.dart';
 import '../domain/community_me.dart';
 import '../domain/community_notification.dart';
@@ -120,6 +122,15 @@ class InMemoryCommunityBackend {
     if (displayName != null) {
       account.displayName = CommunityProfile.validateDisplayName(displayName);
     }
+  }
+
+  /// Test inspection: what the server stored for [accountId], whatever the
+  /// account's state (a suspended or deleted account cannot list its own).
+  @visibleForTesting
+  List<CommunityNotification> storedNotificationsFor(String accountId) {
+    return List<CommunityNotification>.unmodifiable(
+      _notifications[accountId] ?? const <CommunityNotification>[],
+    );
   }
 
   CommunityRepository memberView(String accountId) {
@@ -417,9 +428,16 @@ class _MemberRepository implements CommunityRepository {
     final _Account me = _b._can(_id, CommunityCapability.createContent);
     final _Content post = _b._visible(_b._posts, draft.postId);
     _b._requireProfile(me);
+    // C7(d) (founder, 2026-11-08): only earlier commenters whose comment is
+    // still visible and whose account is active (not suspended, not
+    // deleted). A restricted (read-only) account is still notified.
     final Set<String> priorCommenters = _b._comments
-        .where((_Content c) => c.postId == post.id)
+        .where((_Content c) => c.postId == post.id && c.visible)
         .map((_Content c) => c.authorAccountId)
+        .where((String id) {
+          final _Account? a = _b._accounts[id];
+          return a != null && !a.deleted && a.status != AccountStatus.suspended;
+        })
         .toSet();
     final _Content c = _Content(
       id: _b._uuid(),
@@ -873,6 +891,11 @@ class InMemoryModeration {
     }
     switch (request.action) {
       case ModerationActionType.restrictAccount:
+        // C3 (founder, 2026-11-08): no-op transitions are refused before
+        // anything is recorded, so the audit log has no duplicate row.
+        if (target.status == AccountStatus.restricted) {
+          throw _err(CommunityErrorCode.invalidState, 'already_in_state');
+        }
         target.status = AccountStatus.restricted;
         _b._notify(
           target.id,
@@ -880,6 +903,9 @@ class InMemoryModeration {
           notice: ModerationNotice.accountRestricted,
         );
       case ModerationActionType.suspendAccount:
+        if (target.status == AccountStatus.suspended) {
+          throw _err(CommunityErrorCode.invalidState, 'already_in_state');
+        }
         target.status = AccountStatus.suspended;
         _b._notify(
           target.id,

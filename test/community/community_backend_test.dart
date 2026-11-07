@@ -220,6 +220,68 @@ void main() {
       );
     });
 
+    test('comment_reply (C7(d)): suspended, deleted and hidden-comment authors '
+        'are not notified; a restricted author still is', () async {
+      b.registerAccount('dave', displayName: 'Dave');
+      b.registerAccount('erin', displayName: 'Erin');
+      b.registerAccount('frank', displayName: 'Frank');
+      final Post p = await alicePosts();
+      Future<Comment> say(String who) => b
+          .memberView(who)
+          .createComment(
+            CommentDraft(
+              postId: p.id,
+              body: 'hi',
+              displayMode: DisplayMode.named,
+            ),
+          );
+      await say('bob'); // suspended below
+      await say('carol'); // deletes her account below
+      final Comment daves = await say('dave'); // hidden below
+      await say('erin'); // restricted below
+      // Start from a clean slate: only frank's comment counts.
+      for (final String who in <String>['bob', 'dave', 'erin']) {
+        await b.notificationsFor(who).markAllRead();
+      }
+      final InMemoryModeration mod = b.moderationAs('mod');
+      await mod.apply(
+        req(
+          ModerationActionType.suspendAccount,
+          ModerationTargetType.account,
+          'bob',
+        ),
+      );
+      await b.dataRightsFor('carol').deleteMyAccount('DELETE MY ACCOUNT');
+      await mod.apply(
+        req(
+          ModerationActionType.hideContent,
+          ModerationTargetType.comment,
+          daves.id,
+        ),
+      );
+      await mod.apply(
+        req(
+          ModerationActionType.restrictAccount,
+          ModerationTargetType.account,
+          'erin',
+        ),
+      );
+      await say('frank');
+
+      int unreadReplies(String who) => b
+          .storedNotificationsFor(who)
+          .where(
+            (CommunityNotification n) =>
+                n.type == CommunityNotificationType.commentReply &&
+                n.readAt == null,
+          )
+          .length;
+      expect(unreadReplies('bob'), 0, reason: 'suspended');
+      expect(unreadReplies('carol'), 0, reason: 'deleted');
+      expect(unreadReplies('dave'), 0, reason: 'comment hidden');
+      expect(unreadReplies('erin'), 1, reason: 'restricted is active');
+    });
+
     test('comment_reply: at most one unread per post per recipient', () async {
       final Post p = await alicePosts();
       Future<void> say(String who) => b
@@ -343,6 +405,26 @@ void main() {
   });
 
   group('account status', () {
+    test('C3: a repeated restrict or suspend is 422 already_in_state and '
+        'records no audit row', () async {
+      final InMemoryModeration mod = b.moderationAs('mod');
+      for (final ModerationActionType action in <ModerationActionType>[
+        ModerationActionType.restrictAccount,
+        ModerationActionType.suspendAccount,
+      ]) {
+        final String target = action == ModerationActionType.restrictAccount
+            ? 'bob'
+            : 'carol';
+        await mod.apply(req(action, ModerationTargetType.account, target));
+        final int before = (await mod.auditLog()).length;
+        await expectLater(
+          () => mod.apply(req(action, ModerationTargetType.account, target)),
+          _code(CommunityErrorCode.invalidState, 'already_in_state'),
+        );
+        expect((await mod.auditLog()).length, before);
+      }
+    });
+
     test(
       'restricted: read-only, but may still report and delete own',
       () async {
@@ -745,6 +827,22 @@ void main() {
         _code(CommunityErrorCode.unauthenticated),
       );
     });
+
+    test(
+      'P1: export works for every role; self-deletion is members only',
+      () async {
+        for (final String who in <String>['alice', 'mod', 'admin']) {
+          final Map<String, dynamic> doc = await b
+              .dataRightsFor(who)
+              .exportMyData();
+          expect((doc['account'] as Map<String, dynamic>)['id'], who);
+        }
+        expect(
+          () => b.dataRightsFor('admin').deleteMyAccount('DELETE MY ACCOUNT'),
+          _code(CommunityErrorCode.invalidState, 'privileged_account'),
+        );
+      },
+    );
 
     test('privileged accounts must be demoted first; phrase is exact', () {
       expect(
