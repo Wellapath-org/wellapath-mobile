@@ -72,6 +72,7 @@ dependencies:
   # with the SDK-identical client stack.
   http: ^1.6.0
   unorm_dart: ^0.3.2
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
@@ -87,6 +88,7 @@ dev_dependencies:
   # Uploads dSYMs / obfuscation symbols to Sentry on explicit invocation only
   # (`dart run sentry_dart_plugin`); it hooks nothing into ordinary builds.
   sentry_dart_plugin: ^3.4.0
+  yaml: ^3.1.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
