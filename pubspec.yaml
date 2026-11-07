@@ -23,7 +23,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Build number 218 is the next unused value above every number this project
 # has ever attached to a build. The authoritative, append-only registry of
 # consumed numbers — including the distributed 210/211/215/216 artifacts, the
-# internal-engineering 217 artifacts (built, not uploaded), and
+# internal-testing 217 artifacts (Flutter 3.47.6 rebuild; the 3.44.4
+# first build is superseded, never distributed), and
 # the burned local-verification-only numbers 212–214 — lives in
 # test/release/build_identity_test.dart, which fails the build on any
 # regression or reuse.
