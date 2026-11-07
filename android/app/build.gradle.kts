@@ -22,6 +22,11 @@ plugins {
 //      distributable. This is the CI path.
 //   3. No signing material and no opt-in -> the build FAILS.
 //
+// The refusal in (3) is enforced when the task graph is ready, and only if a
+// release task of this app is about to run. Evaluating it while configuring
+// the `release` build type (as before) also failed `flutter build apk --debug`
+// and `flutter run`, because every build type is configured on every build.
+//
 // The previous behaviour was to fall back to the debug keystore with only a
 // logger warning. That produced an APK that looked like a release build,
 // carried "release" in its filename, and was signed with a shared, well-known,
@@ -72,6 +77,9 @@ if (hasKeystoreFile) {
 val allowUnsignedRelease =
     System.getenv("WELLAPATH_ALLOW_UNSIGNED_RELEASE") == "true" ||
         project.findProperty("wellapath.allowUnsignedRelease") == "true"
+
+/// Outcome (3): no signing material and no explicit unsigned opt-in.
+val releaseSigningRefused = !hasKeystoreFile && !allowUnsignedRelease
 
 android {
     namespace = "org.wellapath.wellapath_mobile"
@@ -130,24 +138,42 @@ android {
                     null
                 }
 
-                else -> throw GradleException(
-                    "Release build refused: no Android signing material.\n" +
-                        "  android/key.properties is absent, so this build cannot be signed " +
-                        "with the release key.\n" +
-                        "  Release builds no longer fall back to debug signing — a " +
-                        "debug-signed APK is not upgradable in place and must never reach " +
-                        "a tester.\n" +
-                        "  To sign: create android/key.properties (gitignored) defining " +
-                        "${requiredSigningKeys.joinToString(", ")} from the founder-issued " +
-                        "keystore. See docs/BETA_ROLLBACK.md.\n" +
-                        "  To build an explicitly UNSIGNED, non-distributable release for CI: " +
-                        "set WELLAPATH_ALLOW_UNSIGNED_RELEASE=true."
-                )
+                // Outcome (3). No config here; the build is refused below,
+                // before any task runs, if a release task is requested.
+                else -> null
             }
         }
 
         // Debug keeps debug signing. That is correct and unchanged — the
         // fail-closed rule is about release builds only.
+    }
+}
+
+// Outcome (3), enforced. Runs once the task graph is known and before any task
+// executes, so a refused release build produces no artifact at all. Every
+// release task of this module has "Release" in its name (assembleRelease,
+// bundleRelease, packageRelease, installRelease, ...); debug and profile task
+// names do not, so those builds are unaffected.
+if (releaseSigningRefused) {
+    gradle.taskGraph.whenReady {
+        val requestsRelease = allTasks.any { task ->
+            task.project == project && task.name.contains("Release")
+        }
+        if (requestsRelease) {
+            throw GradleException(
+                "Release build refused: no Android signing material.\n" +
+                    "  android/key.properties is absent, so this build cannot be signed " +
+                    "with the release key.\n" +
+                    "  Release builds no longer fall back to debug signing — a " +
+                    "debug-signed APK is not upgradable in place and must never reach " +
+                    "a tester.\n" +
+                    "  To sign: create android/key.properties (gitignored) defining " +
+                    "${requiredSigningKeys.joinToString(", ")} from the founder-issued " +
+                    "keystore. See docs/BETA_ROLLBACK.md.\n" +
+                    "  To build an explicitly UNSIGNED, non-distributable release for CI: " +
+                    "set WELLAPATH_ALLOW_UNSIGNED_RELEASE=true."
+            )
+        }
     }
 }
 
