@@ -38,14 +38,25 @@ class CommunityProfile {
 
   static final RegExp _allowed = RegExp(r'^[A-Za-z0-9 _.\-]+$');
   static final RegExp _doubleSpace = RegExp(r' {2,}');
-  static final RegExp _digit = RegExp(r'\d');
+  static final RegExp _digit = RegExp(r'[0-9]');
+
+  /// Contract §7.2 (P7, founder-approved 2026-11-08), identical to the
+  /// backend's `EMAIL_LIKE`: contains `@`, or ends with a letter or digit,
+  /// `.` and a common TLD (case-insensitive).
+  static final RegExp emailLike = RegExp(
+    r'@|[A-Za-z0-9]\.(com|net|org|ng|io|co|uk|edu|gov|info|me|app)$',
+    caseSensitive: false,
+  );
+
+  /// 7 or more digits in total, anywhere in the name, is a phone number.
+  static const int maxDigits = 6;
 
   /// `display_name` rules (§7.2):
   /// - 3–30 chars after trim, pattern `^[A-Za-z0-9 _.-]+$`;
   /// - no run of two or more spaces;
-  /// - must not look like an email or a phone number (≥ 7 digits):
-  ///   `not_allowed_value`. A display name is public; those are contact
-  ///   details.
+  /// - must not contain 7 or more digits in total, and must not be
+  ///   email-like ([emailLike]): `not_allowed_value`, checked before the
+  ///   pattern (P7). A display name is public; those are contact details.
   static String validateDisplayName(String raw) {
     final String trimmed = raw.trim();
     if (trimmed.isEmpty) {
@@ -57,7 +68,8 @@ class CommunityProfile {
     if (trimmed.length > CommunityLimits.displayNameMax) {
       throw const CommunityValidationException('display_name', 'max_length');
     }
-    if (trimmed.contains('@') || _digit.allMatches(trimmed).length >= 7) {
+    if (_digit.allMatches(trimmed).length > maxDigits ||
+        emailLike.hasMatch(trimmed)) {
       throw const CommunityValidationException(
         'display_name',
         'not_allowed_value',

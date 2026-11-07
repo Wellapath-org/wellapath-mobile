@@ -319,6 +319,34 @@ void main() {
       expect(comments.closesCommunity, isFalse);
     });
 
+    test(
+      'P2: only C1/C2/N1/N2 close Community on 404; C6 and the rest do not',
+      () async {
+        final FakeReply notFound = FakeReply(404, errorBody('not_found'));
+        final Map<String, Future<Object?> Function(HttpCommunityRepository)>
+        others = <String, Future<Object?> Function(HttpCommunityRepository)>{
+          'C6 comments list': (HttpCommunityRepository r) =>
+              r.listComments('p'),
+          'C4 single post': (HttpCommunityRepository r) => r.getPost('p'),
+          'C5 delete own post': (HttpCommunityRepository r) =>
+              r.deletePost('p'),
+          'C8 delete own comment': (HttpCommunityRepository r) =>
+              r.deleteComment('c'),
+          'N3 mark read': (HttpCommunityRepository r) => r.markRead('n'),
+        };
+        for (final MapEntry<
+              String,
+              Future<Object?> Function(HttpCommunityRepository)
+            >
+            e
+            in others.entries) {
+          final CommunityException x = await failing(e.value, notFound);
+          expect(x.code, CommunityErrorCode.notFound, reason: e.key);
+          expect(x.closesCommunity, isFalse, reason: e.key);
+        }
+      },
+    );
+
     test('M2/M4 404 means "none yet", not an error', () async {
       final c = _client((RecordedRequest r) async {
         return FakeReply(404, errorBody('not_found'));

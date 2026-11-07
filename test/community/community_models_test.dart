@@ -364,6 +364,32 @@ void main() {
       expect(noNote.toJson().containsKey('note'), isFalse);
     });
 
+    test('P9: target_id is capped at 64 (not 128)', () {
+      expect(CommunityLimits.reportTargetIdMax, 64);
+      expect(
+        ReportDraft(
+          targetType: ReportTargetType.post,
+          targetId: 'a' * 64,
+          reason: ReportReason.spam,
+        ).targetId,
+        hasLength(64),
+      );
+      expect(
+        () => ReportDraft(
+          targetType: ReportTargetType.post,
+          targetId: 'a' * 65,
+          reason: ReportReason.spam,
+        ),
+        throwsA(
+          isA<CommunityValidationException>().having(
+            (CommunityValidationException e) => e.field,
+            'field',
+            'target_id',
+          ),
+        ),
+      );
+    });
+
     test('note too long rejected', () {
       expect(
         () => ReportDraft(
@@ -531,6 +557,49 @@ void main() {
       });
       expect(CommunityProfile(displayName: 'Ade_O.2').displayName, 'Ade_O.2');
       expect(CommunityProfile(displayName: 'Mum of 2').displayName, 'Mum of 2');
+    });
+
+    // P7 (founder-approved 2026-11-08): the same cases as the backend suite
+    // (tests/community/content.test.ts), so both sides apply one rule.
+    test('P7: 7+ digits in total or email-like is not_allowed_value', () {
+      for (final String name in <String>[
+        'call 0803123456',
+        'john.doe.gmail.com',
+        'Mum1234567',
+        'M1u2m3 4x5y6z7',
+        '0 8 0 1 2 3 4',
+        'me@example.com',
+        'a@b',
+        'sunny.NG',
+        'mum.app',
+      ]) {
+        expect(
+          () => CommunityProfile(displayName: name),
+          throwsA(
+            isA<CommunityValidationException>().having(
+              (CommunityValidationException e) => e.rule,
+              'rule',
+              'not_allowed_value',
+            ),
+          ),
+          reason: name,
+        );
+      }
+      for (final String name in <String>[
+        'Mum123456',
+        'M1u2m3 4x5y6',
+        'Dr. Ada',
+        'ada.lovelace',
+        'cool.company x',
+        '.com fan',
+      ]) {
+        expect(CommunityProfile(displayName: name).displayName, name);
+      }
+      expect(CommunityProfile.maxDigits, 6);
+      expect(
+        CommunityProfile.emailLike.pattern,
+        r'@|[A-Za-z0-9]\.(com|net|org|ng|io|co|uk|edu|gov|info|me|app)$',
+      );
     });
   });
 

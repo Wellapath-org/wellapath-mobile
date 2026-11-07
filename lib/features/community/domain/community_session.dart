@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'community_json.dart';
 import 'community_me.dart';
 
+/// The refresh-token format (§3.2; `TokenPair.refresh_token`, P5).
+final RegExp refreshTokenPattern = RegExp(r'^wprt_[A-Za-z0-9_-]{43,}$');
+
 /// `TokenPair` (§3.3 A2/A3). A self DTO: no identity-key rejection.
 ///
 /// ADR-001 A2: the access token lives in memory only; the refresh token goes
@@ -23,14 +26,15 @@ class TokenPair {
     if (readString(json, 'token_type') != 'Bearer') {
       throw const FormatException('token_type must be Bearer');
     }
-    final int expiresIn = readInt(json, 'expires_in', min: 1);
+    // P5 (founder-approved 2026-11-08): 60–900 s, and the `wprt_` pattern.
+    final int expiresIn = readInt(json, 'expires_in', min: 60);
     if (expiresIn > 900) {
       throw const FormatException('access token lifetime exceeds 15 min');
     }
     final String access = readString(json, 'access_token');
     final String refresh = readString(json, 'refresh_token');
-    if (access.isEmpty || refresh.isEmpty) {
-      throw const FormatException('empty token');
+    if (access.isEmpty || !refreshTokenPattern.hasMatch(refresh)) {
+      throw const FormatException('malformed token');
     }
     return TokenPair(
       accessToken: access,

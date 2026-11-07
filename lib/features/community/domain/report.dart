@@ -64,7 +64,11 @@ class ReportDraft {
     required this.reason,
     String? note,
     String? idempotencyKey,
-  }) : targetId = validateBody(targetId, field: 'target_id', max: 128),
+  }) : targetId = validateBody(
+         targetId,
+         field: 'target_id',
+         max: CommunityLimits.reportTargetIdMax,
+       ),
        note = validateOptionalNote(note, max: CommunityLimits.reportNoteMax),
        idempotencyKey = idempotencyKey ?? newUuidV4();
 

@@ -13,6 +13,7 @@ import 'package:wellapath_mobile/features/community/data/community_secure_store.
 import 'package:wellapath_mobile/features/community/data/community_session_manager.dart';
 import 'package:wellapath_mobile/features/community/data/http_community_repository.dart';
 import 'package:wellapath_mobile/features/community/domain/community_ids.dart';
+import 'package:wellapath_mobile/features/community/domain/community_session.dart';
 
 import 'support/fake_community_server.dart';
 
@@ -53,6 +54,40 @@ Future<FakeReply> _signInOk(RecordedRequest r) async {
 }
 
 void main() {
+  group('TokenPair (P5: expires_in 60-900, wprt_ refresh token)', () {
+    test('accepts the bounds, rejects anything outside them', () {
+      for (final int ok in <int>[60, 900]) {
+        expect(
+          TokenPair.fromJson(
+            tokenPairJson(access: 'a', refresh: wprt('r'), expiresIn: ok),
+          ).expiresIn,
+          ok,
+        );
+      }
+      for (final int bad in <int>[0, 1, 59, 901]) {
+        expect(
+          () => TokenPair.fromJson(
+            tokenPairJson(access: 'a', refresh: wprt('r'), expiresIn: bad),
+          ),
+          throwsFormatException,
+          reason: '$bad',
+        );
+      }
+      for (final String bad in <String>[
+        'rt_${'x' * 43}',
+        'wprt_${'x' * 42}',
+        'wprt_${'x' * 42}!',
+        '',
+      ]) {
+        expect(
+          () => TokenPair.fromJson(tokenPairJson(access: 'a', refresh: bad)),
+          throwsFormatException,
+          reason: bad,
+        );
+      }
+    });
+  });
+
   group('sign-in', () {
     test('verify stores only the refresh token and device id', () async {
       final _Harness h = _Harness(_signInOk);

@@ -27,6 +27,9 @@ abstract final class CommunityLimits {
   /// §10 C9: ≤ 500 after trim; empty becomes null.
   static const int reportNoteMax = 500;
 
+  /// §10 C9 `target_id`: ≤ 64 (P9, founder-approved 2026-11-08, with 64).
+  static const int reportTargetIdMax = 64;
+
   /// §7.2: 3–30 after trim.
   static const int displayNameMin = 3;
   static const int displayNameMax = 30;

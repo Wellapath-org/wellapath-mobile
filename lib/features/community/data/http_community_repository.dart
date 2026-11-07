@@ -216,7 +216,7 @@ class HttpCommunityRepository
     int limit = CommunityPaging.defaultLimit,
   }) async {
     // A 404 here means the post is not visible, not that Community is off
-    // (see the deliverable's proposed contract clarification).
+    // (contract §1.3, P2 approved 2026-11-08: only C1/C2/N1/N2 close it).
     final CommunityResponse r = await _get(
       '/v1/community/posts/{post_id}/comments',
       params: <String, String>{'post_id': postId},
