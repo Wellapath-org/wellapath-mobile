@@ -40,6 +40,57 @@ class ArtifactSpec {
     required this.version,
     this.hash,
   });
+
+  /// Builds a spec from one `/config` `artifacts` entry.
+  ///
+  /// Returns null only when the entry has no `url` (nothing to fetch). A
+  /// missing or non-string `version`/`hash` is carried through as-is —
+  /// never defaulted — so [StagedArtifactLoader] rejects it as an
+  /// [ArtifactMetadataError] instead of caching an unverified artifact under
+  /// an invented version (RC-BLK-011).
+  static ArtifactSpec? fromConfigEntry(
+    Object? entry, {
+    required String cacheKey,
+  }) {
+    if (entry is! Map) return null;
+    final url = entry['url'];
+    if (url is! String) return null;
+    final version = entry['version'];
+    final hash = entry['hash'];
+    return ArtifactSpec(
+      url: url,
+      cacheKey: cacheKey,
+      version: version is String ? version : '',
+      hash: hash is String ? hash : null,
+    );
+  }
+
+  /// `sha256:<64 hex>` (the form `/config` serves) or bare 64-char hex.
+  static final RegExp _hashPattern = RegExp(r'^(sha256:)?[0-9a-fA-F]{64}$');
+
+  /// Dotted numeric version, e.g. `1.2` or `2.4.1`.
+  static final RegExp _versionPattern = RegExp(r'^[0-9]+(\.[0-9]+)*$');
+
+  /// Why this spec cannot be trusted, or null when its integrity metadata is
+  /// well-formed. A missing, empty or malformed hash or version is never
+  /// acceptable: the artifact would be used without verification.
+  String? get metadataProblem {
+    final h = hash;
+    if (h == null || h.isEmpty) return 'missing hash';
+    if (!_hashPattern.hasMatch(h)) return 'malformed hash';
+    if (version.isEmpty) return 'missing version';
+    if (!_versionPattern.hasMatch(version)) return 'malformed version';
+    return null;
+  }
+}
+
+/// Thrown when a `/config` artifact entry lacks a well-formed integrity hash
+/// or version. A [StateError] so it takes the same path as a hash mismatch:
+/// the artifact is neither cached nor used, and the caller shows its
+/// existing integrity-failure state — never the "please connect" one.
+class ArtifactMetadataError extends StateError {
+  ArtifactMetadataError(String cacheKey, String problem)
+    : super('Artifact metadata invalid for $cacheKey: $problem');
 }
 
 /// The three artifacts the engine needs to run a single assessment.
@@ -325,13 +376,29 @@ class StagedArtifactLoader {
     );
   }
 
+  /// Fails closed: a null, empty or malformed expected hash never matches.
+  /// Before RC-BLK-011 a null/empty hash returned true, so an artifact whose
+  /// `/config` entry carried no hash was cached and used unverified.
   bool _matchesHash(String rawBody, String? expectedHash) {
-    if (expectedHash == null || expectedHash.isEmpty) return true;
+    if (expectedHash == null ||
+        !ArtifactSpec._hashPattern.hasMatch(expectedHash)) {
+      return false;
+    }
     final expectedHex = expectedHash.startsWith('sha256:')
         ? expectedHash.substring('sha256:'.length)
         : expectedHash;
     final actualHex = sha256.convert(utf8.encode(rawBody)).toString();
     return actualHex.toLowerCase() == expectedHex.toLowerCase();
+  }
+
+  /// Throws [ArtifactMetadataError] before any cache read or download when
+  /// [spec] has no well-formed hash/version, so nothing unverifiable is ever
+  /// cached or served.
+  void _requireValidMetadata(ArtifactSpec spec) {
+    final problem = spec.metadataProblem;
+    if (problem == null) return;
+    debugPrint('Artifact metadata invalid for ${spec.cacheKey} — rejecting');
+    throw ArtifactMetadataError(spec.cacheKey, problem);
   }
 
   /// Reads [spec] from [box], falling back to a network download (with
@@ -346,6 +413,7 @@ class StagedArtifactLoader {
     void Function(int received, int total)? onReceiveProgress,
     Duration? timeoutOverride,
   }) async {
+    _requireValidMetadata(spec);
     final versionedKey = '${spec.cacheKey}_v${spec.version}';
     final cachedRaw = box.get(versionedKey) as String?;
 
@@ -388,6 +456,12 @@ class StagedArtifactLoader {
     required ArtifactSpec rules,
     required ArtifactSpec kb,
   }) async {
+    // Checked up front, not inside the parallel downloads, so a bad /config
+    // entry deterministically surfaces as an integrity failure rather than
+    // racing a network error on another artifact.
+    _requireValidMetadata(tokenDict);
+    _requireValidMetadata(rules);
+    _requireValidMetadata(kb);
     progress.value = const BootProgress(step: 1);
     final box = Hive.isBoxOpen(ArtifactCacheKeys.artifactBox)
         ? Hive.box(ArtifactCacheKeys.artifactBox)

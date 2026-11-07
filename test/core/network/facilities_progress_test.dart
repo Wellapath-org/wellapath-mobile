@@ -77,6 +77,9 @@ void main() {
         url: 'https://example.test/facilities.json',
         cacheKey: ArtifactCacheKeys.facilities,
         version: '1.1',
+        // sha256 of the fake body above (RC-BLK-011: hash is required).
+        hash:
+            'sha256:dfd2c17de60afbe3ec9a6312bcb6968d8045936213544fe761ea3adc05816dd2',
       );
 
       expect(loader.facilitiesDownloadStarted, isFalse);

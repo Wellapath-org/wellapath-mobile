@@ -6545,6 +6545,40 @@ Fixed, and the step is now exercised locally end to end before being trusted:
 
 ---
 
+# 2026-11-07 — RC-BLK-011 / WP-003: artifact integrity metadata is now a hard failure
+
+`StagedArtifactLoader._matchesHash` returned `true` for a null/empty expected
+hash, and both `loading_screen.dart` and `locator_screen.dart` defaulted a
+missing `/config` version to `'1.0'`. A `/config` entry without a hash was
+therefore downloaded, cached under an invented version key and used with no
+integrity check at all.
+
+* `ArtifactSpec.fromConfigEntry` is now the single place a `/config` entry
+  becomes a spec (loading screen and locator both use it). It never defaults
+  version or hash; a missing `url` still means "no artifact", as before.
+* `ArtifactSpec.metadataProblem` rejects a missing/empty/malformed hash
+  (`sha256:<64 hex>` or bare 64 hex accepted) and a missing/non-dotted-numeric
+  version. The loader checks it before any cache read or download and throws
+  `ArtifactMetadataError` (a `StateError`), so it takes the existing
+  integrity-failure path: the loading screen's existing error view for core
+  artifacts, `facilitiesFailed` → the locator's existing "could not load" state
+  for facilities. No new user-facing copy.
+* `_matchesHash` itself now fails closed on null/empty/malformed input.
+* Behaviour against production is unchanged: `GET https://api.wellapath.org/config`
+  (2026-11-07) serves versions 1.1 / 2.4 / 2.2 / 1.2 with `sha256:` hashes for
+  token dictionary / knowledge base / rules / facilities; a test pins that
+  exact shape as passing validation.
+* Not changed: engine, scoring, urgency, red flags, KB tokens/weights, clinical
+  copy. The decoded facility list in `facility_cache` is still read without
+  checking it against `/config` — that is WP-025, handled separately.
+* Other loaders checked: `vocabulary_v2_loader.dart` and
+  `question_flow_loader.dart` read local bytes only (no network, no hash in
+  their contract), so the soft-fail pattern does not apply. The Facilities 2.0
+  loader exists only on the unmerged `feat/facilities-v2-consumer` branch; its
+  manifest already requires a non-empty sha256, but it reuses this loader's
+  hash check via a static `verifyArtifactHash` that still carries the old
+  null → `true` line — that branch must take this fix when it rebases.
+
 # 2026-11-07 — WP-025: decoded facility cache is versioned against `/config`
 
 The decoded facility list lived under the unversioned key

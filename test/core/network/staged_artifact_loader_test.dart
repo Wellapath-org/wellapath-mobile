@@ -22,8 +22,23 @@ void main() {
     }
   });
 
-  ArtifactSpec specFor(String url, String cacheKey, {String? hash}) =>
-      ArtifactSpec(url: url, cacheKey: cacheKey, version: '1.0', hash: hash);
+  String hashOf(String body) =>
+      'sha256:${sha256.convert(utf8.encode(body)).toString()}';
+
+  // Every spec carries a well-formed hash: since RC-BLK-011 a spec without one
+  // is rejected before any download. [body] is what the fake download (or
+  // seeded cache) returns for this artifact, so the default hash matches it.
+  ArtifactSpec specFor(
+    String url,
+    String cacheKey, {
+    String? hash,
+    String body = '{}',
+  }) => ArtifactSpec(
+    url: url,
+    cacheKey: cacheKey,
+    version: '1.0',
+    hash: hash ?? hashOf(body),
+  );
 
   group('exponential backoff retry on network failure', () {
     test(
@@ -51,12 +66,18 @@ void main() {
           tokenDict: specFor(
             'https://example.invalid/token.json',
             'artifact_token_dict',
+            body: '{"rules": []}',
           ),
           rules: specFor(
             'https://example.invalid/rules.json',
             'artifact_rules',
+            body: '{"rules": []}',
           ),
-          kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+          kb: specFor(
+            'https://example.invalid/kb.json',
+            'artifact_kb',
+            body: '{"rules": []}',
+          ),
         );
 
         // 3 specs download concurrently. The failure threshold (callCount < 3)
@@ -156,13 +177,18 @@ void main() {
             tokenDict: specFor(
               'https://example.invalid/token.json',
               'artifact_token_dict',
+              body: '{"rules": []}',
             ),
             rules: specFor(
               'https://example.invalid/rules.json',
               'artifact_rules',
               hash: wrongHash,
             ),
-            kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+            kb: specFor(
+              'https://example.invalid/kb.json',
+              'artifact_kb',
+              body: '{"rules": []}',
+            ),
           ),
           throwsA(isA<StateError>()),
         );
@@ -188,12 +214,18 @@ void main() {
           tokenDict: specFor(
             'https://example.invalid/token.json',
             'artifact_token_dict',
+            body: '{"tokens": {}}',
           ),
           rules: specFor(
             'https://example.invalid/rules.json',
             'artifact_rules',
+            body: '{"rules": [{"id": "r1"}]}',
           ),
-          kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+          kb: specFor(
+            'https://example.invalid/kb.json',
+            'artifact_kb',
+            body: '{"conditions": [{"condition_id": "c1"}]}',
+          ),
         );
 
         expect(result.rules.single['id'], equals('r1'));
@@ -216,6 +248,7 @@ void main() {
           specFor(
             'https://example.invalid/facilities.json',
             'artifact_facilities',
+            body: '{"facilities": [{"name": "Test Clinic"}]}',
           ),
         );
         // Fire-and-forget: returns immediately, before the download settles.
@@ -287,9 +320,18 @@ void main() {
         tokenDict: specFor(
           'https://example.invalid/token.json',
           'artifact_token_dict',
+          body: '{"tokens": {}}',
         ),
-        rules: specFor('https://example.invalid/rules.json', 'artifact_rules'),
-        kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+        rules: specFor(
+          'https://example.invalid/rules.json',
+          'artifact_rules',
+          body: '{"rules": []}',
+        ),
+        kb: specFor(
+          'https://example.invalid/kb.json',
+          'artifact_kb',
+          body: '{"conditions": []}',
+        ),
       );
 
       expect(loader.progress.value.step, equals(3));
@@ -316,12 +358,18 @@ void main() {
           tokenDict: specFor(
             'https://example.invalid/token.json',
             'artifact_token_dict',
+            body: '{"tokens": {}}',
           ),
           rules: specFor(
             'https://example.invalid/rules.json',
             'artifact_rules',
+            body: cachedRaw,
           ),
-          kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+          kb: specFor(
+            'https://example.invalid/kb.json',
+            'artifact_kb',
+            body: '{"conditions": []}',
+          ),
         );
 
         expect(result.rules.single['id'], equals('cached_rule'));
@@ -344,13 +392,18 @@ void main() {
         tokenDict: specFor(
           'https://example.invalid/token.json',
           'artifact_token_dict',
+          body: genuineRaw,
         ),
         rules: specFor(
           'https://example.invalid/rules.json',
           'artifact_rules',
           hash: genuineHash,
         ),
-        kb: specFor('https://example.invalid/kb.json', 'artifact_kb'),
+        kb: specFor(
+          'https://example.invalid/kb.json',
+          'artifact_kb',
+          body: genuineRaw,
+        ),
       );
 
       expect(result.rules.single['id'], equals('genuine_rule'));
