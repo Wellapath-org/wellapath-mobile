@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wellapath_mobile/features/community/domain/comment.dart';
+import 'package:wellapath_mobile/features/community/domain/community_ids.dart';
 import 'package:wellapath_mobile/features/community/domain/community_json.dart';
 import 'package:wellapath_mobile/features/community/domain/community_notification.dart';
 import 'package:wellapath_mobile/features/community/domain/community_profile.dart';
@@ -15,7 +16,7 @@ final DateTime _t = DateTime.utc(2026, 11, 7, 10, 15);
 
 Map<String, dynamic> _postJson({Map<String, dynamic>? author}) {
   return <String, dynamic>{
-    'id': 'pst_1',
+    'id': '0192f1d2-0000-7000-8000-000000000001',
     'space_id': 'pregnancy_maternal',
     'body': 'Hello',
     'author':
@@ -56,7 +57,25 @@ void main() {
         'general_health',
         'pregnancy_maternal',
       ]);
+      expect(Space.approved.map((Space s) => s.name), [
+        'General Health',
+        'Pregnancy and Maternal Health',
+      ]);
       expect(SpaceId.values, hasLength(2));
+    });
+
+    test('a list with an unknown space id ignores that space (§8.1)', () {
+      final List<Space> spaces = Space.listFromJson(<String, dynamic>{
+        'items': <Object>[
+          Space.approved.first.toJson(),
+          <String, dynamic>{
+            'id': 'mental_health',
+            'name': 'x',
+            'description': 'y',
+          },
+        ],
+      });
+      expect(spaces, <Space>[Space.approved.first]);
     });
 
     test('round-trips and rejects unknown ids', () {
@@ -96,6 +115,41 @@ void main() {
       expect(named.author.badge!.profession, 'Midwife');
     });
 
+    test('only status "visible" is accepted in a member DTO (§8.1)', () {
+      for (final String s in <String>[
+        'hidden',
+        'removed',
+        'deleted_by_author',
+        'tombstoned',
+      ]) {
+        expect(
+          () => Post.fromJson(_postJson()..['status'] = s),
+          throwsFormatException,
+          reason: s,
+        );
+      }
+      expect(Post.fromJson(_postJson()).toJson()['status'], 'visible');
+    });
+
+    test('identity keys are rejected at any depth', () {
+      final Map<String, dynamic> deep = _postJson();
+      (deep['author'] as Map<String, dynamic>)['badge'] = <String, dynamic>{
+        'profession': 'Midwife',
+        'specialty': null,
+        'reporter_id': 'r',
+      };
+      deep['author'] = <String, dynamic>{
+        'display_mode': 'named',
+        'display_name': 'X',
+        'badge': (deep['author'] as Map<String, dynamic>)['badge'],
+      };
+      expect(() => Post.fromJson(deep), throwsA(isA<IdentityLeakException>()));
+      expect(
+        kForbiddenMemberIdentityKeys,
+        containsAll(<String>['author_email', 'email', 'reporter_id']),
+      );
+    });
+
     test('pseudonymous member DTO has no author id anywhere', () {
       final Post p = Post.fromJson(_postJson());
       final Set<String> keys = _allKeys(p.toJson());
@@ -107,14 +161,14 @@ void main() {
 
     test('a payload leaking an author id is rejected', () {
       for (final String key in kForbiddenMemberIdentityKeys) {
-        final Map<String, dynamic> top = _postJson()..[key] = 'acc_1';
+        final Map<String, dynamic> top = _postJson()..[key] = 'Xk3abc';
         expect(() => Post.fromJson(top), throwsA(isA<IdentityLeakException>()));
         final Map<String, dynamic> nested = _postJson(
           author: <String, dynamic>{
             'display_mode': 'pseudonymous',
             'display_name': null,
             'badge': null,
-            key: 'acc_1',
+            key: 'Xk3abc',
           },
         );
         expect(
@@ -189,13 +243,39 @@ void main() {
         () => Post.fromJson(_postJson()..['status'] = 'pinned'),
         throwsFormatException,
       );
+      expect(
+        () => Post.fromJson(_postJson()..['comment_count'] = -1),
+        throwsFormatException,
+      );
+      final Map<String, dynamic> noBadgeKey = _postJson(
+        author: <String, dynamic>{'display_mode': 'named', 'display_name': 'A'},
+      );
+      expect(() => Post.fromJson(noBadgeKey), throwsFormatException);
+    });
+
+    test('drafts carry a UUID idempotency key, stable per draft', () {
+      final PostDraft d = PostDraft(
+        spaceId: SpaceId.generalHealth,
+        body: 'x',
+        displayMode: DisplayMode.named,
+      );
+      expect(isUuid(d.idempotencyKey), isTrue);
+      expect(d.toJson().containsKey('idempotency_key'), isFalse);
+      expect(
+        PostDraft(
+          spaceId: SpaceId.generalHealth,
+          body: 'x',
+          displayMode: DisplayMode.named,
+        ).idempotencyKey,
+        isNot(d.idempotencyKey),
+      );
     });
   });
 
   group('Comment', () {
     final Map<String, dynamic> json = <String, dynamic>{
-      'id': 'cmt_1',
-      'post_id': 'pst_1',
+      'id': 'c0000000-0000-4000-8000-000000000001',
+      'post_id': '0192f1d2-0000-7000-8000-000000000001',
       'body': 'Thanks',
       'author': <String, dynamic>{
         'display_mode': 'named',
@@ -215,7 +295,8 @@ void main() {
     test('single level: parent_comment_id is rejected', () {
       expect(
         () => Comment.fromJson(
-          Map<String, dynamic>.of(json)..['parent_comment_id'] = 'cmt_0',
+          Map<String, dynamic>.of(json)
+            ..['parent_comment_id'] = 'c0000000-0000-4000-8000-000000000000',
         ),
         throwsFormatException,
       );
@@ -228,7 +309,7 @@ void main() {
     test('empty body rejected; identity keys rejected', () {
       expect(
         () => CommentDraft(
-          postId: 'pst_1',
+          postId: '0192f1d2-0000-7000-8000-000000000001',
           body: '  ',
           displayMode: DisplayMode.named,
         ),
@@ -244,22 +325,39 @@ void main() {
   });
 
   group('Report', () {
+    test('ReportCreated is always open', () {
+      final ReportCreated r = ReportCreated.fromJson(<String, dynamic>{
+        'id': 'r1',
+        'status': 'open',
+        'created_at': '2026-11-07T10:15:00.000Z',
+      });
+      expect(ReportCreated.fromJson(r.toJson()).id, 'r1');
+      expect(
+        () => ReportCreated.fromJson(<String, dynamic>{
+          'id': 'r1',
+          'status': 'actioned',
+          'created_at': '2026-11-07T10:15:00.000Z',
+        }),
+        throwsFormatException,
+      );
+    });
+
     test('draft carries reason and optional trimmed note', () {
       final ReportDraft d = ReportDraft(
         targetType: ReportTargetType.comment,
-        targetId: 'cmt_1',
+        targetId: 'c0000000-0000-4000-8000-000000000001',
         reason: ReportReason.unsafeMedicalAdvice,
         note: '  dosing advice  ',
       );
       expect(d.toJson(), <String, dynamic>{
         'target_type': 'comment',
-        'target_id': 'cmt_1',
+        'target_id': 'c0000000-0000-4000-8000-000000000001',
         'reason': 'unsafe_medical_advice',
         'note': 'dosing advice',
       });
       final ReportDraft noNote = ReportDraft(
         targetType: ReportTargetType.post,
-        targetId: 'pst_1',
+        targetId: '0192f1d2-0000-7000-8000-000000000001',
         reason: ReportReason.spam,
         note: '   ',
       );
@@ -270,7 +368,7 @@ void main() {
       expect(
         () => ReportDraft(
           targetType: ReportTargetType.post,
-          targetId: 'pst_1',
+          targetId: '0192f1d2-0000-7000-8000-000000000001',
           reason: ReportReason.other,
           note: 'x' * (CommunityLimits.reportNoteMax + 1),
         ),
@@ -292,9 +390,9 @@ void main() {
 
     test('stored report round-trip', () {
       final Report r = Report(
-        id: 'rpt_1',
+        id: 'a0000000-0000-4000-8000-000000000001',
         targetType: ReportTargetType.post,
-        targetId: 'pst_1',
+        targetId: '0192f1d2-0000-7000-8000-000000000001',
         reason: ReportReason.harassment,
         note: null,
         status: ReportStatus.open,
@@ -310,14 +408,14 @@ void main() {
         CommunityNotification(
           id: 'n1',
           type: CommunityNotificationType.replyToPost,
-          postId: 'pst_1',
-          commentId: 'cmt_1',
+          postId: '0192f1d2-0000-7000-8000-000000000001',
+          commentId: 'c0000000-0000-4000-8000-000000000001',
           createdAt: _t,
         ),
         CommunityNotification(
           id: 'n2',
           type: CommunityNotificationType.commentReply,
-          postId: 'pst_1',
+          postId: '0192f1d2-0000-7000-8000-000000000001',
           createdAt: _t,
           readAt: _t,
         ),
@@ -327,6 +425,16 @@ void main() {
           notice: ModerationNotice.contentHidden,
           createdAt: _t,
         ),
+        for (final ModerationNotice notice in <ModerationNotice>[
+          ModerationNotice.contentRestored,
+          ModerationNotice.accountReinstated,
+        ])
+          CommunityNotification(
+            id: 'n_${notice.wire}',
+            type: CommunityNotificationType.moderationNotice,
+            notice: notice,
+            createdAt: _t,
+          ),
       ];
       for (final CommunityNotification n in all) {
         expect(CommunityNotification.fromJson(n.toJson()), n);
@@ -340,24 +448,36 @@ void main() {
       );
     });
 
+    Map<String, dynamic> n(String type, String? notice) => <String, dynamic>{
+      'id': 'n',
+      'type': type,
+      'post_id': null,
+      'comment_id': null,
+      'notice': notice,
+      'created_at': '2026-11-07T10:15:00Z',
+      'read_at': null,
+    };
+
     test('moderation_notice needs a notice; others must not carry one', () {
       expect(
-        () => CommunityNotification.fromJson(<String, dynamic>{
-          'id': 'n',
-          'type': 'moderation_notice',
-          'created_at': '2026-11-07T10:15:00Z',
-        }),
+        () => CommunityNotification.fromJson(n('moderation_notice', null)),
         throwsFormatException,
       );
       expect(
-        () => CommunityNotification.fromJson(<String, dynamic>{
-          'id': 'n',
-          'type': 'reply_to_post',
-          'notice': 'content_hidden',
-          'created_at': '2026-11-07T10:15:00Z',
-        }),
+        () => CommunityNotification.fromJson(
+          n('reply_to_post', 'content_hidden'),
+        ),
         throwsFormatException,
       );
+    });
+
+    test('unknown type is skipped; unknown notice is generic (§13)', () {
+      expect(CommunityNotification.tryFromJson(n('new_kind', null)), isNull);
+      final CommunityNotification g = CommunityNotification.fromJson(
+        n('moderation_notice', 'new_notice'),
+      );
+      expect(g.notice, ModerationNotice.unrecognised);
+      expect(g.summary, isNotEmpty);
     });
 
     test('markRead is idempotent', () {
@@ -377,24 +497,40 @@ void main() {
       final CommunityProfile p = CommunityProfile(displayName: ' SunnyMum ');
       expect(p.displayName, 'SunnyMum');
       expect(CommunityProfile.fromJson(p.toJson()), p);
+      expect(
+        () => CommunityProfile.fromJson(<String, dynamic>{
+          'display_name': 'SunnyMum',
+        }),
+        throwsFormatException,
+        reason: 'professional is a required (nullable) key',
+      );
     });
 
-    test('display name rules', () {
-      for (final String bad in [
-        'ab',
-        'x' * 31,
-        'me@example.com',
-        '08012345678',
-        '0801 234 5678',
-        'emoji😀name',
-      ]) {
+    test('display name rules use the contract rule names', () {
+      final Map<String, String> bad = <String, String>{
+        'ab': 'min_length',
+        'x' * 31: 'max_length',
+        'me@example.com': 'not_allowed_value',
+        '08012345678': 'not_allowed_value',
+        '0801 234 5678': 'not_allowed_value',
+        'emoji😀name': 'pattern',
+        'two  spaces': 'pattern',
+      };
+      bad.forEach((String name, String rule) {
         expect(
-          () => CommunityProfile(displayName: bad),
-          throwsA(isA<CommunityValidationException>()),
-          reason: bad,
+          () => CommunityProfile(displayName: name),
+          throwsA(
+            isA<CommunityValidationException>().having(
+              (CommunityValidationException e) => e.rule,
+              'rule',
+              rule,
+            ),
+          ),
+          reason: name,
         );
-      }
+      });
       expect(CommunityProfile(displayName: 'Ade_O.2').displayName, 'Ade_O.2');
+      expect(CommunityProfile(displayName: 'Mum of 2').displayName, 'Mum of 2');
     });
   });
 
@@ -404,53 +540,76 @@ void main() {
         profession: 'Midwife',
         specialty: 'Antenatal care',
       );
-      expect(claim.toJson().containsKey('status'), isFalse);
-      expect(claim.toJson().containsKey('verified_at'), isFalse);
-      final ProfessionalVerification v = claim.asPending();
+      expect(
+        claim.toJson().keys,
+        unorderedEquals(<String>['profession', 'specialty']),
+      );
+      final ProfessionalVerification v = ProfessionalVerification.pending(
+        id: 'v1',
+        profession: claim.profession,
+        specialty: claim.specialty,
+        createdAt: _t,
+      );
       expect(v.status, VerificationStatus.pending);
       expect(v.showsBadge, isFalse);
       expect(ProfessionalBadge.fromVerification(v), isNull);
     });
 
+    Map<String, dynamic> pv(String status, String? verifiedAt) =>
+        <String, dynamic>{
+          'id': 'v1',
+          'profession': 'Doctor',
+          'specialty': null,
+          'status': status,
+          'verified_at': verifiedAt,
+          'created_at': '2026-11-07T10:00:00Z',
+        };
+
     test('verified requires the server timestamp, and vice versa', () {
       expect(
-        () => ProfessionalVerification.fromJson(<String, dynamic>{
-          'profession': 'Doctor',
-          'status': 'verified',
-          'verified_at': null,
-        }),
+        () => ProfessionalVerification.fromJson(pv('verified', null)),
         throwsFormatException,
       );
       expect(
-        () => ProfessionalVerification.fromJson(<String, dynamic>{
-          'profession': 'Doctor',
-          'status': 'pending',
-          'verified_at': '2026-11-07T10:15:00Z',
-        }),
+        () => ProfessionalVerification.fromJson(
+          pv('pending', '2026-11-07T10:15:00Z'),
+        ),
         throwsFormatException,
       );
-      final ProfessionalVerification v =
-          ProfessionalVerification.fromJson(<String, dynamic>{
-            'profession': 'Doctor',
-            'specialty': null,
-            'status': 'verified',
-            'verified_at': '2026-11-07T10:15:00Z',
-          });
+      final ProfessionalVerification v = ProfessionalVerification.fromJson(
+        pv('verified', '2026-11-07T10:15:00Z'),
+      );
       expect(v.showsBadge, isTrue);
       expect(ProfessionalVerification.fromJson(v.toJson()), v);
     });
 
-    test('revoked and unverified show no badge', () {
-      for (final String s in ['unverified', 'revoked', 'pending']) {
+    test('only verified shows a badge; unknown status fails closed', () {
+      for (final String s in ['revoked', 'pending', 'claimed', 'unverified']) {
         final ProfessionalVerification v = ProfessionalVerification.fromJson(
-          <String, dynamic>{
-            'profession': 'Nurse',
-            'status': s,
-            'verified_at': null,
-          },
+          pv(s, null),
         );
         expect(v.showsBadge, isFalse, reason: s);
       }
+      // "unverified" is not a wire value (§15 row 42): no record means it.
+      expect(
+        ProfessionalVerification.fromJson(pv('unverified', null)).status,
+        VerificationStatus.unrecognised,
+      );
+    });
+
+    test('profession and specialty are 2–80 after trim', () {
+      expect(
+        () => ProfessionalClaim(profession: 'x'),
+        throwsA(isA<CommunityValidationException>()),
+      );
+      expect(
+        () => ProfessionalClaim(profession: 'Nurse', specialty: 'x'),
+        throwsA(isA<CommunityValidationException>()),
+      );
+      expect(
+        ProfessionalClaim(profession: ' Nurse ', specialty: '  ').toJson(),
+        <String, dynamic>{'profession': 'Nurse'},
+      );
     });
 
     test('empty profession rejected', () {
@@ -468,7 +627,7 @@ void main() {
           () => ModerationRequest(
             action: ModerationActionType.hideContent,
             targetType: ModerationTargetType.post,
-            targetId: 'pst_1',
+            targetId: '0192f1d2-0000-7000-8000-000000000001',
             reason: reason,
           ),
           throwsA(isA<CommunityValidationException>()),
@@ -480,7 +639,7 @@ void main() {
       final ModerationRequest r = ModerationRequest(
         action: ModerationActionType.hideContent,
         targetType: ModerationTargetType.post,
-        targetId: 'pst_1',
+        targetId: '0192f1d2-0000-7000-8000-000000000001',
         reason: 'Shares a phone number',
       );
       expect(
@@ -491,11 +650,11 @@ void main() {
 
     test('audit record round-trip; blank reason rejected', () {
       final ModerationAction a = ModerationAction(
-        id: 'mod_1',
-        actorAccountId: 'acc_mod',
+        id: '1042',
+        actorAccountId: 'Mod9xyz',
         action: ModerationActionType.revealIdentity,
         targetType: ModerationTargetType.comment,
-        targetId: 'cmt_1',
+        targetId: 'c0000000-0000-4000-8000-000000000001',
         reason: 'Investigating a harassment report',
         createdAt: _t,
       );

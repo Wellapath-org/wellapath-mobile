@@ -35,8 +35,14 @@ class _NotificationCentreScreenState extends State<NotificationCentreScreen> {
   }
 
   Future<void> _open(CommunityNotification n) async {
-    await _repo.markRead(n.id);
+    try {
+      await _repo.markRead(n.id);
+    } catch (e) {
+      if (!mounted || CommunityScope.handleError(context, e)) return;
+    }
     if (!mounted) return;
+    // A moderation notice on hidden or removed content still carries the
+    // ids; opening it gets 404 and the post screen shows neutral copy.
     final String? postId = n.postId;
     if (postId != null) {
       await pushCommunityRoute<void>(

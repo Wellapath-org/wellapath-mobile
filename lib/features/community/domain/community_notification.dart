@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import 'community_json.dart';
 
-/// In-app notification kinds (API contract §9). Push is deferred.
+/// In-app notification kinds (§11, §13). Push is out of scope. An unknown
+/// `type` means **skip the item** ([CommunityNotification.tryFromJson]).
 enum CommunityNotificationType {
   replyToPost,
   commentReply,
@@ -11,19 +12,24 @@ enum CommunityNotificationType {
   String get wire => snakeCase(name);
 }
 
-/// Detail for a [CommunityNotificationType.moderationNotice].
+/// Detail for a [CommunityNotificationType.moderationNotice] (§11, §13).
+/// [unrecognised] is client-only: an unknown value shows a generic notice.
 enum ModerationNotice {
   contentHidden,
   contentRemoved,
+  contentRestored,
   accountRestricted,
   accountSuspended,
-  verificationUpdated;
+  accountReinstated,
+  verificationUpdated,
+  unrecognised;
 
   String get wire => snakeCase(name);
 }
 
 /// Named `CommunityNotification` to avoid clashing with Flutter's
-/// `Notification`. Carries no actor identity and no other member's text.
+/// `Notification`. Carries no actor id, no other member's text and no
+/// moderator reason (§11).
 @immutable
 class CommunityNotification {
   const CommunityNotification({
@@ -36,33 +42,56 @@ class CommunityNotification {
     this.readAt,
   });
 
+  /// Strict parse; throws on an unknown `type`.
   factory CommunityNotification.fromJson(Map<String, dynamic> json) {
+    final CommunityNotification? n = tryFromJson(json);
+    if (n == null) throw const FormatException('unknown notification type');
+    return n;
+  }
+
+  /// Returns null for an unknown `type` (the client skips the item, §13);
+  /// throws on any other malformation.
+  static CommunityNotification? tryFromJson(Map<String, dynamic> json) {
     rejectIdentityKeys(json);
-    final CommunityNotificationType type = readEnum(
-      json,
-      'type',
+    final CommunityNotificationType? type = enumFromWire(
+      readString(json, 'type'),
       CommunityNotificationType.values,
       (CommunityNotificationType t) => t.wire,
     );
+    final String? rawNotice = readNullableString(json, 'notice');
+    final String id = readString(json, 'id');
+    final String? postId = readNullableString(json, 'post_id');
+    final String? commentId = readNullableString(json, 'comment_id');
+    final DateTime createdAt = readTime(json, 'created_at');
+    final DateTime? readAt = readNullableTime(json, 'read_at');
+    if (type == null) return null;
     ModerationNotice? notice;
     if (type == CommunityNotificationType.moderationNotice) {
-      notice = readEnum(
-        json,
-        'notice',
-        ModerationNotice.values,
-        (ModerationNotice n) => n.wire,
-      );
-    } else if (json['notice'] != null) {
+      if (rawNotice == null) {
+        throw const FormatException('moderation_notice needs a notice');
+      }
+      notice =
+          enumFromWire(
+            rawNotice,
+            ModerationNotice.values
+                .where(
+                  (ModerationNotice n) => n != ModerationNotice.unrecognised,
+                )
+                .toList(),
+            (ModerationNotice n) => n.wire,
+          ) ??
+          ModerationNotice.unrecognised;
+    } else if (rawNotice != null) {
       throw const FormatException('notice is only valid on moderation_notice');
     }
     return CommunityNotification(
-      id: readString(json, 'id'),
+      id: id,
       type: type,
-      postId: readOptionalString(json, 'post_id'),
-      commentId: readOptionalString(json, 'comment_id'),
+      postId: postId,
+      commentId: commentId,
       notice: notice,
-      createdAt: readTime(json, 'created_at'),
-      readAt: readOptionalTime(json, 'read_at'),
+      createdAt: createdAt,
+      readAt: readAt,
     );
   }
 
@@ -89,12 +118,18 @@ class CommunityNotification {
             return 'A moderator hid some of your content';
           case ModerationNotice.contentRemoved:
             return 'A moderator removed some of your content';
+          case ModerationNotice.contentRestored:
+            return 'A moderator restored some of your content';
           case ModerationNotice.accountRestricted:
             return 'Your account can read but not post for now';
           case ModerationNotice.accountSuspended:
             return 'Your account has been suspended';
+          case ModerationNotice.accountReinstated:
+            return 'Your account has been reinstated';
           case ModerationNotice.verificationUpdated:
             return 'Your professional verification was updated';
+          case ModerationNotice.unrecognised:
+            return 'A moderator updated something on your account';
         }
     }
   }
@@ -117,9 +152,9 @@ class CommunityNotification {
       'type': type.wire,
       'post_id': postId,
       'comment_id': commentId,
-      if (notice != null) 'notice': notice!.wire,
-      'created_at': createdAt.toUtc().toIso8601String(),
-      'read_at': readAt?.toUtc().toIso8601String(),
+      'notice': notice?.wire,
+      'created_at': wireTime(createdAt),
+      'read_at': readAt == null ? null : wireTime(readAt!),
     };
   }
 

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../shared/theme/brand.dart';
 import '../data/community_repositories.dart';
 import '../domain/comment.dart';
+import '../domain/community_me.dart';
+import '../domain/community_permissions.dart';
 import '../domain/community_validation.dart';
 import '../domain/post.dart';
 import '../domain/public_author.dart';
@@ -34,8 +36,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   DisplayMode _mode = DisplayMode.pseudonymous;
   String? _commentError;
 
+  /// Same-intent retries reuse the draft and its `Idempotency-Key` (§1.2).
+  CommentDraft? _pendingComment;
+
   CommunityRepository get _repo =>
       CommunityScope.of(context).services.community;
+
+  /// Restricted accounts are read-only (they may still report and delete
+  /// their own content); unknown viewer means "offer it, let the server
+  /// decide".
+  bool get _canComment {
+    final CommunityMe? me = CommunityScope.of(context).services.viewer.value;
+    return me == null || me.can(CommunityCapability.createContent);
+  }
 
   @override
   void didChangeDependencies() {
@@ -66,13 +79,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _sendComment() async {
-    final CommentDraft draft;
+    CommentDraft draft;
     try {
       draft = CommentDraft(
         postId: widget.postId,
         body: _comment.text,
         displayMode: _mode,
       );
+      final CommentDraft? pending = _pendingComment;
+      if (pending != null &&
+          pending.body == draft.body &&
+          pending.displayMode == draft.displayMode) {
+        draft = pending;
+      }
+      _pendingComment = draft;
     } on CommunityValidationException catch (e) {
       setState(() {
         _commentError = e.rule == 'required'
@@ -86,10 +106,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       await _repo.createComment(draft);
       _comment.clear();
       _commentError = null;
+      _pendingComment = null;
       _reload();
     } catch (e) {
       if (!mounted || CommunityScope.handleError(context, e)) return;
-      _snack('Your comment could not be sent.');
+      _snack(
+        e is CommunityException && e.reason == 'profile_required'
+            ? 'Choose your Community name before commenting.'
+            : communityErrorText(
+                e,
+                fallback: 'Your comment could not be sent.',
+              ),
+      );
     }
   }
 
@@ -150,9 +178,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           if (snap.hasError) {
             CommunityScope.handleError(context, snap.error!);
             final Object e = snap.error!;
+            // §8.2 C4: anything not visible (hidden, removed, deleted,
+            // tombstoned) is a plain 404. Neutral copy, no reason given.
             final bool gone =
                 e is CommunityException &&
-                e.code == CommunityErrorCode.contentRemoved;
+                e.code == CommunityErrorCode.notFound;
             return Center(
               child: Text(
                 gone ? 'This post is no longer available.' : 'Could not load.',
@@ -220,33 +250,35 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 ),
               const SizedBox(height: Brand.space3),
-              TextField(
-                key: const Key('comment_body'),
-                controller: _comment,
-                maxLength: CommunityLimits.commentBodyMax,
-                maxLines: 3,
-                minLines: 1,
-                decoration: InputDecoration(
-                  hintText: 'Add a comment',
-                  errorText: _commentError,
-                  border: const OutlineInputBorder(),
+              if (_canComment) ...[
+                TextField(
+                  key: const Key('comment_body'),
+                  controller: _comment,
+                  maxLength: CommunityLimits.commentBodyMax,
+                  maxLines: 3,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    hintText: 'Add a comment',
+                    errorText: _commentError,
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              DisplayModeSelector(
-                value: _mode,
-                displayName: null,
-                onChanged: (DisplayMode m) => setState(() => _mode = m),
-              ),
-              const SizedBox(height: Brand.space2),
-              FilledButton(
-                key: const Key('comment_submit'),
-                onPressed: _sendComment,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Brand.primary,
-                  minimumSize: const Size.fromHeight(Brand.minTapTarget),
+                DisplayModeSelector(
+                  value: _mode,
+                  displayName: null,
+                  onChanged: (DisplayMode m) => setState(() => _mode = m),
                 ),
-                child: const Text('Comment'),
-              ),
+                const SizedBox(height: Brand.space2),
+                FilledButton(
+                  key: const Key('comment_submit'),
+                  onPressed: _sendComment,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Brand.primary,
+                    minimumSize: const Size.fromHeight(Brand.minTapTarget),
+                  ),
+                  child: const Text('Comment'),
+                ),
+              ],
               const SizedBox(height: Brand.space8),
             ],
           );

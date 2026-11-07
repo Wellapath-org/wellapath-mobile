@@ -4,6 +4,12 @@ import 'community_json.dart';
 import 'community_permissions.dart';
 import 'community_validation.dart';
 
+/// Moderation and admin action types (§13 `ModerationActionType`).
+///
+/// **The mobile app sends none of these.** Moderation and verification live
+/// in the website admin; these types exist so the in-memory test backend can
+/// put content and accounts into the states the app must handle (404 for
+/// non-visible content, restricted, suspended, verified badges).
 enum ModerationActionType {
   dismissReport,
   revealIdentity,
@@ -14,44 +20,55 @@ enum ModerationActionType {
   suspendAccount,
   reinstateAccount,
   changeRole,
+  resetTotp,
   verifyProfessional,
-  revokeProfessional;
+  revokeProfessional,
+  withdrawProfessional,
+  deleteAccount;
 
   String get wire => snakeCase(name);
 
-  /// The capability an actor needs to take this action.
-  CommunityCapability get requires {
+  /// The capability an actor needs to take this action, or null for the
+  /// user-originated actions (withdraw own claim, delete own account).
+  /// Account actions on a moderator/admin target additionally need
+  /// [CommunityCapability.restrictSuspendReinstatePrivileged].
+  CommunityCapability? get requires {
     switch (this) {
       case ModerationActionType.dismissReport:
-        return CommunityCapability.viewReportsQueue;
+        return CommunityCapability.viewReportQueue;
       case ModerationActionType.revealIdentity:
         return CommunityCapability.revealIdentity;
       case ModerationActionType.hideContent:
       case ModerationActionType.restoreContent:
-        return CommunityCapability.hideContent;
       case ModerationActionType.removeContent:
-        return CommunityCapability.removeContent;
+        return CommunityCapability.moderateContent;
       case ModerationActionType.restrictAccount:
-        return CommunityCapability.restrictAccount;
       case ModerationActionType.suspendAccount:
       case ModerationActionType.reinstateAccount:
-        return CommunityCapability.suspendAccount;
+        return CommunityCapability.restrictSuspendReinstateMember;
       case ModerationActionType.changeRole:
         return CommunityCapability.changeRole;
+      case ModerationActionType.resetTotp:
+        return CommunityCapability.resetTotp;
       case ModerationActionType.verifyProfessional:
       case ModerationActionType.revokeProfessional:
         return CommunityCapability.verifyProfessional;
+      case ModerationActionType.withdrawProfessional:
+      case ModerationActionType.deleteAccount:
+        return null;
     }
   }
 }
 
+/// §13 `ModerationTargetType`.
 enum ModerationTargetType {
   post,
   comment,
   account,
-  report;
+  report,
+  professionalVerification;
 
-  String get wire => name;
+  String get wire => snakeCase(name);
 }
 
 /// A moderation request as the client sends it: action, target and a
@@ -79,7 +96,8 @@ class ModerationRequest {
   }
 }
 
-/// One row of the append-only audit log, as recorded by the server.
+/// One row of the append-only audit log, as recorded by the server. `id` is
+/// a decimal string (bigserial serialised, §1).
 @immutable
 class ModerationAction {
   const ModerationAction({
@@ -134,7 +152,7 @@ class ModerationAction {
       'target_type': targetType.wire,
       'target_id': targetId,
       'reason': reason,
-      'created_at': createdAt.toUtc().toIso8601String(),
+      'created_at': wireTime(createdAt),
     };
   }
 
@@ -162,33 +180,53 @@ class ModerationAction {
   );
 }
 
-/// The accountable identity behind content. **Moderator-only DTO**, returned
-/// only by the audited reveal endpoint.
+/// The accountable identity behind content (§12.1). **Moderator-only DTO**,
+/// returned only by the audited reveal endpoint, which the app never calls.
+/// Email is never part of it.
 @immutable
 class AccountableIdentity {
   const AccountableIdentity({
     required this.accountId,
     required this.displayName,
+    required this.role,
     required this.status,
+    required this.createdAt,
+    required this.priorModerationActions,
+    required this.revealActionId,
   });
 
   factory AccountableIdentity.fromJson(Map<String, dynamic> json) {
+    if (json.containsKey('email')) {
+      throw const FormatException('identity reveal never carries an email');
+    }
     return AccountableIdentity(
       accountId: readString(json, 'account_id'),
-      displayName: readOptionalString(json, 'display_name'),
+      displayName: readNullableString(json, 'display_name'),
+      role: CommunityPermissions.roleFromWire(json['role'] as String?),
       status: CommunityPermissions.statusFromWire(json['status'] as String?),
+      createdAt: readTime(json, 'created_at'),
+      priorModerationActions: readInt(json, 'prior_moderation_actions'),
+      revealActionId: readString(json, 'reveal_action_id'),
     );
   }
 
   final String accountId;
   final String? displayName;
+  final CommunityRole role;
   final AccountStatus status;
+  final DateTime createdAt;
+  final int priorModerationActions;
+  final String revealActionId;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'account_id': accountId,
       'display_name': displayName,
+      'role': role.wire,
       'status': status.wire,
+      'created_at': wireTime(createdAt),
+      'prior_moderation_actions': priorModerationActions,
+      'reveal_action_id': revealActionId,
     };
   }
 }

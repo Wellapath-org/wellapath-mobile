@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/theme/brand.dart';
+import '../gate/community_gate.dart';
 import 'community_scope.dart';
+import 'sign_in_screen.dart';
 import 'space_list_screen.dart';
 
-/// The More-tab entry point. Renders nothing until the gate says yes, and
-/// re-asks the server (bypassing the cache) on every tap before navigating.
+/// The More-tab entry point. Renders nothing until the gate says the server
+/// mode is enabled, and re-asks the server (bypassing the cache) on every
+/// tap before navigating. With no session it offers sign-in only; Community
+/// content opens only once the server allows the signed-in account.
 ///
 /// The More screen only builds this widget at all when the compile-time flag
 /// is on; in a default build it is not in the tree.
@@ -21,7 +25,7 @@ class CommunityEntryRow extends StatefulWidget {
 }
 
 class _CommunityEntryRowState extends State<CommunityEntryRow> {
-  bool _visible = false;
+  CommunityGateDecision _decision = CommunityGateDecision.hidden;
   bool _opening = false;
   CommunityServices? _services;
 
@@ -32,20 +36,40 @@ class _CommunityEntryRowState extends State<CommunityEntryRow> {
   }
 
   Future<void> _evaluate() async {
-    final bool open = await widget.module.gate.isOpen();
-    if (mounted) setState(() => _visible = open);
+    final CommunityGateDecision d = await widget.module.gate.evaluate();
+    if (mounted) setState(() => _decision = d);
   }
 
   Future<void> _enter() async {
     if (_opening) return;
     setState(() => _opening = true);
-    final bool open = await widget.module.gate.isOpen(fresh: true);
+    CommunityGateDecision d = await widget.module.gate.evaluate(fresh: true);
     if (!mounted) return;
+    if (d == CommunityGateDecision.signInRequired) {
+      final bool? signedIn = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (BuildContext _) =>
+              CommunitySignInScreen(auth: widget.module.auth),
+        ),
+      );
+      if (!mounted) return;
+      if (signedIn == true) {
+        d = await widget.module.gate.evaluate(fresh: true);
+        if (!mounted) return;
+        if (d != CommunityGateDecision.open) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Community is not available for this account.'),
+            ),
+          );
+        }
+      }
+    }
     setState(() {
       _opening = false;
-      _visible = open;
+      _decision = d;
     });
-    if (!open) return;
+    if (d != CommunityGateDecision.open) return;
     final CommunityServices services = _services ??= widget.module
         .createServices();
     await Navigator.of(context).push(
@@ -53,6 +77,7 @@ class _CommunityEntryRowState extends State<CommunityEntryRow> {
         builder: (BuildContext _) => CommunityScope(
           gate: widget.module.gate,
           services: services,
+          auth: widget.module.auth,
           child: const SpaceListScreen(),
         ),
       ),
@@ -62,7 +87,9 @@ class _CommunityEntryRowState extends State<CommunityEntryRow> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_visible) return const SizedBox.shrink();
+    if (_decision == CommunityGateDecision.hidden) {
+      return const SizedBox.shrink();
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Material(

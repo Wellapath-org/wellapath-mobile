@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'community_json.dart';
 import 'professional_verification.dart';
 
-/// How an author chose to appear on one post or comment.
+/// How an author chose to appear on one post or comment (§13 `DisplayMode`).
+/// Required on every create; there is no default. An unknown value rejects
+/// the payload.
 enum DisplayMode {
   named,
   pseudonymous;
@@ -11,19 +13,26 @@ enum DisplayMode {
   String get wire => name;
 }
 
-/// Status of a post or comment.
+/// Content status as the **server** stores it (§13 `ContentStatus`
+/// (moderator)). Members only ever receive `visible`; anything else is not
+/// visible and comes back as 404 `not_found` (§15 row 14). The non-visible
+/// values exist here only for the in-memory test backend.
 enum ContentStatus {
   visible,
   hidden,
   removed,
-  deletedByAuthor;
+  deletedByAuthor,
+  tombstoned;
 
   String get wire => snakeCase(name);
 }
 
-/// The author as other members see them. Deliberately has **no account id
-/// field** — the accountable identity is a moderator-only DTO
-/// (`AccountableIdentity`), reached only through an audited reveal.
+/// The only status a member DTO may carry (`status: const "visible"`).
+const String kMemberVisibleStatus = 'visible';
+
+/// The author as other members see them (`PublicAuthor`). Deliberately has
+/// **no id field of any kind** (§8.1). Ownership is conveyed only by the
+/// server-computed `viewer_is_author` on the post or comment.
 @immutable
 class PublicAuthor {
   const PublicAuthor._({
@@ -49,11 +58,8 @@ class PublicAuthor {
       DisplayMode.values,
       (DisplayMode m) => m.wire,
     );
-    final String? name = readOptionalString(json, 'display_name');
-    final Object? rawBadge = json['badge'];
-    if (rawBadge != null && rawBadge is! Map<String, dynamic>) {
-      throw const FormatException('expected object or null at "badge"');
-    }
+    final String? name = readNullableString(json, 'display_name');
+    final Map<String, dynamic>? rawBadge = readNullableObject(json, 'badge');
     if (mode == DisplayMode.pseudonymous) {
       if (name != null || rawBadge != null) {
         throw const FormatException(
@@ -68,9 +74,7 @@ class PublicAuthor {
     return PublicAuthor._(
       displayMode: mode,
       displayName: name,
-      badge: rawBadge == null
-          ? null
-          : ProfessionalBadge.fromJson(rawBadge as Map<String, dynamic>),
+      badge: rawBadge == null ? null : ProfessionalBadge.fromJson(rawBadge),
     );
   }
 
@@ -78,7 +82,8 @@ class PublicAuthor {
   final String? displayName;
   final ProfessionalBadge? badge;
 
-  /// What the UI prints for this author.
+  /// What the UI prints for this author (§8.1: pseudonymous renders
+  /// "Community member").
   String get label => displayName ?? 'Community member';
 
   Map<String, dynamic> toJson() {
@@ -99,4 +104,11 @@ class PublicAuthor {
 
   @override
   int get hashCode => Object.hash(displayMode, displayName, badge);
+}
+
+/// Rejects a member DTO whose `status` is anything but `visible`.
+void requireMemberVisible(Map<String, dynamic> json) {
+  if (readString(json, 'status') != kMemberVisibleStatus) {
+    throw const FormatException('member payloads are only ever visible');
+  }
 }

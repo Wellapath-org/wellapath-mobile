@@ -20,6 +20,7 @@ Future<bool> showReportSheet(
     builder: (BuildContext _) => CommunityScope(
       gate: scope.gate,
       services: scope.services,
+      auth: scope.auth,
       child: ReportSheet(targetType: targetType, targetId: targetId),
     ),
   );
@@ -36,6 +37,12 @@ class ReportSheet extends StatefulWidget {
   final ReportTargetType targetType;
   final String targetId;
 
+  // CLINICAL REVIEW REQUIRED: emergency signposting copy (contract §10: a
+  // report is not an emergency channel).
+  static const String notEmergencyNote =
+      'Moderators review reports, but not straight away. If someone is in '
+      'danger now, call 112.';
+
   @override
   State<ReportSheet> createState() => _ReportSheetState();
 }
@@ -45,6 +52,9 @@ class _ReportSheetState extends State<ReportSheet> {
   final TextEditingController _note = TextEditingController();
   String? _error;
   bool _sending = false;
+
+  /// Same-intent retries reuse the draft and its `Idempotency-Key`.
+  ReportDraft? _pending;
 
   @override
   void dispose() {
@@ -58,7 +68,7 @@ class _ReportSheetState extends State<ReportSheet> {
       setState(() => _error = 'Choose a reason.');
       return;
     }
-    final ReportDraft draft;
+    ReportDraft draft;
     try {
       draft = ReportDraft(
         targetType: widget.targetType,
@@ -66,6 +76,13 @@ class _ReportSheetState extends State<ReportSheet> {
         reason: reason,
         note: _note.text,
       );
+      final ReportDraft? pending = _pending;
+      if (pending != null &&
+          pending.reason == draft.reason &&
+          pending.note == draft.note) {
+        draft = pending;
+      }
+      _pending = draft;
     } on CommunityValidationException {
       setState(() => _error = 'The note is too long.');
       return;
@@ -74,14 +91,17 @@ class _ReportSheetState extends State<ReportSheet> {
     try {
       await CommunityScope.of(context).services.community.submitReport(draft);
       if (mounted) Navigator.of(context).pop(true);
-    } on CommunityException catch (e) {
+    } catch (e) {
       if (!mounted) return;
       if (CommunityScope.handleError(context, e)) return;
       setState(() {
         _sending = false;
-        _error = e.code == CommunityErrorCode.conflict
+        _error = e is CommunityException && e.reason == 'duplicate_report'
             ? 'You have already reported this.'
-            : 'The report could not be sent. Please try again.';
+            : communityErrorText(
+                e,
+                fallback: 'The report could not be sent. Please try again.',
+              );
       });
     }
   }
@@ -104,6 +124,12 @@ class _ReportSheetState extends State<ReportSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Report this $what', style: Brand.title),
+            const SizedBox(height: Brand.space2),
+            const Text(
+              ReportSheet.notEmergencyNote,
+              key: Key('report_not_emergency'),
+              style: Brand.caption,
+            ),
             const SizedBox(height: Brand.space3),
             RadioGroup<ReportReason>(
               groupValue: _reason,

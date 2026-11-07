@@ -5,10 +5,13 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wellapath_mobile/features/community/data/community_auth_service.dart';
 import 'package:wellapath_mobile/features/community/data/community_repositories.dart';
 import 'package:wellapath_mobile/features/community/data/in_memory_community_backend.dart';
 import 'package:wellapath_mobile/features/community/domain/comment.dart';
+import 'package:wellapath_mobile/features/community/domain/community_me.dart';
 import 'package:wellapath_mobile/features/community/domain/community_permissions.dart';
+import 'package:wellapath_mobile/features/community/domain/moderation.dart';
 import 'package:wellapath_mobile/features/community/domain/post.dart';
 import 'package:wellapath_mobile/features/community/domain/public_author.dart';
 import 'package:wellapath_mobile/features/community/domain/space.dart';
@@ -16,6 +19,7 @@ import 'package:wellapath_mobile/features/community/gate/community_features.dart
 import 'package:wellapath_mobile/features/community/gate/community_gate.dart';
 import 'package:wellapath_mobile/features/community/ui/community_safety_banner.dart';
 import 'package:wellapath_mobile/features/community/ui/community_scope.dart';
+import 'package:wellapath_mobile/features/community/ui/report_sheet.dart';
 import 'package:wellapath_mobile/features/community/ui/space_list_screen.dart';
 
 Future<void> _settle(WidgetTester tester) async {
@@ -27,6 +31,7 @@ Future<void> _pump(
   WidgetTester tester,
   CommunityServices services, {
   CommunityGate? gate,
+  CommunityAuthService? auth,
 }) async {
   tester.view.physicalSize = const Size(400 * 3, 1400 * 3);
   tester.view.devicePixelRatio = 3;
@@ -43,6 +48,7 @@ Future<void> _pump(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (BuildContext _) => CommunityScope(
+                    auth: auth ?? InMemoryCommunityAuthService(signedIn: true),
                     gate:
                         gate ??
                         CommunityGate(
@@ -81,6 +87,7 @@ void main() {
     services = CommunityServices(
       community: backend.memberView('me'),
       notifications: backend.notificationsFor('me'),
+      dataRights: backend.dataRightsFor('me'),
     );
   });
 
@@ -98,7 +105,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester, services);
-    await tester.tap(find.text('Pregnancy / Maternal Health'));
+    await tester.tap(find.text('Pregnancy and Maternal Health'));
     await _settle(tester);
     expect(find.text(CommunitySafetyBanner.text), findsOneWidget);
     expect(find.text('No posts yet.'), findsOneWidget);
@@ -201,6 +208,172 @@ void main() {
     expect(await services.notifications.unreadCount(), 0);
   });
 
+  testWidgets('restricted: no compose or comment box, report still offered', (
+    tester,
+  ) async {
+    final Post p = await backend
+        .memberView('other')
+        .createPost(
+          PostDraft(
+            spaceId: SpaceId.generalHealth,
+            body: 'Tips for better sleep?',
+            displayMode: DisplayMode.named,
+          ),
+        );
+    backend.registerAccount('mod', role: CommunityRole.moderator);
+    await backend
+        .moderationAs('mod')
+        .apply(
+          ModerationRequest(
+            action: ModerationActionType.restrictAccount,
+            targetType: ModerationTargetType.account,
+            targetId: 'me',
+            reason: 'Repeated off-topic posting',
+          ),
+        );
+    await _pump(tester, services);
+    expect(find.byKey(const Key('restricted_notice')), findsOneWidget);
+    await tester.tap(find.text('General Health'));
+    await _settle(tester);
+    expect(find.byKey(const Key('compose_post')), findsNothing);
+    await tester.tap(find.byKey(Key('post_${p.id}')));
+    await _settle(tester);
+    expect(find.byKey(const Key('comment_body')), findsNothing);
+    await tester.tap(find.byKey(const Key('post_menu')));
+    await _settle(tester);
+    await tester.tap(find.text('Report'));
+    await _settle(tester);
+    expect(find.text(ReportSheet.notEmergencyNote), findsOneWidget);
+    await tester.tap(find.byKey(const Key('report_reason_harassment')));
+    await tester.tap(find.byKey(const Key('report_submit')));
+    await _settle(tester);
+    expect(find.text('Thanks. A moderator will review it.'), findsOneWidget);
+  });
+
+  testWidgets('a hidden post opens as neutral "no longer available"', (
+    tester,
+  ) async {
+    final Post p = await backend
+        .memberView('other')
+        .createPost(
+          PostDraft(
+            spaceId: SpaceId.generalHealth,
+            body: 'Soon hidden',
+            displayMode: DisplayMode.named,
+          ),
+        );
+    await _pump(tester, services);
+    await tester.tap(find.text('General Health'));
+    await _settle(tester);
+    backend.registerAccount('mod', role: CommunityRole.moderator);
+    await backend
+        .moderationAs('mod')
+        .apply(
+          ModerationRequest(
+            action: ModerationActionType.hideContent,
+            targetType: ModerationTargetType.post,
+            targetId: p.id,
+            reason: 'Shares a phone number',
+          ),
+        );
+    await tester.tap(find.byKey(Key('post_${p.id}')));
+    await _settle(tester);
+    expect(find.text('This post is no longer available.'), findsOneWidget);
+    expect(find.text('Soon hidden'), findsNothing);
+    expect(find.byType(SpaceListScreen), findsNothing, reason: 'not closed');
+  });
+
+  testWidgets('no profile yet: choose a name before posting', (tester) async {
+    backend.registerAccount('fresh');
+    await _pump(
+      tester,
+      CommunityServices(
+        community: backend.memberView('fresh'),
+        notifications: backend.notificationsFor('fresh'),
+        dataRights: backend.dataRightsFor('fresh'),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('setup_profile')));
+    await _settle(tester);
+    await tester.enterText(
+      find.byKey(const Key('profile_display_name')),
+      '08012345678',
+    );
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await _settle(tester);
+    expect(
+      find.text('Do not use an email address or phone number.'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile_display_name')),
+      'Other',
+    );
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await _settle(tester);
+    expect(find.text('That name is taken. Try another.'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('profile_display_name')),
+      'Fresh One',
+    );
+    await tester.tap(find.byKey(const Key('profile_save')));
+    await _settle(tester);
+    expect(find.byKey(const Key('setup_profile')), findsNothing);
+    expect(
+      (await backend.memberView('fresh').getProfile())?.displayName,
+      'Fresh One',
+    );
+  });
+
+  testWidgets('account: export shows own data; delete needs the phrase', (
+    tester,
+  ) async {
+    final InMemoryCommunityAuthService auth = InMemoryCommunityAuthService(
+      signedIn: true,
+    );
+    await _pump(tester, services, auth: auth);
+    await tester.tap(find.byKey(const Key('open_account')));
+    await _settle(tester);
+    expect(find.byKey(const Key('account_revoke_others')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('account_export')));
+    await _settle(tester);
+    expect(find.textContaining('wellapath-community-export'), findsOneWidget);
+    await tester.pageBack();
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('account_delete')));
+    await _settle(tester);
+    final Finder confirm = find.byKey(const Key('delete_confirm'));
+    expect(tester.widget<TextButton>(confirm).onPressed, isNull);
+    await tester.enterText(
+      find.byKey(const Key('delete_phrase')),
+      'DELETE MY ACCOUNT',
+    );
+    await tester.pump();
+    await tester.tap(confirm);
+    await _settle(tester);
+    expect(auth.forgotten, isTrue, reason: 'device secrets erased');
+    expect(find.text('enter'), findsOneWidget, reason: 'Community closed');
+    expect(
+      () => backend.memberView('me').getMe(),
+      throwsA(isA<CommunityException>()),
+    );
+  });
+
+  testWidgets('sign out closes Community', (tester) async {
+    final InMemoryCommunityAuthService auth = InMemoryCommunityAuthService(
+      signedIn: true,
+    );
+    await _pump(tester, services, auth: auth);
+    await tester.tap(find.byKey(const Key('open_account')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('account_sign_out')));
+    await _settle(tester);
+    expect(auth.signedIn, isFalse);
+    expect(find.text('enter'), findsOneWidget);
+  });
+
   testWidgets('kill-switch error closes Community and drops the cache', (
     tester,
   ) async {
@@ -220,6 +393,7 @@ void main() {
       CommunityServices(
         community: _KilledRepository(),
         notifications: services.notifications,
+        dataRights: services.dataRights,
       ),
       gate: gate,
     );
@@ -233,8 +407,11 @@ void main() {
 
 class _KilledRepository implements CommunityRepository {
   @override
-  Future<List<Space>> listSpaces() async {
-    throw const CommunityException(CommunityErrorCode.communityNotAllowed);
+  Future<CommunityMe> getMe() async {
+    throw const CommunityException(
+      CommunityErrorCode.communityNotAllowed,
+      closesCommunity: true,
+    );
   }
 
   @override

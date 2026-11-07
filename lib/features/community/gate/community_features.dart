@@ -1,9 +1,10 @@
-/// The server's answer from `GET /v1/features`
-/// (`docs/community/FEATURE_FLAG_SPEC.md` §3), and where it comes from.
+/// The server's answer from `GET /v1/features` (contract §6), and where it
+/// comes from.
 library;
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
+import '../data/community_http_client.dart';
 
 enum CommunityFlagState {
   disabled,
@@ -29,8 +30,8 @@ enum CommunityFlagState {
 class CommunityFeatures {
   const CommunityFeatures({required this.state, required this.allowed});
 
-  /// Strict parse: any missing, mistyped or unknown value throws, which the
-  /// gate turns into *hidden*.
+  /// Strict parse: any missing or mistyped value throws, and an unknown
+  /// mode is treated as `disabled` (§6, §13); both mean *hidden*.
   factory CommunityFeatures.fromJson(Map<String, dynamic> json) {
     final Object? rawState = json['community'];
     final Object? rawAllowed = json['community_allowed'];
@@ -42,7 +43,7 @@ class CommunityFeatures {
         return CommunityFeatures(state: s, allowed: rawAllowed);
       }
     }
-    throw FormatException('unknown community state "$rawState"');
+    return CommunityFeatures.disabled;
   }
 
   static const CommunityFeatures disabled = CommunityFeatures(
@@ -102,35 +103,30 @@ class CommunityFeatureFetchException implements Exception {
   String toString() => 'CommunityFeatureFetchException($reason)';
 }
 
-/// `GET /v1/features` over the app's existing HTTP client. Constructed only
-/// when the compile-time flag is on, so a default build never calls it.
+/// `GET /v1/features` on the Community API (`COMMUNITY_API_BASE_URL`).
+/// Constructed only when the compile-time flag is on **and** a base URL is
+/// configured, so a default build never calls it.
 ///
-/// Sends no token yet (sign-in is not built), so against a real server in
-/// `internal`/`closed_beta` it always answers `community_allowed: false`.
+/// Sends the bearer token when a session exists (optional auth, §6); without
+/// one, `internal`/`closed_beta` always answer `community_allowed: false`.
 class RemoteCommunityFeatureSource implements CommunityFeatureSource {
-  RemoteCommunityFeatureSource(this._dio);
+  RemoteCommunityFeatureSource(this._client);
 
-  final Dio Function() _dio;
+  final CommunityHttpClient _client;
 
   static const Duration timeout = Duration(seconds: 5);
 
   @override
   Future<CommunityFeatures> fetch() async {
-    final Response<Object?> response = await _dio()
-        .get<Object?>(
-          '/v1/features',
-          options: Options(
-            receiveTimeout: timeout,
-            sendTimeout: timeout,
-            responseType: ResponseType.json,
-            validateStatus: (int? status) => status == 200,
+    final CommunityResponse response = await _client
+        .send(
+          const CommunityRequest(
+            method: 'GET',
+            template: '/v1/features',
+            auth: CommunityAuth.optional,
           ),
         )
         .timeout(timeout);
-    final Object? data = response.data;
-    if (data is! Map<String, dynamic>) {
-      throw const CommunityFeatureFetchException('non-object body');
-    }
-    return CommunityFeatures.fromJson(data);
+    return CommunityFeatures.fromJson(response.json);
   }
 }

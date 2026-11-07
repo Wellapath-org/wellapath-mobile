@@ -1,8 +1,11 @@
-/// The Community role/capability matrix as code (API contract §11.1).
+/// The Community capability matrix as code (contract §2.1 and §2.2).
 ///
 /// The server is authoritative and enforces this on every route. The client
 /// mirrors it only to decide what to *offer*; hiding a button is never the
-/// security boundary.
+/// security boundary. The app has **no privileged UI**: moderation and
+/// verification live in the website admin (`/v1/community/mod/*` and
+/// `/v1/community/admin/*`), so the privileged rows below are used only by
+/// the in-memory test backend.
 library;
 
 import 'community_json.dart';
@@ -24,46 +27,76 @@ enum AccountStatus {
 }
 
 enum CommunityCapability {
+  // Member rows (§2.1).
   readContent,
+  readOwnNotifications,
   createContent,
   deleteOwnContent,
   reportContent,
+  setProfile,
   claimProfession,
-  viewReportsQueue,
+  exportOwnData,
+  deleteOwnAccount,
+  // Privileged rows (website admin only; TOTP step-up required).
+  viewReportQueue,
   revealIdentity,
-  hideContent,
-  removeContent,
-  restrictAccount,
+  moderateContent,
+  restrictSuspendReinstateMember,
+  restrictSuspendReinstatePrivileged,
   viewAuditLog,
-  suspendAccount,
   verifyProfessional,
   changeRole,
+  resetTotp,
 }
 
 abstract final class CommunityPermissions {
-  static const Set<CommunityCapability> _member = {
+  static const Set<CommunityCapability> _memberBase = {
     CommunityCapability.readContent,
+    CommunityCapability.readOwnNotifications,
     CommunityCapability.createContent,
     CommunityCapability.deleteOwnContent,
     CommunityCapability.reportContent,
+    CommunityCapability.setProfile,
     CommunityCapability.claimProfession,
+    // M7: export is "any role", not allowlist-gated.
+    CommunityCapability.exportOwnData,
+  };
+
+  static const Set<CommunityCapability> _member = {
+    ..._memberBase,
+    // M8: a moderator or admin must be demoted first (422
+    // `privileged_account`).
+    CommunityCapability.deleteOwnAccount,
   };
 
   static const Set<CommunityCapability> _moderator = {
-    ..._member,
-    CommunityCapability.viewReportsQueue,
+    ..._memberBase,
+    CommunityCapability.viewReportQueue,
     CommunityCapability.revealIdentity,
-    CommunityCapability.hideContent,
-    CommunityCapability.removeContent,
-    CommunityCapability.restrictAccount,
+    CommunityCapability.moderateContent,
+    // §15 row 49: moderators restrict, suspend and reinstate members.
+    CommunityCapability.restrictSuspendReinstateMember,
     CommunityCapability.viewAuditLog,
   };
 
   static const Set<CommunityCapability> _admin = {
     ..._moderator,
-    CommunityCapability.suspendAccount,
+    CommunityCapability.restrictSuspendReinstatePrivileged,
     CommunityCapability.verifyProfessional,
     CommunityCapability.changeRole,
+    CommunityCapability.resetTotp,
+  };
+
+  /// What a restricted (read-only) account keeps (§2.2): reading,
+  /// **reporting** (a safety exception, §15 row 37), notifications, deleting
+  /// its own content (§8.2 C5), export and deletion.
+  static const Set<CommunityCapability> restrictedKeeps = {
+    CommunityCapability.readContent,
+    CommunityCapability.readOwnNotifications,
+    CommunityCapability.reportContent,
+    CommunityCapability.deleteOwnContent,
+    CommunityCapability.exportOwnData,
+    CommunityCapability.deleteOwnAccount,
   };
 
   /// The full matrix, by role.
@@ -74,61 +107,41 @@ abstract final class CommunityPermissions {
   };
 
   /// Whether [role] in [status] holds [capability].
-  ///
-  /// Restricted accounts keep read only; suspended accounts have nothing.
   static bool can(
     CommunityRole role,
     CommunityCapability capability, {
     AccountStatus status = AccountStatus.active,
   }) {
+    if (!matrix[role]!.contains(capability)) return false;
     switch (status) {
       case AccountStatus.suspended:
         return false;
       case AccountStatus.restricted:
-        return capability == CommunityCapability.readContent;
+        return restrictedKeeps.contains(capability);
       case AccountStatus.active:
-        return matrix[role]!.contains(capability);
+        return true;
     }
   }
 
-  /// Parses a wire role; anything unrecognised is the least-privileged role.
+  /// Parses a wire role; anything unrecognised is the least-privileged role
+  /// (§13).
   static CommunityRole roleFromWire(String? raw) {
-    for (final CommunityRole r in CommunityRole.values) {
-      if (r.wire == raw) return r;
-    }
-    return CommunityRole.member;
+    return enumFromWire(
+          raw,
+          CommunityRole.values,
+          (CommunityRole r) => r.wire,
+        ) ??
+        CommunityRole.member;
   }
 
-  /// Parses a wire status; anything unrecognised is treated as suspended.
+  /// Parses a wire status; anything unrecognised is treated as suspended
+  /// (fail closed, §13).
   static AccountStatus statusFromWire(String? raw) {
-    for (final AccountStatus s in AccountStatus.values) {
-      if (s.wire == raw) return s;
-    }
-    return AccountStatus.suspended;
-  }
-}
-
-/// The signed-in account, as returned only to itself (`AccountSelf`).
-class CommunityViewer {
-  const CommunityViewer({
-    required this.accountId,
-    required this.role,
-    this.status = AccountStatus.active,
-  });
-
-  factory CommunityViewer.fromJson(Map<String, dynamic> json) {
-    return CommunityViewer(
-      accountId: readString(json, 'account_id'),
-      role: CommunityPermissions.roleFromWire(json['role'] as String?),
-      status: CommunityPermissions.statusFromWire(json['status'] as String?),
-    );
-  }
-
-  final String accountId;
-  final CommunityRole role;
-  final AccountStatus status;
-
-  bool can(CommunityCapability c) {
-    return CommunityPermissions.can(role, c, status: status);
+    return enumFromWire(
+          raw,
+          AccountStatus.values,
+          (AccountStatus s) => s.wire,
+        ) ??
+        AccountStatus.suspended;
   }
 }

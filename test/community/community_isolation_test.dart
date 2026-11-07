@@ -27,6 +27,19 @@ const Set<String> _allowedCommunityImporters = {
   'lib/features/more/more_screen.dart',
 };
 
+/// The one Community file allowed to spell clinical words: the outbound
+/// prohibited-key guard (contract §5). It is checked separately below.
+const String _guardFile = 'lib/features/community/data/prohibited_keys.dart';
+
+/// Source lines with comments stripped (line comments only; good enough for
+/// this codebase, which uses `///` and `//`).
+List<String> _codeLines(File f) {
+  return f
+      .readAsLinesSync()
+      .map((String l) => l.trimLeft().startsWith('//') ? '' : l)
+      .toList();
+}
+
 final RegExp _directive = RegExp(
   r'''^\s*(?:import|export|part)\s+['"]([^'"]+)['"]''',
   multiLine: true,
@@ -154,6 +167,7 @@ void main() {
     );
     final List<String> offenders = [];
     for (final File f in _dartFiles(_community)) {
+      if (f.path == _guardFile) continue;
       final List<String> lines = f.readAsLinesSync();
       for (int i = 0; i < lines.length; i++) {
         final String t = lines[i].trimLeft();
@@ -164,5 +178,116 @@ void main() {
       }
     }
     expect(offenders, isEmpty);
+  });
+
+  test('the guard file holds only the prohibited-key guard', () {
+    final File guard = File(_guardFile);
+    expect(guard.existsSync(), isTrue);
+    expect(_resolvedImports(guard), <String>[
+      'lib/features/community/domain/community_error.dart',
+    ]);
+    final String code = _codeLines(guard).join('\n');
+    final Set<String> declared = RegExp(
+      r'^(?:final|const|bool|void)\s+(?:RegExp|List<String>)?\s*(\w+)',
+      multiLine: true,
+    ).allMatches(code).map((RegExpMatch m) => m.group(1)!).toSet();
+    expect(declared, <String>{
+      'kProhibitedKeyPattern',
+      'kProhibitedReferenceKeys',
+      'isProhibitedKey',
+      'assertNoProhibitedKeys',
+      '_scan',
+    });
+    expect(code.contains('class '), isFalse);
+  });
+
+  test('every Community request goes through the guarded client', () {
+    // Only the client may talk to Dio; nothing reuses the app-wide
+    // ApiClient, whose logger prints request headers (the bearer token).
+    final List<String> offenders = [];
+    for (final File f in _dartFiles(_community)) {
+      final List<String> imports = _resolvedImports(f);
+      if (imports.contains('lib/core/network/api_client.dart')) {
+        offenders.add('${f.path} imports ApiClient');
+      }
+      final bool dio = imports.contains('package:dio/dio.dart');
+      if (dio &&
+          f.path != 'lib/features/community/data/community_http_client.dart') {
+        offenders.add('${f.path} imports Dio directly');
+      }
+      final String code = _codeLines(f).join('\n');
+      if (code.contains('LogInterceptor')) offenders.add('${f.path} logs');
+      if (RegExp(
+        r'debugPrint\([^)]*(body|data|headers|token|email)',
+        caseSensitive: false,
+      ).hasMatch(code)) {
+        offenders.add('${f.path} prints request/response content');
+      }
+    }
+    expect(offenders, isEmpty);
+    final String client = _codeLines(
+      File('lib/features/community/data/community_http_client.dart'),
+    ).join('\n');
+    final int send = client.indexOf('Future<CommunityResponse> send(');
+    expect(send, greaterThan(0));
+    expect(
+      client.indexOf('assertNoProhibitedKeys', send),
+      lessThan(client.indexOf('_once(request', send)),
+      reason: 'the guard runs before the first send',
+    );
+  });
+
+  test('no moderator, admin or TOTP client exists in the app', () {
+    final List<String> offenders = [];
+    for (final File f in _dartFiles(_community)) {
+      final List<String> lines = _codeLines(f);
+      for (int i = 0; i < lines.length; i++) {
+        if (RegExp(
+          r"'/v1/(community/(mod|admin)/|auth/totp)",
+        ).hasMatch(lines[i])) {
+          offenders.add('${f.path}:${i + 1}');
+        }
+      }
+    }
+    expect(offenders, isEmpty);
+  });
+
+  test('no out-of-scope capability exists in Community code', () {
+    // Consultations, doctor chat, prescriptions, payments, images/uploads.
+    final RegExp outOfScope = RegExp(
+      r'\b(?:consultation\w*|prescri\w*|payment\w*|booking\w*|'
+      r'MultipartFile|FormData|ImagePicker|image_picker|Image\.network|'
+      r'Image\.file|doctorChat|chat\w*Doctor)\b',
+      caseSensitive: false,
+    );
+    final List<String> offenders = [];
+    for (final File f in _dartFiles(_community)) {
+      final List<String> lines = _codeLines(f);
+      for (int i = 0; i < lines.length; i++) {
+        if (outOfScope.hasMatch(lines[i])) {
+          offenders.add('${f.path}:${i + 1}: ${lines[i].trim()}');
+        }
+      }
+    }
+    expect(offenders, isEmpty);
+  });
+
+  test('Community keeps its secrets under its own keys only', () {
+    final String store = File(
+      'lib/features/community/data/community_secure_store.dart',
+    ).readAsStringSync();
+    final Iterable<String> keys = RegExp(
+      r"'(wellapath\.[a-z_.]+)'",
+    ).allMatches(store).map((RegExpMatch m) => m.group(1)!);
+    expect(keys, isNotEmpty);
+    expect(keys, everyElement(startsWith('wellapath.community.')));
+    for (final File f in _dartFiles(_community)) {
+      if (f.path.endsWith('community_secure_store.dart')) continue;
+      expect(
+        f.readAsStringSync().contains('FlutterSecureStorage('),
+        isFalse,
+        reason: f.path,
+      );
+    }
   });
 }

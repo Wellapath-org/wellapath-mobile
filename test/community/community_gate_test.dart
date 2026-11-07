@@ -5,11 +5,14 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wellapath_mobile/features/community/data/community_auth_service.dart';
+import 'package:wellapath_mobile/features/community/data/community_http_client.dart';
 import 'package:wellapath_mobile/features/community/gate/community_features.dart';
 import 'package:wellapath_mobile/features/community/gate/community_gate.dart';
 import 'package:wellapath_mobile/features/community/ui/community_entry_row.dart';
 import 'package:wellapath_mobile/features/community/ui/community_safety_banner.dart';
 import 'package:wellapath_mobile/features/community/ui/community_scope.dart';
+import 'package:wellapath_mobile/features/community/ui/sign_in_screen.dart';
 import 'package:wellapath_mobile/features/more/more_screen.dart';
 import 'package:wellapath_mobile/features/shell/app_shell.dart';
 
@@ -18,9 +21,10 @@ const CommunityFeatures _internalAllowed = CommunityFeatures(
   allowed: true,
 );
 
-CommunityModule _module(CommunityGate gate) {
+CommunityModule _module(CommunityGate gate, {CommunityAuthService? auth}) {
   return CommunityModule(
     gate: gate,
+    auth: auth ?? InMemoryCommunityAuthService(signedIn: true),
     createServices: CommunityServices.inMemoryDemo,
   );
 }
@@ -45,9 +49,27 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   group('default build', () {
-    test('compile-time flag defaults to off', () {
+    test('compile-time flag defaults to off; base URL defaults to empty', () {
       expect(kCommunityScaffoldEnabled, isFalse);
+      expect(kCommunityApiBaseUrl, isEmpty);
       expect(CommunityGate.fromEnvironment().compileTimeEnabled, isFalse);
+    });
+
+    test('the default gate ignores even an allowing source', () async {
+      final StaticCommunityFeatureSource source = StaticCommunityFeatureSource(
+        _internalAllowed,
+      );
+      final CommunityGate gate = CommunityGate.fromEnvironment(source: source);
+      expect(await gate.evaluate(fresh: true), CommunityGateDecision.hidden);
+      expect(source.fetchCount, 0);
+    });
+
+    test('the default module builds no client and no services', () {
+      final CommunityModule m = CommunityModule.fromEnvironment();
+      expect(m.gate.compileTimeEnabled, isFalse);
+      expect(m.createServices, throwsStateError);
+      expect(m.auth, isA<DisabledCommunityAuthService>());
+      expect(() => m.auth.requestOtp('a@b.ng'), throwsStateError);
     });
 
     test('default gate never opens and needs no network', () async {
@@ -176,7 +198,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('General Health'), findsOneWidget);
-      expect(find.text('Pregnancy / Maternal Health'), findsOneWidget);
+      expect(find.text('Pregnancy and Maternal Health'), findsOneWidget);
       expect(find.text(CommunitySafetyBanner.text), findsOneWidget);
     });
 
@@ -200,6 +222,126 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('General Health'), findsNothing);
       expect(find.text(CommunityEntryRow.label), findsNothing);
+    });
+  });
+
+  group('signed out: sign-in first, content only once allowed', () {
+    CommunityGate signInGate(
+      StaticCommunityFeatureSource source,
+      InMemoryCommunityAuthService auth,
+    ) {
+      return CommunityGate(
+        compileTimeEnabled: true,
+        source: source,
+        isSignedIn: auth.hasSession,
+      );
+    }
+
+    test('decision is signInRequired only while signed out', () async {
+      final InMemoryCommunityAuthService auth = InMemoryCommunityAuthService();
+      final StaticCommunityFeatureSource source = StaticCommunityFeatureSource(
+        const CommunityFeatures(
+          state: CommunityFlagState.internal,
+          allowed: false,
+        ),
+      );
+      final CommunityGate gate = signInGate(source, auth);
+      expect(await gate.evaluate(), CommunityGateDecision.signInRequired);
+      expect(await gate.isOpen(), isFalse, reason: 'no content');
+      auth.signedIn = true;
+      expect(await gate.evaluate(), CommunityGateDecision.hidden);
+      source.features = CommunityFeatures.disabled;
+      auth.signedIn = false;
+      expect(
+        await gate.evaluate(),
+        CommunityGateDecision.hidden,
+        reason: 'server disabled: not even sign-in is offered',
+      );
+    });
+
+    testWidgets('row offers sign-in; after OTP the gate decides again', (
+      tester,
+    ) async {
+      final InMemoryCommunityAuthService auth = InMemoryCommunityAuthService();
+      final StaticCommunityFeatureSource source = StaticCommunityFeatureSource(
+        const CommunityFeatures(
+          state: CommunityFlagState.internal,
+          allowed: false,
+        ),
+      );
+      await _pumpMore(
+        tester,
+        module: _module(signInGate(source, auth), auth: auth),
+      );
+      expect(find.text(CommunityEntryRow.label), findsOneWidget);
+      await tester.tap(find.text(CommunityEntryRow.label));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Sign in to Community'), findsOneWidget);
+      expect(find.text('General Health'), findsNothing);
+
+      await tester.enterText(find.byKey(const Key('signin_email')), 'a@b.ng');
+      await tester.tap(find.byKey(const Key('signin_send_code')));
+      await tester.pump();
+      expect(auth.requestedFor, <String>['a@b.ng']);
+      await tester.enterText(find.byKey(const Key('signin_code')), '000000');
+      await tester.tap(find.byKey(const Key('signin_verify')));
+      await tester.pump();
+      expect(find.textContaining('wrong or has expired'), findsOneWidget);
+
+      // The server allowlists this account once it is signed in.
+      source.features = _internalAllowed;
+      await tester.enterText(find.byKey(const Key('signin_code')), '123456');
+      await tester.tap(find.byKey(const Key('signin_verify')));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('General Health'), findsOneWidget);
+    });
+
+    testWidgets('signed in but not allowlisted: told, and nothing opens', (
+      tester,
+    ) async {
+      final InMemoryCommunityAuthService auth = InMemoryCommunityAuthService();
+      final StaticCommunityFeatureSource source = StaticCommunityFeatureSource(
+        const CommunityFeatures(
+          state: CommunityFlagState.closedBeta,
+          allowed: false,
+        ),
+      );
+      await _pumpMore(
+        tester,
+        module: _module(signInGate(source, auth), auth: auth),
+      );
+      await tester.tap(find.text(CommunityEntryRow.label));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.enterText(find.byKey(const Key('signin_email')), 'a@b.ng');
+      await tester.tap(find.byKey(const Key('signin_send_code')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('signin_code')), '123456');
+      await tester.tap(find.byKey(const Key('signin_verify')));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        find.text('Community is not available for this account.'),
+        findsOneWidget,
+      );
+      expect(find.text('General Health'), findsNothing);
+      expect(find.text(CommunityEntryRow.label), findsNothing);
+    });
+
+    testWidgets('recovery entry explains lost device and lost email', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CommunitySignInScreen(auth: InMemoryCommunityAuthService()),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('signin_recovery')));
+      await tester.pumpAndSettle();
+      expect(find.text(CommunityRecoverySheet.lostDevice), findsOneWidget);
+      expect(find.text(CommunityRecoverySheet.lostEmail), findsOneWidget);
     });
   });
 
@@ -286,7 +428,6 @@ void main() {
         <String, dynamic>{},
         <String, dynamic>{'community': 'internal'},
         <String, dynamic>{'community_allowed': true},
-        <String, dynamic>{'community': 'everyone', 'community_allowed': true},
         <String, dynamic>{'community': 'internal', 'community_allowed': 'yes'},
         <String, dynamic>{'community': 1, 'community_allowed': true},
       ];
@@ -297,6 +438,15 @@ void main() {
           reason: '$body',
         );
       }
+    });
+
+    test('an unknown mode is treated as disabled (§6, §13)', () {
+      final CommunityFeatures f = CommunityFeatures.fromJson(<String, dynamic>{
+        'community': 'everyone',
+        'community_allowed': true,
+      });
+      expect(f.state, CommunityFlagState.disabled);
+      expect(f.permitsEntry, isFalse);
     });
 
     test('only an enabled state with allowed=true permits entry', () {
