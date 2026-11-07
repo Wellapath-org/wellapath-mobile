@@ -6542,3 +6542,42 @@ Fixed, and the step is now exercised locally end to end before being trusted:
 * Mutations 1, 4, 5 and 6 are caught **only** by the Linux-runnable suite; the
   `--tags plutil` suite passes under all four. Both run in CI, so coverage holds,
   but the macOS job alone would not catch them.
+
+---
+
+# 2026-11-07 — RC-BLK-013 / WP-016: CI Flutter pinned; debug builds no longer need signing material
+
+**CI pin.** All three `subosito/flutter-action` steps (`ci.yml` ×2,
+`internal-beta-validation.yml` ×1) used `flutter-version: '3.x'`, so every run
+took whatever stable was newest — and a new formatter can fail
+`dart format --set-exit-if-changed` on code nobody touched. They now pin
+`'3.47.6'` (Dart 3.13.5): the version the last green `develop` run
+(37445138799, 2026-10-06, `2eb4a2c`) actually resolved `3.x` to, per its
+`FLUTTER_ROOT=/opt/hostedtoolcache/flutter/stable-3.47.6-x64`. Bumping it is
+now a reviewed one-line change. Still open under RC-BLK-013: local release
+builds and `CLAUDE.md` name older versions (3.44.4 / 3.41.5); the 3.44.4
+formatter already disagrees with 3.47.6 on
+`test/scripts/symbol_artifact_scanner_test.dart`.
+
+**Debug builds.** The release-signing refusal was a `throw` inside
+`buildTypes.release { signingConfig = when { ... } }`. Gradle configures every
+build type on every invocation, so `flutter build apk --debug` and
+`flutter run` failed without `android/key.properties` too. The refusal is now
+evaluated in `gradle.taskGraph.whenReady` and fires only when a task of the app
+module whose name contains `Release` is scheduled, before any task executes.
+The gate is unchanged — no keystore and no explicit
+`WELLAPATH_ALLOW_UNSIGNED_RELEASE` / `wellapath.allowUnsignedRelease` opt-in —
+and a refused release still selects no signing config, never debug.
+
+Verified by hand on this branch with no `key.properties` (Flutter 3.44.4):
+
+| command | before (develop) | after |
+|---|---|---|
+| `flutter build apk --debug` | exit 1, "Release build refused" | ✓ `app-debug.apk` |
+| `flutter build apk --release` | refused | exit 1, "Release build refused", no release APK |
+| `WELLAPATH_ALLOW_UNSIGNED_RELEASE=true flutter build apk --release` | builds unsigned | ✓ builds unsigned (CI path) |
+
+`test/release/signing_policy_test.dart` gains five tests pinning the deferral,
+the exact gate, the any-release-task match and the no-debug-config rule.
+Profile builds (Flutter's `profile` type is debug-signed) are, like debug, no
+longer blocked by missing release material.

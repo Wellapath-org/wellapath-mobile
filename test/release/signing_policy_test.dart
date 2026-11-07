@@ -93,6 +93,67 @@ void main() {
     });
   });
 
+  group('the refusal applies to release tasks only (RC-BLK-013 / WP-016)', () {
+    // Before this, the refusal was thrown while configuring the `release`
+    // build type. Gradle configures every build type on every build, so
+    // `flutter build apk --debug` and `flutter run` also failed without
+    // key.properties. Verified by hand (see PROGRESS.md, 2026-11-07): debug
+    // builds without key.properties; release without it is refused with no
+    // artifact; release with WELLAPATH_ALLOW_UNSIGNED_RELEASE=true builds.
+
+    test('the release build type does not throw while being configured', () {
+      expect(
+        RegExp(r'else\s*->\s*throw').hasMatch(gradle),
+        isFalse,
+        reason:
+            'a throw inside buildTypes.release runs on every build, '
+            'including debug',
+      );
+    });
+
+    test(
+      'the refusal is enforced at task-graph time, before any task runs',
+      () {
+        final int gate = gradle.indexOf('if (releaseSigningRefused)');
+        final int whenReady = gradle.indexOf('gradle.taskGraph.whenReady');
+        final int refusal = gradle.indexOf('Release build refused');
+        expect(gate, greaterThan(-1));
+        expect(whenReady, greaterThan(gate));
+        expect(
+          refusal,
+          greaterThan(whenReady),
+          reason: 'the refusal must live inside the task-graph check',
+        );
+      },
+    );
+
+    test('the gate is exactly "no keystore and no explicit opt-in"', () {
+      // Keeps the fail-closed rule from being weakened: any build without
+      // signing material that did not opt in is still refused.
+      expect(
+        gradle,
+        contains(
+          'val releaseSigningRefused = !hasKeystoreFile && !allowUnsignedRelease',
+        ),
+      );
+    });
+
+    test('it triggers on any release task of the app module', () {
+      expect(
+        gradle,
+        contains('task.project == project && task.name.contains("Release")'),
+      );
+      // A task-name allowlist (e.g. only assembleRelease) would let
+      // bundleRelease through unsigned.
+      expect(gradle, isNot(contains('name == "assembleRelease"')));
+    });
+
+    test('a refused release has no signing config, never the debug one', () {
+      expect(gradle, contains('else -> null'));
+      expect(gradle, isNot(contains('signingConfigs.getByName("debug")')));
+    });
+  });
+
   group('required signing keys are validated, not assumed', () {
     test('an incomplete key.properties fails with a named list', () {
       expect(gradle, contains('requiredSigningKeys'));

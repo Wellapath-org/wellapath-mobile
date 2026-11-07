@@ -66,7 +66,10 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.x'
+          # Pinned (RC-BLK-013): the exact stable the last green develop run
+          # resolved '3.x' to (run 37445138799, 2026-10-06). A floating
+          # version lets a new formatter fail `dart format` on unchanged code.
+          flutter-version: '3.47.6'
           channel: 'stable'
 
       - name: Install dependencies
