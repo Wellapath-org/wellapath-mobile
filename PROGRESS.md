@@ -6787,3 +6787,25 @@ evidence. Release notes: `RELEASE_NOTES_217.md`.
 **Still open, unchanged by this entry:** SAFETY-01/02/03 (P0); CB_211
 (RC-BLK-016); WP-027; locator distance cap and 112 fallback absent; artifacts
 served from an `r2.dev` host.
+
+---
+
+# WP-023 — maximum search radius for the location-based facility search (2026-11-08)
+
+**Branch:** `fix/wp-023-max-search-radius` (off `develop` @ `45156ea`) · draft PR, unmerged
+
+- `getNearbyFacilities` now drops results beyond `kLocationSearchMaxRadiusKm`
+  (`lib/features/locator/location_search_radius.dart`), applied last as a
+  filter only: urgency type filter, sparse-coverage expansion and
+  `emergency_capable`-first ordering are unchanged (pinned per urgency).
+- Inside Nigeria with nothing in range, the locator shows an explicit
+  out-of-range state ("No facilities found." + "no facility within N km" +
+  coverage disclosure) and the existing covered-area manual search, instead
+  of a map/list of distant facilities.
+- **CLINICAL DECISION REQUIRED:** the radius value (placeholder 100 km, chosen
+  to remove as little as possible), whether emergency uses a different
+  radius, and whether a far emergency-capable facility should be shown with a
+  warning rather than removed. Not decided by engineering.
+- First widget tests that pump the real `LocatorScreen`
+  (`test/locator/locator_harness.dart`: temp Hive, geolocator and
+  url_launcher channel fakes).

@@ -12,6 +12,7 @@ import '../../core/storage/storage_service.dart';
 import 'facility_attribution.dart';
 import 'facility_card.dart';
 import 'facility_locator_service.dart';
+import 'location_search_radius.dart';
 import 'nigeria_coverage.dart';
 
 class LocatorScreen extends StatefulWidget {
@@ -65,6 +66,12 @@ class _LocatorScreenState extends State<LocatorScreen> {
   /// Set when a successful location fix lands outside Nigeria. Distinct from
   /// [_locationDenied]: we know where the user is, and it is out of coverage.
   bool _outsideCoverage = false;
+
+  /// Set when a location fix inside Nigeria produced no facility within
+  /// [kLocationSearchMaxRadiusKm] (WP-023). The user is in the country but no
+  /// facility the app holds is close enough to list from their location, so
+  /// the locator says so instead of listing distant facilities.
+  bool _outOfRange = false;
 
   // True while facilities are still being fetched in the background (kicked
   // off from loading_screen.dart as part of the staged artifact pipeline —
@@ -215,6 +222,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
       if (!mounted) return;
       setState(() {
         _locationDenied = true;
+        _outOfRange = false;
         _loading = false;
       });
       return;
@@ -227,6 +235,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         if (!mounted) return;
         setState(() {
           _locationDenied = true;
+          _outOfRange = false;
           _loading = false;
         });
         return;
@@ -239,6 +248,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
       if (!mounted) return;
       setState(() {
         _locationDenied = true;
+        _outOfRange = false;
         _loading = false;
       });
       return;
@@ -263,6 +273,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
         if (!mounted) return;
         setState(() {
           _outsideCoverage = true;
+          _outOfRange = false;
           _results = const [];
           _locationDenied = false;
           _loading = false;
@@ -291,8 +302,12 @@ class _LocatorScreenState extends State<LocatorScreen> {
         _results = results;
         _locationDenied = false;
         _outsideCoverage = false;
+        // Nothing within the search radius (WP-023): the out-of-range state
+        // replaces the map and list, so there is no camera to move.
+        _outOfRange = results.isEmpty;
         _loading = false;
       });
+      if (_outOfRange) return;
       // FlutterMap's initialCenter/initialZoom only apply on first mount —
       // the map is already showing (with the fallback center) while
       // location is being resolved, so once the real position lands the
@@ -302,6 +317,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
       if (!mounted) return;
       setState(() {
         _locationDenied = true;
+        _outOfRange = false;
         _loading = false;
       });
     }
@@ -451,11 +467,13 @@ class _LocatorScreenState extends State<LocatorScreen> {
     _mapController.move(_userLatLng!, 15);
   }
 
-  /// Manual area search is the working path in two states: location denied,
-  /// and a known location outside the covered region. They differ only in why
-  /// there is no usable position, so everything downstream treats them alike
-  /// rather than duplicating the flow.
-  bool get _usingManualSearch => _locationDenied || _outsideCoverage;
+  /// Manual area search is the working path in three states: location
+  /// denied, a known location outside the covered region, and a location
+  /// with no facility inside the search radius (WP-023). They differ only in
+  /// why there is no usable list from the position, so everything downstream
+  /// treats them alike rather than duplicating the flow.
+  bool get _usingManualSearch =>
+      _locationDenied || _outsideCoverage || _outOfRange;
 
   int get _shownCount =>
       _usingManualSearch ? _manualResults.length : _results.length;
@@ -486,7 +504,7 @@ class _LocatorScreenState extends State<LocatorScreen> {
             _buildSearchHeader(),
             // Out of coverage there is neither a map nor a list to switch
             // between, so the toggle would be a control that does nothing.
-            if (!_locationDenied && !_outsideCoverage) _buildViewToggle(),
+            if (!_usingManualSearch) _buildViewToggle(),
             Expanded(child: _buildBody()),
             // Attribution is a licence condition of the facility data, not a
             // feature of a particular view, so it sits outside _buildBody()
@@ -613,6 +631,9 @@ class _LocatorScreenState extends State<LocatorScreen> {
     if (_locationDenied) {
       return _buildManualFallback();
     }
+    if (_outOfRange) {
+      return _buildOutOfRangeView();
+    }
     return _buildLocationResults();
   }
 
@@ -730,6 +751,61 @@ class _LocatorScreenState extends State<LocatorScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Inside Nigeria, but no facility within [kLocationSearchMaxRadiusKm] of the
+  /// location fix (WP-023).
+  ///
+  /// Previously the same search handed back the closest records wherever they
+  /// were, so a user in an uncovered state saw facilities hundreds of
+  /// kilometres away in the ordinary results list. This state says plainly
+  /// that nothing is within range, names the coverage, and offers the same
+  /// manual search of a covered area the other no-position states use, so a
+  /// user who can travel there can still choose to look, knowingly.
+  Widget _buildOutOfRangeView() {
+    final int radiusKm = kLocationSearchMaxRadiusKm.round();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Icon(
+              Icons.location_off_outlined,
+              size: 56,
+              color: _primary.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Center(
+            child: Text(
+              'No facilities found.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'WellaPath has no facility within $radiusKm km of your location. '
+            '$kCoverageDisclosure',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 28),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          const SizedBox(height: 20),
+          _manualSearchBody(
+            lead:
+                'You can still search a covered area. Select a state and '
+                'area to find available facilities.',
           ),
         ],
       ),
