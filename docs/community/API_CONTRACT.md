@@ -6,10 +6,10 @@ sign-off):
 
 | | |
 |---|---|
-| Canonical (markdown wins) | `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft, dated 2026-11-07 (SHA-256 `46cf4e05bf55358d836945290001c7042f29b594a79e4284593f6cb115391f26`) |
+| Canonical (markdown wins) | `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft, dated 2026-11-07, with P6 adopted (SHA-256 `2afecf1a6613404b64c1247cf1ce6a36c5c8d4e5124281e589d898788852d184`) |
 | Machine-readable | `WELLAPATH_ENGINEERING/community_api_v1.openapi.yaml` (OpenAPI 3.1, `1.0.0-draft`) |
-| Mobile copy of the OpenAPI file | [`community_api_v1.openapi.yaml`](community_api_v1.openapi.yaml), copied verbatim on 2026-11-07 |
-| SHA-256 of the copy | `68992e18004a1cd4977e6eed5f4f63c720a8135714319a42c97ec34a22b852f5` |
+| Mobile copy of the OpenAPI file | [`community_api_v1.openapi.yaml`](community_api_v1.openapi.yaml), copied verbatim on 2026-11-08 (after P6) |
+| SHA-256 of the copy | `1b10781919dcd15e8b5033d8d744222e997a16352a1b82216f0378a7b4ae64fa` |
 | Governing decision | `WELLAPATH_ENGINEERING/ADR_COMMUNITY_AUTH_AND_DATA.md` (ADR-001) incl. amendments A1–A4 |
 
 The v0.1 text is in git history (`d46d822`). Do not edit the copied YAML in
@@ -38,6 +38,12 @@ hash disagree.
   `/v1/community/mod/*`, `/v1/community/admin/*` and `/v1/auth/totp/*`
   operations are not: moderation and verification live in the website
   admin.
+
+- **Sign-out (A4, P6 adopted 2026-11-07).** The client signs out with the
+  stored refresh token alone: `POST /v1/auth/logout` `{refresh_token}`, no
+  `Authorization` header, nothing refreshed first. Any 2xx (the server's
+  neutral `204`) is success; local tokens are cleared whatever the answer.
+  Only when no refresh token is stored does it send the in-memory bearer.
 
 ## Mobile-only notes (not contract changes)
 

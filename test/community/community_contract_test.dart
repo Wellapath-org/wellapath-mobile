@@ -176,8 +176,8 @@ Future<void> _driveEveryOperation(_SpecServer s) async {
   );
   await auth.verifyOtp(email: 'a@b.ng', code: '123456', deviceId: device);
   await auth.refresh(refreshToken: wprt('r1'), deviceId: device);
-  await auth.logout(accessToken: 'access', refreshToken: wprt('r2'));
-  await auth.logout(accessToken: 'access');
+  await auth.logout(refreshToken: wprt('r2'));
+  await auth.logoutWithBearer('access');
   await devices.list();
   await devices.revokeOthers();
 
@@ -273,6 +273,26 @@ void main() {
         '/v1/community/notifications/read-all',
       );
     });
+  });
+
+  test('A4 logout (P6): bearer or none in the spec; the client sends only the '
+      'refresh token, with no bearer', () async {
+    final SpecOperation op = spec.find('POST', '/v1/auth/logout')!;
+    final List<Object?> security = op.raw['security']! as List<Object?>;
+    expect(security, hasLength(2));
+    expect(
+      security.any((Object? s) => s is Map && s.containsKey('bearerAuth')),
+      isTrue,
+    );
+    expect(security.any((Object? s) => s is Map && s.isEmpty), isTrue);
+    expect(op.requestBodyRequired, isFalse);
+    expect(op.success.$1, 204);
+    final _SpecServer s = _SpecServer(spec, rich: false);
+    await CommunityAuthApi(s.raw).logout(refreshToken: wprt('p6'));
+    final RecordedRequest r = s.adapter.requests.single;
+    expect(r.header('authorization'), isNull);
+    expect(r.body, <String, Object?>{'refresh_token': wprt('p6')});
+    expect(s.problems, isEmpty);
   });
 
   test('the checker itself catches violations (guard self-test)', () {

@@ -344,25 +344,80 @@ void main() {
   });
 
   group('sign-out', () {
-    test('calls A4 with the bearer and clears secure storage', () async {
-      final _Harness h = _Harness((RecordedRequest r) async {
-        if (r.path == '/v1/auth/otp/verify') {
-          return FakeReply(200, tokenPairJson(access: 'a', refresh: wprt('r')));
-        }
-        if (r.path == '/v1/auth/logout') return const FakeReply(204);
-        return const FakeReply(500);
-      });
-      await h.session.verifyOtp(email: 'a@b.ng', code: '123456');
-      await h.session.signOut();
-      final RecordedRequest logout = h.to('/v1/auth/logout').single;
-      expect(logout.header('authorization'), 'Bearer a');
-      expect((logout.body! as Map)['refresh_token'], wprt('r'));
-      expect(
-        h.store.values.containsKey(CommunitySecureKeys.refreshToken),
-        isFalse,
-      );
-      expect(await h.session.accessToken(), isNull);
-    });
+    test(
+      'calls A4 with the refresh token only (P6, no bearer), 204 is success, '
+      'and clears secure storage',
+      () async {
+        final _Harness h = _Harness((RecordedRequest r) async {
+          if (r.path == '/v1/auth/otp/verify') {
+            return FakeReply(
+              200,
+              tokenPairJson(access: 'a', refresh: wprt('r')),
+            );
+          }
+          if (r.path == '/v1/auth/logout') return const FakeReply(204);
+          return const FakeReply(500);
+        });
+        await h.session.verifyOtp(email: 'a@b.ng', code: '123456');
+        await h.session.signOut();
+        final RecordedRequest logout = h.to('/v1/auth/logout').single;
+        expect(logout.header('authorization'), isNull);
+        expect(logout.body, <String, Object?>{'refresh_token': wprt('r')});
+        expect(
+          h.store.values.containsKey(CommunitySecureKeys.refreshToken),
+          isFalse,
+        );
+        expect(await h.session.accessToken(), isNull);
+        expect(h.session.state, CommunitySignInState.signedOut);
+      },
+    );
+
+    test(
+      'with no access token in memory (e.g. after a restart, or expired), '
+      'signs out with the stored refresh token and never refreshes first',
+      () async {
+        final _Harness h = _Harness((RecordedRequest r) async {
+          if (r.path == '/v1/auth/logout') return const FakeReply(204);
+          return const FakeReply(500);
+        });
+        h.store.values[CommunitySecureKeys.refreshToken] = wprt('stored');
+        await h.session.signOut();
+        expect(h.to('/v1/auth/refresh'), isEmpty);
+        final RecordedRequest logout = h.to('/v1/auth/logout').single;
+        expect(logout.header('authorization'), isNull);
+        expect(logout.body, <String, Object?>{'refresh_token': wprt('stored')});
+        expect(await h.session.hasStoredSession(), isFalse);
+      },
+    );
+
+    test(
+      'a refresh-token sign-out never carries an Authorization header',
+      () async {
+        final _Harness h = _Harness((RecordedRequest r) async {
+          if (r.path == '/v1/auth/otp/verify') {
+            return FakeReply(
+              200,
+              tokenPairJson(access: 'a', refresh: wprt('r')),
+            );
+          }
+          if (r.path == '/v1/auth/logout') return const FakeReply(204);
+          return const FakeReply(500);
+        });
+        await h.session.verifyOtp(email: 'a@b.ng', code: '123456');
+        await h.session.signOut();
+        expect(
+          h.adapter.requests
+              .where((RecordedRequest r) => r.path == '/v1/auth/logout')
+              .every((RecordedRequest r) => r.header('authorization') == null),
+          isTrue,
+        );
+        expect(
+          h.store.values.containsKey(CommunitySecureKeys.refreshToken),
+          isFalse,
+        );
+        expect(await h.session.accessToken(), isNull);
+      },
+    );
 
     test('clears local tokens even when the server call fails', () async {
       final _Harness h = _Harness((RecordedRequest r) async {

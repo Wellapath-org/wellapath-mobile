@@ -6903,3 +6903,24 @@ entry.
   YAML `if/then` for `verified_at` and `notice`; `TokenPair.expires_in`
   minimum and refresh-token pattern; logout without a bearer; the
   "≥ 7 digits" display-name rule needs a precise definition.
+
+# 2026-11-08 — Community: refresh-token-only sign-out (contract P6 adopted)
+
+The founder approved P6 on 2026-11-07; the canonical contract (A4, §4.2) and
+OpenAPI `logout` operation were amended and the copy here re-pinned
+(`docs/community/API_CONTRACT.md` records the new hashes).
+
+* **Client:** `CommunityAuthApi.logout(refreshToken:)` sends
+  `POST /v1/auth/logout` `{refresh_token}` with **no** `Authorization`
+  header; `logoutWithBearer` is used only when no refresh token is stored.
+  `CommunitySessionManager.signOut` no longer refreshes first (that rotated
+  a token just to throw it away, and failed when refresh failed). Any 2xx
+  (the server's neutral `204`) is success; local tokens are cleared whatever
+  the answer; `device_id` is kept (P8).
+* **Tests:** the contract test asserts the spec's `security` is bearer *or*
+  none, the body is optional in the schema, success is 204, and the client's
+  sign-out request carries no bearer; session tests cover sign-out with no
+  access token in memory (no refresh call) and the header-free request.
+* **Verification (Flutter 3.47.6):** `flutter analyze` no issues;
+  `dart format` 0 changed; `flutter test --exclude-tags plutil`
+  1,943 passed / 7 skipped; `--tags plutil` 14 passed.

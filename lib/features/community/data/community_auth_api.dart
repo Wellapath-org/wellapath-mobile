@@ -70,17 +70,31 @@ class CommunityAuthApi {
     return TokenPair.fromJson(r.json);
   }
 
-  /// A4 `POST /v1/auth/logout`. [accessToken] may be expired (A4 accepts an
-  /// expired-but-validly-signed token for this route only).
-  Future<void> logout({
-    required String accessToken,
-    String? refreshToken,
-  }) async {
+  /// A4 `POST /v1/auth/logout` with the refresh token alone (contract P6,
+  /// adopted 2026-11-07). No `Authorization` header is sent: the refresh
+  /// token is the credential, so sign-out works even when the access token
+  /// has expired or was never loaded. The server answers the same `204` for
+  /// every well-formed token (revoked, already gone or unknown), so any 2xx
+  /// is success.
+  Future<void> logout({required String refreshToken}) async {
     await _client.send(
       CommunityRequest(
         method: 'POST',
         template: '/v1/auth/logout',
-        body: <String, dynamic>{'refresh_token': ?refreshToken},
+        body: <String, dynamic>{'refresh_token': refreshToken},
+        auth: CommunityAuth.none,
+      ),
+    );
+  }
+
+  /// A4 with a bearer only, for when no refresh token is stored. The access
+  /// token may be expired (A4 accepts an expired-but-validly-signed token for
+  /// this route only).
+  Future<void> logoutWithBearer(String accessToken) async {
+    await _client.send(
+      CommunityRequest(
+        method: 'POST',
+        template: '/v1/auth/logout',
         bearer: accessToken,
       ),
     );

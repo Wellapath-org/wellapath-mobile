@@ -194,21 +194,22 @@ class CommunitySessionManager extends ChangeNotifier
     notifyListeners();
   }
 
-  /// A4 sign-out of this device. The server call is best effort; local
-  /// tokens are cleared whatever it answers. The install's `device_id` is
-  /// kept (it identifies the install, not the account, §3.3 A2).
+  /// A4 sign-out of this device. The stored refresh token alone revokes the
+  /// family (P6): no bearer is needed and nothing is refreshed first, so an
+  /// expired access token never blocks sign-out. The server call is best
+  /// effort; local tokens are cleared whatever it answers. The install's
+  /// `device_id` is kept (it identifies the install, not the account, §3.3
+  /// A2).
   Future<void> signOut() async {
     final String? refreshToken = await _store.read(
       CommunitySecureKeys.refreshToken,
     );
-    String? access = _accessToken;
+    final String? access = _accessToken;
     try {
-      if (access == null && refreshToken != null) access = await refresh();
-      if (access != null) {
-        await _api.logout(
-          accessToken: access,
-          refreshToken: await _store.read(CommunitySecureKeys.refreshToken),
-        );
+      if (refreshToken != null) {
+        await _api.logout(refreshToken: refreshToken);
+      } else if (access != null) {
+        await _api.logoutWithBearer(access);
       }
     } on Object catch (e) {
       debugPrint('community sign-out: server call failed (${e.runtimeType})');
