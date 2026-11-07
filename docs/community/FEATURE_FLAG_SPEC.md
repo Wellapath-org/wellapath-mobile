@@ -1,21 +1,23 @@
-# Community feature flag — spec v0.1 (DRAFT)
+# Community feature flag — client spec v0.2 (DRAFT)
 
 | | |
 |---|---|
-| Status | **DRAFT v0.1.** Internal development only |
+| Status | **DRAFT v0.2.** Internal development only. §3 (the response) is superseded by the canonical contract `WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` §6; this file keeps the **client** rules (§1, §4–§6), which the canonical contract adopts unchanged |
 | Date | 2026-11-07 |
-| Endpoint | `GET /v1/features` (new; the hash-locked `/config` is **not** changed) |
+| Endpoint | `GET /v1/features` (the hash-locked `/config` is **not** changed) |
 | Mobile implementation | `lib/features/community/gate/` |
-| Related | [`API_CONTRACT.md`](API_CONTRACT.md) §3, ADR-001 §4.7 |
+| Related | [`API_CONTRACT.md`](API_CONTRACT.md) (pointer to the canonical contract), ADR-001 §4.7 and §8 |
 
 ## 1. Two keys, both must turn
 
 Community is reachable on a device only when **both** are true:
 
 1. **Compile-time:** the build was made with
-   `--dart-define=COMMUNITY_SCAFFOLD_ENABLED=true`. The default is `false`.
-   In a default build the Community entry point is not in the widget tree at
-   all, and the app never calls `/v1/features`.
+   `--dart-define=COMMUNITY_SCAFFOLD_ENABLED=true` **and**
+   `--dart-define=COMMUNITY_API_BASE_URL=<url>`. The defaults are `false` and
+   empty. In a default build the Community entry point is not in the widget
+   tree at all, no client or secure-storage access is constructed, and the
+   app never calls `/v1/features`.
 2. **Server-time:** `GET /v1/features` says Community is available to *this*
    account (§3).
 
@@ -31,7 +33,7 @@ The server holds one setting, `COMMUNITY_MODE`, default **`disabled`**:
 | `community` | Who may enter | Server behaviour |
 |---|---|---|
 | `disabled` (default) | Nobody | Community plugin registers **no routes**; `/v1/community/*` and `/v1/auth/*` return 404 |
-| `internal` | Accounts on the internal allowlist (staff) | Routes registered; non-allowlisted accounts get 403 `community_not_allowed` everywhere |
+| `internal` | Accounts on the internal allowlist (staff), **or** with role moderator/admin (canonical §6) | Routes registered; non-allowlisted accounts get 403 `community_not_allowed` (except `GET /me`, export and delete) |
 | `closed_beta` | Accounts on the beta allowlist (internal ∪ beta testers) | As `internal`, wider allowlist |
 | `public` | Any signed-in account | Not permitted until the PUBLIC gate in `COMMUNITY_BUILD_STATUS.md` §5 is met |
 
@@ -63,12 +65,21 @@ Authorization: Bearer <access_token>   (optional)
   Community DB is down — it returns `{ "community": "disabled", "community_allowed": false }`
   instead.
 
-### Anonymous discovery
+### Anonymous discovery and sign-in
 
 Before sign-in the client calls without a token. In `internal`/`closed_beta`
-the answer is `community_allowed: false`, so an anonymous device sees nothing.
-For the internal scaffold the sign-in screen itself is reached only by
-testers who already know to look (out of scope for this PR; see §7).
+the answer is `community_allowed: false`. Because a tester cannot become
+allowed without signing in, the client distinguishes three outcomes:
+
+| Gate decision | When | What the More tab shows |
+|---|---|---|
+| `hidden` | compile key off, any failure, `community: disabled`, or **signed in** and `community_allowed: false` | nothing |
+| `signInRequired` | compile key on, mode enabled, `community_allowed: false`, **no session** (no access token and no stored refresh token) | the row; tapping opens **sign-in only** |
+| `open` | mode enabled and `community_allowed: true` | the row; tapping opens Community |
+
+No Community content, and no `/v1/community/*` request, is reachable in
+`signInRequired`. After sign-in the gate re-fetches with the bearer; if the
+account is still not allowed, the app says so and hides the row.
 
 ## 4. Client evaluation (mobile)
 
@@ -98,9 +109,12 @@ allowed = COMMUNITY_SCAFFOLD_ENABLED
   allow is discarded and the result is *hidden*. There is no stale-while-error.
 * **Entering Community always re-fetches** (bypasses the cache). Tapping the
   More-tab row runs a fresh evaluation and navigates only on a fresh allow.
-* Any Community API response of 404 on a `/v1/community/*` route or 403
-  `community_not_allowed` clears the cache and closes Community (pops to the
-  More tab).
+* A 404 on a `/v1/community/*` **list or space** route (spaces, a space's
+  posts, notifications, unread count) or any 403 `community_not_allowed`
+  clears the cache and closes Community (pops to the More tab). A 404 on a
+  single post or comment, or on its comment list, only means that item is
+  unavailable (canonical §1.3). A 401 `unauthenticated` clears the session
+  and also closes Community.
 
 ## 6. Kill switch
 
@@ -122,10 +136,6 @@ optionally revoke their sessions). Effect is the same as above for that account.
 ## 7. Not in this spec / later
 
 * Remote flags for anything other than Community.
-* Sign-in UI and token storage (`flutter_secure_storage`) — the scaffold uses
-  in-memory mock repositories; the remote flag client sends no token yet, so
-  until sign-in lands, a compile-flag-on build against a real server always
-  evaluates to hidden in `internal`/`closed_beta`.
 * Percent rollouts, per-space flags.
 
 ## 8. Changelog
@@ -133,3 +143,4 @@ optionally revoke their sessions). Effect is the same as above for that account.
 | Version | Date | Change |
 |---|---|---|
 | 0.1 | 2026-11-07 | First draft |
+| 0.2 | 2026-11-07 | Response shape superseded by canonical contract §6; compile key includes `COMMUNITY_API_BASE_URL`; `signInRequired` decision; kill-switch 404 scope narrowed to list/space routes per canonical §1.3; moderators/admins count as allowlisted (canonical §6) |
