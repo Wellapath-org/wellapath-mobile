@@ -57,6 +57,37 @@ jobs:
         if: steps.check_flutter.outputs.flutter_exists == 'true'
         run: flutter test --exclude-tags plutil
 
+      # Requirement traceability (SOFTWARE_REQUIREMENTS.md "Verified by").
+      # Fails if a mapped test file or test name no longer exists, or a
+      # requirement has neither tests nor a stated pending reason.
+      - name: Requirement → test traceability report
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
+        run: |
+          mkdir -p build/traceability
+          dart run scripts/traceability_report.dart --out=build/traceability/matrix.md
+          cat build/traceability/matrix.md >> "$GITHUB_STEP_SUMMARY"
+
+      # SOUP / SBOM evidence (REGULATORY_ENGINEERING_READINESS §3 item 4):
+      # CycloneDX 1.6 JSON generated offline from pubspec.lock.
+      - name: Generate CycloneDX SBOM from pubspec.lock
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
+        run: |
+          dart run scripts/generate_sbom.dart \
+            --lock=pubspec.lock --pubspec=pubspec.yaml \
+            --git-commit="$GITHUB_SHA" \
+            --out=build/sbom/sbom-mobile.cdx.json
+
+      - name: Upload SBOM and traceability matrix
+        if: steps.check_flutter.outputs.flutter_exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-and-traceability-${{ github.sha }}
+          path: |
+            build/sbom/sbom-mobile.cdx.json
+            build/traceability/matrix.md
+          if-no-files-found: error
+          retention-days: 90
+
       # CI holds no signing material, and release signing now fails closed, so
       # a plain `flutter build apk --release` here would (correctly) fail. The
       # unsigned path is requested explicitly rather than letting the build

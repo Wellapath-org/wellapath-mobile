@@ -1,0 +1,93 @@
+# Requirement register mirror for automated traceability.
+#
+# Source of truth: WELLAPATH_ENGINEERING/SOFTWARE_REQUIREMENTS.md (workspace
+# engineering directory, DRAFT v0.1, 2026-11-07). This file mirrors its IDs,
+# titles and statuses so CI can check docs/traceability/test_map.yaml against
+# them. Change a requirement there first, then mirror it here.
+#
+# Clinical requirements (CR-) are owned by the clinical reviewer, who is not
+# yet appointed. Engineering recorded them; it did not decide them.
+# WellaPath is not NAFDAC approved or registered. This is preparation evidence.
+register: SOFTWARE_REQUIREMENTS.md
+register_version: "DRAFT v0.1 (2026-11-07)"
+requirements:
+  - id: SR-001
+    title: "Assessment scoring executes on the device; no symptom, answer or result data is transmitted"
+    type: Safety/privacy
+    status: Met
+  - id: SR-002
+    title: "A matched red-flag rule always yields emergency and overrides scoring"
+    type: Clinical safety
+    status: Met
+  - id: SR-003
+    title: "Red-flag symptoms selected mid-flow interrupt the flow immediately"
+    type: Clinical safety
+    status: Met
+  - id: SR-004
+    title: "Emergency results present Call 112 as the primary action and offer no non-emergency next action (incl. Community)"
+    type: Clinical safety
+    status: Partially verified
+  - id: SR-005
+    title: "Every clinical artifact is verified by sha256 against /config before use; a missing hash or version is rejected"
+    type: Integrity
+    status: "Not met (WP-003)"
+  - id: SR-006
+    title: "Published artifacts are immutable; any change ships as a new version"
+    type: Change control
+    status: "Not met (WP-028)"
+  - id: SR-007
+    title: "Output wording uses 'may be consistent with' and never diagnostic language"
+    type: Clinical/regulatory
+    status: "Not met (CCL-005)"
+  - id: SR-008
+    title: "Urgency is one of {emergency, urgent, non_urgent, self_care}"
+    type: Clinical
+    status: Met
+  - id: SR-009
+    title: "Facility results disclose coverage (Lagos/FCT/Kano) and unverified status"
+    type: Safety/regulatory
+    status: "Partially met (no 'unverified' wording)"
+  - id: SR-010
+    title: "Withdrawn facility data is not displayed after the server stops serving it"
+    type: Data governance
+    status: Not met
+  - id: SR-011
+    title: "The app remains usable for assessment offline after one successful launch"
+    type: Reliability
+    status: "Met [doc-claimed]"
+  - id: SR-012
+    title: "Telemetry carries no health content, location or identifiers; it is disabled unless production-approved"
+    type: Privacy
+    status: Met
+  - id: SR-013
+    title: "Community is unavailable unless the server-side flag allows it for this account"
+    type: Release control
+    status: Not started
+  - id: SR-014
+    title: "Community code cannot access assessment inputs or outputs"
+    type: Safety/privacy
+    status: Not started
+  - id: SR-015
+    title: "Every moderation action records actor, action, target, reason and timestamp, and is append-only"
+    type: Audit
+    status: Not started
+  - id: SR-016
+    title: "Published clinical artifacts are immutable: registered sha256 and size never change, and deletion requires formal retirement"
+    type: Change control
+    status: "Enforced in KB CI (pending merge of KB PR #54)"
+  - id: CR-001
+    title: "Combination rule when multiple demographic modifiers apply"
+    type: Clinical
+    status: TO BE DEFINED BY CLINICAL REVIEWER
+  - id: CR-002
+    title: "Use of severity, duration and season in urgency determination"
+    type: Clinical
+    status: TO BE DEFINED
+  - id: CR-003
+    title: "Age-band mapping (incl. 5-12 years, neonates)"
+    type: Clinical
+    status: TO BE DEFINED
+  - id: CR-004
+    title: "Facility ordering for emergency urgency, and the definition of emergency-capable"
+    type: Clinical
+    status: TO BE DEFINED

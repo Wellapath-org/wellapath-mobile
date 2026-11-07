@@ -1,0 +1,125 @@
+# Requirement -> verification mapping (mobile repository).
+#
+# Each requirement in requirements.yaml has exactly one entry here. An entry
+# either lists tests, or says why there is none (`pending`). Tests are
+# identified by file path plus, where given, `contains`: a group or test name
+# that must appear verbatim in that file. Together they are the test ID cited
+# in SOFTWARE_REQUIREMENTS.md "Verified by".
+#
+# `coverage` is an engineering judgement of how much of the requirement the
+# listed tests exercise:
+#   full    - the tests assert the requirement as written
+#   partial - the tests assert part of it; `gap` says what is missing
+# It never upgrades the requirement's status in the register.
+#
+# `external` names verification that lives in another repository. It is
+# listed for completeness and is not checked by this script.
+#
+# Checked by: dart run scripts/traceability_report.dart (runs in CI).
+mappings:
+  - requirement: SR-001
+    coverage: partial
+    gap: "Data-flow audit (2026-11-07) is manual; no test proves the engine performs no I/O"
+    tests:
+      - path: test/telemetry/clinical_regression_test.dart
+        contains: "no clinical value reaches any emitted event"
+      - path: test/telemetry/privacy_adversarial_test.dart
+        contains: "prohibited fields — clinical"
+      - path: test/crash/sentry_envelope_privacy_test.dart
+  - requirement: SR-002
+    coverage: full
+    tests:
+      - path: test/engine/red_flag_evaluator_test.dart
+        contains: "fever + seizures triggers red flag with emergency urgency"
+      - path: test/engine/case_bank_validation_test.dart
+        contains: "red flag precedence — emergency, and never a ranked cause"
+      - path: test/engine/case_bank_runner_test.dart
+        contains: "a global red flag returns emergency with no top condition"
+  - requirement: SR-003
+    coverage: full
+    tests:
+      - path: test/assessment/qb002_immediate_red_flag_test.dart
+        contains: "QB-002 fix — immediate interruption"
+  - requirement: SR-004
+    coverage: partial
+    gap: "No test asserts Call 112 is the PRIMARY action on the interrupt/results screens, or that no Community or non-emergency action is offered"
+    tests:
+      - path: test/results/red_flag_interrupt_test.dart
+        contains: "RedFlagInterruptScreen renders with red flag output"
+      - path: test/home/home_priorities_test.dart
+        contains: "Call emergency services on 112"
+  - requirement: SR-005
+    coverage: full
+    tests:
+      - path: test/core/network/artifact_integrity_hard_fail_test.dart
+        contains: "core artifacts hard-fail on bad metadata"
+      - path: test/core/network/staged_artifact_loader_test.dart
+        contains: "cache hit / hash verification"
+      - path: test/assessment/loading_screen_version_cache_test.dart
+  - requirement: SR-006
+    coverage: partial
+    gap: "The primary control is server-side (KB registry + CI); these tests cover only the client consequence: cache keyed by version+hash"
+    tests:
+      - path: test/core/network/versioned_facility_cache_test.dart
+        contains: "download deduplication is per version+hash"
+      - path: test/assessment/loading_screen_version_cache_test.dart
+    external:
+      - "wellapath-knowledge-base: tools/check_published_artifacts.py + testing/immutability/test_published_artifacts.py"
+  - requirement: SR-007
+    coverage: partial
+    gap: "No test asserts every KB template uses 'may be consistent with'; 9 of 50 templates do not (CCL-005)"
+    tests:
+      - path: test/engine/per_condition_explanation_test.dart
+        contains: "each of three causes carries its own explanation_template"
+      - path: test/engine/output_formatter_test.dart
+  - requirement: SR-008
+    coverage: full
+    tests:
+      - path: test/engine/case_bank_runner_test.dart
+        contains: "throws on an urgency outside the locked four"
+      - path: test/engine/urgency_determiner_test.dart
+  - requirement: SR-009
+    coverage: partial
+    gap: "No 'unverified' wording exists or is tested"
+    tests:
+      - path: test/locator/coverage_disclosure_test.dart
+        contains: "disclosure wording"
+      - path: test/locator/facility_wording_test.dart
+  - requirement: SR-010
+    coverage: full
+    tests:
+      - path: test/core/network/versioned_facility_cache_test.dart
+        contains: "the v1.1-persists scenario"
+  - requirement: SR-011
+    coverage: partial
+    gap: "Offline assessment after first launch is device-test doc-claimed; unit tests cover the cache path only"
+    tests:
+      - path: test/assessment/loading_screen_version_cache_test.dart
+      - path: test/core/network/staged_artifact_loader_test.dart
+        contains: "a corrupted cache entry is discarded and re-downloaded"
+  - requirement: SR-012
+    coverage: full
+    tests:
+      - path: test/telemetry/enablement_safety_test.dart
+        contains: "the default build is telemetry-disabled"
+      - path: test/telemetry/privacy_adversarial_test.dart
+        contains: "prohibited fields — identity, credentials, location"
+      - path: test/telemetry/schema_conformance_test.dart
+  - requirement: SR-013
+    pending: "none — not implemented (Community not started)"
+  - requirement: SR-014
+    pending: "none — not implemented (planned isolation test)"
+  - requirement: SR-015
+    pending: "none — not implemented (no moderation feature)"
+  - requirement: SR-016
+    pending: "none in this repository — verified in the knowledge base"
+    external:
+      - "wellapath-knowledge-base: .github/workflows/published-artifact-immutability.yml (tools/check_published_artifacts.py)"
+  - requirement: CR-001
+    pending: "none — pending clinical decision"
+  - requirement: CR-002
+    pending: "none — pending clinical decision"
+  - requirement: CR-003
+    pending: "none — pending clinical decision"
+  - requirement: CR-004
+    pending: "none — pending clinical decision"
