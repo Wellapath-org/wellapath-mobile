@@ -250,17 +250,69 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'external testers and not submitted for Beta App Review. No public, '
       'external or production distribution. Builds 211 and 215 remain retained '
       'and available, not promoted, replaced or deleted',
+  217:
+      'INTERNAL ENGINEERING BUILD, NOT UPLOADED, NOT CLINICALLY CLEARED — '
+      '0.3.0+217, the merges of PR #99 (RC-BLK-011 artifact-integrity hard '
+      'fail), PR #100 (WP-025 versioned facility cache) and PR #101 (RC-BLK-013 '
+      'CI Flutter pin, debug builds without signing material). Built '
+      '2026-11-07 from develop @ 8865caa0df08e844ff20a299e64446fd595bcf55 '
+      '(tree 8c973c31…, the merge of PR #101) in the approved neutral root '
+      '/Users/Shared/wellapath-build-217 with a build-local PUB_CACHE, an '
+      'explicit neutral iOS -derivedDataPath and zero dart-defines. Toolchain '
+      'MISMATCH recorded: built with Flutter 3.44.4 / Dart 3.12.2 (the only '
+      'local toolchain) while CI is pinned to 3.47.6; nothing was installed. '
+      'Signing material was referenced by symlink and never copied or read; '
+      'the symlink was deleted after the build. Engine unchanged from 216: '
+      'lib/core/engine and test/engine byte-untouched since 34a331f; the only '
+      'lib/features/assessment change is the loading screen delegating to '
+      'ArtifactSpec.fromConfigEntry (no version default). Signed Android AAB '
+      'sha256 43663c405632752e20a5a8acb5efaf116483fc2845f58b3e4a2813fbad5a46ca '
+      '(62,438,090 B), org.wellapath.app versionCode 217 / versionName 0.3.0, '
+      'jar verified, upload certificate SHA-256 '
+      '94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:'
+      '4D:A3:18:C1:A8:90:83:D8:36 (owner CN=John Oluwaseyi, OU=Engineering, '
+      'O=Wellapath, L=Lagos, ST=Lagos, C=NG) — an IDENTICAL SHA-256 fingerprint '
+      'to builds 211, 215 and 216, so the established upload key was used and '
+      'no signing-ownership or Play App Signing decision arises. Signed iOS IPA '
+      'sha256 2527ea9161bde4b7cb4d54b5a02bc1622fb116ca3f197989a0770357d73eba5c '
+      '(26,607,241 B), org.wellapath.app 0.3.0 (217), min iOS 15.0, arm64, '
+      'signed Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS) cert '
+      'SHA-1 6F191637AA0968B1E1529044D56E93B89AEEF649 with the EXISTING App '
+      'Store profile "iOS Team Store Provisioning Profile: org.wellapath.app" '
+      '(UUID daebf88b-ed39-45b4-914b-a627cf76831d); no certificate, key, '
+      'keystore or profile was created or replaced, -allowProvisioningUpdates '
+      'was not passed and the pbxproj was untouched (DEVELOPMENT_TEAM passed as '
+      'a build flag). The FIRST build exported through scripts/guarded_export.'
+      'dart with export options generated and verified by '
+      'scripts/export_options_tool.dart (mode internal-testing, destination '
+      'export, uploadSymbols TRUE, testFlightInternalTestingOnly true): the IPA '
+      'carries a 4-entry Symbols payload, so the 216 symbol gap is NOT repeated. '
+      'dSYM UUIDs match the binaries inside the exported IPA (Runner '
+      '85656306-32F0-3370-83E4-B75120DDD79D, App.framework '
+      '0C7143A3-59CA-ED08-4C4F-F302E01FCB25). Neutral-path scanner exit 0 on '
+      'every input: 56 files for the AAB set, 186 for IPA + extracted payload + '
+      'archive, 14 for the dSYMs — 0 prohibited findings, 0 input errors. '
+      'Bundled .env byte-identical to the tracked production file (sha256 '
+      '71ad44e3…fb96, 1,220 B, APP_ENV=production, both telemetry flags false) '
+      'in BOTH artifacts; no DSN, no Sentry auth token; Feedback and Support '
+      'Chat control strings absent from libapp.so and App.framework/App. '
+      'flutter analyze: no issues; full suite 1,691 passed, 7 skipped, 0 '
+      'failed. NOT UPLOADED to Google Play or App Store Connect — upload was '
+      'not authorised. NOT CLINICALLY CLEARED: SAFETY-01, SAFETY-02 and '
+      'SAFETY-03 (P0, clinical decision required) remain open, as does CB_211 '
+      '(RC-BLK-016). The number is consumed because signed release artifacts '
+      'exist, independently of any upload',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 217 has never been attached to anything: it appears in no tag, no CI
+/// 218 has never been attached to anything: it appears in no tag, no CI
 /// release identifier, no rollback record, no Sentry release and no
-/// registry entry above. 216 was consumed on 2026-10-02 the moment a
-/// signed release AAB existed — before any store processing — so rebuilding
-/// 216 from different source could produce two artifacts that crash triage
+/// registry entry above. 217 was consumed on 2026-11-07 the moment a
+/// signed release AAB existed — with no upload of any kind — so rebuilding
+/// 217 from different source could produce two artifacts that crash triage
 /// and Play both treat as the same build.
-const int kCurrentBuildNumber = 217;
+const int kCurrentBuildNumber = 218;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';
