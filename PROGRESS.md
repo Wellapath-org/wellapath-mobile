@@ -6787,3 +6787,23 @@ evidence. Release notes: `RELEASE_NOTES_217.md`.
 **Still open, unchanged by this entry:** SAFETY-01/02/03 (P0); CB_211
 (RC-BLK-016); WP-027; locator distance cap and 112 fallback absent; artifacts
 served from an `r2.dev` host.
+
+---
+
+# WP-010 — location privacy copy corrected to match behaviour (2026-11-08)
+
+**Branch:** `fix/wp-010-privacy-copy` (off `develop` @ `45156ea`) · draft PR, unmerged
+
+- Verified from code: coordinates are used on device only (no telemetry
+  field; `admin_area_code` never populated), but the map centres on the user
+  at zoom 15 and fetches CARTO tiles (~1 km area + device IP), and directions
+  open Google Maps with the facility's coordinates.
+- Replaced every "never leaves your device" location claim: both iOS
+  location purpose strings, the in-app location rationale, More screen and
+  two Help articles. Store docs that quoted the old string updated.
+- New tests: `location_privacy_copy_test.dart` (claim cannot return; CARTO /
+  Google disclosed) and `info_plist_plutil_test.dart` (`plutil` tag: lint +
+  exact resolved purpose strings).
+- **Not done here (external):** website `/privacy` (omits CARTO, R2, Render,
+  Google Maps) and the store privacy answers; edits listed in the PR.
+  Legal review (D-016) still required.

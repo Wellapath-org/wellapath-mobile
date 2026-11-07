@@ -29,9 +29,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>WellaPath does not track your location in the background and never requests always-on access. Location is used only while you are using the app, to show nearby health facilities, and it never leaves your device.</string>
+	<string>WellaPath does not track your location in the background and never requests always-on access. Location is used only while you are using the app, to show nearby health facilities. Distances are worked out on your device and your location is not sent to WellaPath. Showing the map requests map images of your area from the map provider (CARTO).</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>WellaPath uses your location to show nearby health facilities. Your location never leaves your device.</string>
+	<string>WellaPath uses your location to show nearby health facilities. Distances are worked out on your device and your location is not sent to WellaPath. Showing the map requests map images of your area from the map provider (CARTO).</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

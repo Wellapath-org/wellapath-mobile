@@ -32,7 +32,9 @@ void main() {
         infoPlist,
         contains(
           'WellaPath uses your location to show nearby health facilities. '
-          'Your location never leaves your device.',
+          'Distances are worked out on your device and your location is not '
+          'sent to WellaPath. Showing the map requests map images of your '
+          'area from the map provider (CARTO).',
         ),
       );
     });

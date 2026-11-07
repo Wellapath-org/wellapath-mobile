@@ -35,8 +35,11 @@ no `QUERY_ALL_PACKAGES`. The `<queries>` element covers only
 `ACTION_DIAL`-equivalent `url_launcher` (no permission needed).
 
 iOS equivalent: `NSLocationWhenInUseUsageDescription` only —
-"WellaPath uses your location to show nearby health facilities. Your
-location never leaves your device."
+"WellaPath uses your location to show nearby health facilities. Distances
+are worked out on your device and your location is not sent to WellaPath.
+Showing the map requests map images of your area from the map provider
+(CARTO)." (WP-010: the earlier "never leaves your device" wording was
+inaccurate, because map tile requests reveal the approximate area.)
 
 ## 3. Content rating questionnaire — prepared answers
 

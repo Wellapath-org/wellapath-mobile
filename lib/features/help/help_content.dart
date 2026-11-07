@@ -93,8 +93,11 @@ abstract final class HelpContent {
             'location.',
         'If you prefer not to allow location access, you can search using an '
             'area name.',
-        'Displaying the clinic map requires map information from the map '
-            'provider.',
+        'Displaying the clinic map requests map images of the area shown '
+            'from the map provider (CARTO). Because the map is centred on '
+            'you, this can reveal your approximate area to the provider. '
+            'Getting directions opens Google Maps with the facility\'s '
+            'location.',
       ],
     ),
     HelpArticle(
@@ -158,8 +161,10 @@ abstract final class HelpContent {
             'you.',
         'If you allow location access, your location is used on your device '
             'to sort facilities by distance. WellaPath does not receive or '
-            'store it. Viewing the clinic map requires requests to the map '
-            'provider.',
+            'store it. Viewing the clinic map requests map images of the area '
+            'shown from the map provider (CARTO), which can reveal your '
+            'approximate area. Getting directions opens Google Maps, which '
+            'has its own privacy policy.',
       ],
     ),
   ];

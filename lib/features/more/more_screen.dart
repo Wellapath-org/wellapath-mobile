@@ -74,8 +74,11 @@ class MoreScreen extends StatelessWidget {
               body:
                   'Your symptom answers are worked out on this device and are '
                   'never sent to WellaPath. Location, if you allow it, is used '
-                  'on the device to sort facilities by distance. Viewing the clinic '
-                  'map requests map tiles from the map provider.',
+                  'on the device to sort facilities by distance and is not sent '
+                  'to WellaPath. Viewing the clinic map requests map images of '
+                  'the area shown from the map provider (CARTO), which can '
+                  'reveal your approximate area. Directions open in Google '
+                  'Maps.',
             ),
           ),
           const SizedBox(height: 14),

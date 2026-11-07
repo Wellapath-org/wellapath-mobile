@@ -98,7 +98,10 @@ void main() {
       // The permission prompt must justify the location request honestly:
       // location orders the list, it does not mean a facility is close.
       expect(locator, contains('sort available health facilities'));
-      expect(locator, contains('never leaves your device'));
+      // WP-010: and it must not overclaim. The map requests tiles for the
+      // user's area from CARTO, so "never leaves your device" was false.
+      expect(locator, isNot(contains('never leaves your device')));
+      expect(locator, contains('is not sent to WellaPath'));
     });
   });
 
