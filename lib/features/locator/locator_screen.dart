@@ -317,9 +317,15 @@ class _LocatorScreenState extends State<LocatorScreen> {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         content: const Text(
+          // WP-010: previously claimed the location was never transmitted,
+          // which was not true: centring the map on the user requests CARTO
+          // tiles for the surrounding area (~1 km at zoom 15), and the tile
+          // request carries the device IP. WellaPath itself never receives
+          // the coordinates (no telemetry field exists for them).
           'WellaPath uses your location to sort available health facilities '
-          'by distance. '
-          'Your location never leaves your device.',
+          'by distance. This is worked out on your device, and your location '
+          'is not sent to WellaPath. Showing the map requests map images of '
+          'your area from the map provider (CARTO).',
         ),
         actions: [
           TextButton(
