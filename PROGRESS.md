@@ -6787,3 +6787,23 @@ evidence. Release notes: `RELEASE_NOTES_217.md`.
 **Still open, unchanged by this entry:** SAFETY-01/02/03 (P0); CB_211
 (RC-BLK-016); WP-027; locator distance cap and 112 fallback absent; artifacts
 served from an `r2.dev` host.
+
+---
+
+# WP-024 — 112 fallback in every locator state that lists no facility (2026-11-08)
+
+**Branch:** `fix/wp-024-locator-112-fallback` (off `develop` @ `45156ea`) · draft PR, unmerged
+
+- The home screen's emergency row and its dial action moved unchanged to
+  `lib/shared/widgets/emergency_call_row.dart` (`EmergencyCallRow`,
+  `callEmergencyNumber()`); home uses them as before.
+- The locator shows that row whenever it lists no facility: download failed,
+  offline/no cached config, download in progress, location off/denied/
+  rationale declined/fix error (until a manual search returns results),
+  outside Nigeria, and any search with zero results. Defined from what is on
+  screen (`_showsNoFacilities`), not gated on urgency or triage output.
+- Copy is the existing home copy, reused verbatim ("Need urgent help?" /
+  "Call emergency services on 112"); **clinical review of the copy in this
+  context is still required** (blocker row).
+- 13 widget tests drive the real `LocatorScreen` through each state
+  (`test/locator/locator_harness.dart`).
