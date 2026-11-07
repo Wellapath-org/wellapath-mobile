@@ -170,18 +170,16 @@ class _LocatorScreenState extends State<LocatorScreen> {
     final artifacts = config?['artifacts'];
     if (artifacts is! Map) return false;
 
-    final entry = Map<String, dynamic>.from(artifacts)['facilities'] as Map?;
-    final url = entry?['url'] as String?;
-    if (url == null) return false;
-
-    loader.loadFacilitiesInBackground(
-      ArtifactSpec(
-        url: url,
-        cacheKey: ArtifactCacheKeys.facilities,
-        version: entry?['version'] as String? ?? '1.0',
-        hash: entry?['hash'] as String?,
-      ),
+    // A missing/malformed hash or version is not defaulted here: the loader
+    // rejects it and flips facilitiesFailed, so the existing "could not
+    // load" state shows instead of unverified facilities (RC-BLK-011).
+    final spec = ArtifactSpec.fromConfigEntry(
+      artifacts['facilities'],
+      cacheKey: ArtifactCacheKeys.facilities,
     );
+    if (spec == null) return false;
+
+    loader.loadFacilitiesInBackground(spec);
     return true;
   }
 
