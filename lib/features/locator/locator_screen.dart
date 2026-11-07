@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/network/staged_artifact_loader.dart';
@@ -91,13 +90,16 @@ class _LocatorScreenState extends State<LocatorScreen> {
     _service = FacilityLocatorService(facilities);
   }
 
-  Future<List<Map<String, dynamic>>> _readFacilitiesFromCache() async {
-    final box = Hive.isBoxOpen(ArtifactCacheKeys.facilityBox)
-        ? Hive.box(ArtifactCacheKeys.facilityBox)
-        : await Hive.openBox(ArtifactCacheKeys.facilityBox);
-    final raw = box.get(ArtifactCacheKeys.facilityData) as List?;
-    return raw?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ??
-        <Map<String, dynamic>>[];
+  /// The decoded list, served only if it was decoded from the facilities
+  /// version+hash the cached `/config` names right now (refreshed at every
+  /// boot). Anything else is discarded so a superseded list — e.g. withdrawn
+  /// facilities v1.1 — is never shown (WP-025).
+  Future<List<Map<String, dynamic>>> _readFacilitiesFromCache() {
+    return StagedArtifactLoader.readFacilityCache(
+      expectedStamp: StagedArtifactLoader.facilityStampFromConfig(
+        StorageService.getLastKnownConfig(),
+      ),
+    );
   }
 
   Future<void> _initLocator() async {
@@ -122,9 +124,11 @@ class _LocatorScreenState extends State<LocatorScreen> {
     // nothing kicked off the facilities download — loading_screen.dart is
     // the only other caller. Without this the screen waits on notifiers that
     // will never fire and sits on "please wait" forever.
-    if (!loader.facilitiesReady.value &&
-        !loader.facilitiesFailed.value &&
-        !loader.facilitiesDownloadStarted) {
+    //
+    // A download that already finished in this run but left no matching
+    // cache (config moved on since) is started again too; the loader
+    // deduplicates a repeat start for the same version+hash.
+    if (!loader.facilitiesDownloadStarted || loader.facilitiesReady.value) {
       final started = _startFacilitiesDownload(loader);
       if (!started) {
         // No cached config means no artifact URL to fetch from. Show the
