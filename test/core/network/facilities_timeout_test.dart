@@ -32,6 +32,10 @@ const ArtifactSpec _facilitiesSpec = ArtifactSpec(
   url: 'https://example.test/facilities.ng.v1.1.json',
   cacheKey: ArtifactCacheKeys.facilities,
   version: '1.1',
+  // sha256 of [_facilitiesBody]; a spec without a hash is rejected
+  // (RC-BLK-011).
+  hash:
+      'sha256:dfd2c17de60afbe3ec9a6312bcb6968d8045936213544fe761ea3adc05816dd2',
 );
 
 /// Resolves once the background download reports success or failure.

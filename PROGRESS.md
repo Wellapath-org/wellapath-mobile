@@ -6545,6 +6545,77 @@ Fixed, and the step is now exercised locally end to end before being trusted:
 
 ---
 
+# 2026-11-07 — RC-BLK-011 / WP-003: artifact integrity metadata is now a hard failure
+
+`StagedArtifactLoader._matchesHash` returned `true` for a null/empty expected
+hash, and both `loading_screen.dart` and `locator_screen.dart` defaulted a
+missing `/config` version to `'1.0'`. A `/config` entry without a hash was
+therefore downloaded, cached under an invented version key and used with no
+integrity check at all.
+
+* `ArtifactSpec.fromConfigEntry` is now the single place a `/config` entry
+  becomes a spec (loading screen and locator both use it). It never defaults
+  version or hash; a missing `url` still means "no artifact", as before.
+* `ArtifactSpec.metadataProblem` rejects a missing/empty/malformed hash
+  (`sha256:<64 hex>` or bare 64 hex accepted) and a missing/non-dotted-numeric
+  version. The loader checks it before any cache read or download and throws
+  `ArtifactMetadataError` (a `StateError`), so it takes the existing
+  integrity-failure path: the loading screen's existing error view for core
+  artifacts, `facilitiesFailed` → the locator's existing "could not load" state
+  for facilities. No new user-facing copy.
+* `_matchesHash` itself now fails closed on null/empty/malformed input.
+* Behaviour against production is unchanged: `GET https://api.wellapath.org/config`
+  (2026-11-07) serves versions 1.1 / 2.4 / 2.2 / 1.2 with `sha256:` hashes for
+  token dictionary / knowledge base / rules / facilities; a test pins that
+  exact shape as passing validation.
+* Not changed: engine, scoring, urgency, red flags, KB tokens/weights, clinical
+  copy. The decoded facility list in `facility_cache` is still read without
+  checking it against `/config` — that is WP-025, handled separately.
+* Other loaders checked: `vocabulary_v2_loader.dart` and
+  `question_flow_loader.dart` read local bytes only (no network, no hash in
+  their contract), so the soft-fail pattern does not apply. The Facilities 2.0
+  loader exists only on the unmerged `feat/facilities-v2-consumer` branch; its
+  manifest already requires a non-empty sha256, but it reuses this loader's
+  hash check via a static `verifyArtifactHash` that still carries the old
+  null → `true` line — that branch must take this fix when it rebases.
+
+# 2026-11-07 — WP-025: decoded facility cache is versioned against `/config`
+
+The decoded facility list lived under the unversioned key
+`facility_cache/facilities_data`, and the locator served it whenever it was
+non-empty, without consulting `/config`. It was rewritten only by a facilities
+download, which the locator skipped whenever that cache was non-empty. A device
+that had decoded the withdrawn facilities v1.1 therefore kept showing its 45
+withdrawn phone numbers after `/config` moved to v1.2.
+
+* The decoded list is now stamped `<version>|<hash>` (`facility_cache/
+  facilities_stamp`) of the artifact it was decoded from. The stamp is deleted
+  before the list is rewritten and written last, so an interrupted write
+  leaves an unstamped list, never a mis-stamped one.
+* `StagedArtifactLoader.readFacilityCache` serves the list only if the stamp
+  equals the facilities version+hash the cached `/config` names now
+  (`/config` is refreshed at every boot). A mismatching, unstamped (pre-WP-025)
+  or unvalidatable cache — no config, or an entry without version/hash — is
+  deleted, and the locator falls through to a hash-verified load. If the
+  current version's raw artifact is already in `artifact_cache` this is a local
+  re-decode, no network.
+* After a successful facilities load, every other `artifact_facilities_v*` raw
+  version is purged from `artifact_cache`. **Clinical artifact versions (KB,
+  rules, token dictionary) are deliberately not purged**: every artifact is
+  versioned (locked principle #4) so `/config` can be rolled back, and a
+  device holding the previous clinical version keeps working offline after a
+  rollback. Facilities carry no clinical logic, and a withdrawn facilities
+  version must not linger.
+* Download de-duplication is now per version+hash: a repeat start for the same
+  spec is still ignored, a start for a different one downloads afresh, and a
+  superseded in-flight download's result is dropped. The locator opened from
+  Home re-starts against current `/config` when the decoded cache misses.
+* Existing users: the first locator open after update discards the unstamped
+  cache and re-decodes from `artifact_cache` (or re-downloads ~1.7MB if the
+  current version's raw copy is absent).
+* Not changed: engine, scoring, urgency, red flags, KB tokens/weights,
+  clinical copy, facility data. Tests use synthetic facilities only.
+
 # 2026-11-07 — RC-BLK-013 / WP-016: CI Flutter pinned; debug builds no longer need signing material
 
 **CI pin.** All three `subosito/flutter-action` steps (`ci.yml` ×2,

@@ -19,6 +19,11 @@ class ArtifactCacheKeys {
 
   static const String facilityBox = 'facility_cache';
   static const String facilityData = 'facilities_data';
+
+  /// `<version>|<hash>` of the facilities artifact [facilityData] was decoded
+  /// from. The decoded list is served only while this matches what the
+  /// cached `/config` currently names (WP-025).
+  static const String facilityStamp = 'facilities_stamp';
 }
 
 /// One entry from `/config`'s `artifacts` map: where to fetch it, which
@@ -35,6 +40,57 @@ class ArtifactSpec {
     required this.version,
     this.hash,
   });
+
+  /// Builds a spec from one `/config` `artifacts` entry.
+  ///
+  /// Returns null only when the entry has no `url` (nothing to fetch). A
+  /// missing or non-string `version`/`hash` is carried through as-is —
+  /// never defaulted — so [StagedArtifactLoader] rejects it as an
+  /// [ArtifactMetadataError] instead of caching an unverified artifact under
+  /// an invented version (RC-BLK-011).
+  static ArtifactSpec? fromConfigEntry(
+    Object? entry, {
+    required String cacheKey,
+  }) {
+    if (entry is! Map) return null;
+    final url = entry['url'];
+    if (url is! String) return null;
+    final version = entry['version'];
+    final hash = entry['hash'];
+    return ArtifactSpec(
+      url: url,
+      cacheKey: cacheKey,
+      version: version is String ? version : '',
+      hash: hash is String ? hash : null,
+    );
+  }
+
+  /// `sha256:<64 hex>` (the form `/config` serves) or bare 64-char hex.
+  static final RegExp _hashPattern = RegExp(r'^(sha256:)?[0-9a-fA-F]{64}$');
+
+  /// Dotted numeric version, e.g. `1.2` or `2.4.1`.
+  static final RegExp _versionPattern = RegExp(r'^[0-9]+(\.[0-9]+)*$');
+
+  /// Why this spec cannot be trusted, or null when its integrity metadata is
+  /// well-formed. A missing, empty or malformed hash or version is never
+  /// acceptable: the artifact would be used without verification.
+  String? get metadataProblem {
+    final h = hash;
+    if (h == null || h.isEmpty) return 'missing hash';
+    if (!_hashPattern.hasMatch(h)) return 'malformed hash';
+    if (version.isEmpty) return 'missing version';
+    if (!_versionPattern.hasMatch(version)) return 'malformed version';
+    return null;
+  }
+}
+
+/// Thrown when a `/config` artifact entry lacks a well-formed integrity hash
+/// or version. A [StateError] so it takes the same path as a hash mismatch:
+/// the artifact is neither cached nor used, and the caller shows its
+/// existing integrity-failure state — never the "please connect" one.
+class ArtifactMetadataError extends StateError {
+  ArtifactMetadataError(String cacheKey, String problem)
+    : super('Artifact metadata invalid for $cacheKey: $problem');
 }
 
 /// The three artifacts the engine needs to run a single assessment.
@@ -239,6 +295,10 @@ class StagedArtifactLoader {
   /// ~1.7MB, so starting it twice is worth avoiding.
   bool get facilitiesDownloadStarted => _facilitiesDownloadStarted;
   bool _facilitiesDownloadStarted = false;
+
+  /// Stamp of the spec the current/last facilities download was started for.
+  /// A start for a different version+hash is not deduplicated against it.
+  String? _facilitiesStartedStamp;
   final ValueNotifier<bool> facilitiesFailed = ValueNotifier(false);
 
   Future<String> _attemptDownload(
@@ -316,13 +376,29 @@ class StagedArtifactLoader {
     );
   }
 
+  /// Fails closed: a null, empty or malformed expected hash never matches.
+  /// Before RC-BLK-011 a null/empty hash returned true, so an artifact whose
+  /// `/config` entry carried no hash was cached and used unverified.
   bool _matchesHash(String rawBody, String? expectedHash) {
-    if (expectedHash == null || expectedHash.isEmpty) return true;
+    if (expectedHash == null ||
+        !ArtifactSpec._hashPattern.hasMatch(expectedHash)) {
+      return false;
+    }
     final expectedHex = expectedHash.startsWith('sha256:')
         ? expectedHash.substring('sha256:'.length)
         : expectedHash;
     final actualHex = sha256.convert(utf8.encode(rawBody)).toString();
     return actualHex.toLowerCase() == expectedHex.toLowerCase();
+  }
+
+  /// Throws [ArtifactMetadataError] before any cache read or download when
+  /// [spec] has no well-formed hash/version, so nothing unverifiable is ever
+  /// cached or served.
+  void _requireValidMetadata(ArtifactSpec spec) {
+    final problem = spec.metadataProblem;
+    if (problem == null) return;
+    debugPrint('Artifact metadata invalid for ${spec.cacheKey} — rejecting');
+    throw ArtifactMetadataError(spec.cacheKey, problem);
   }
 
   /// Reads [spec] from [box], falling back to a network download (with
@@ -337,6 +413,7 @@ class StagedArtifactLoader {
     void Function(int received, int total)? onReceiveProgress,
     Duration? timeoutOverride,
   }) async {
+    _requireValidMetadata(spec);
     final versionedKey = '${spec.cacheKey}_v${spec.version}';
     final cachedRaw = box.get(versionedKey) as String?;
 
@@ -379,6 +456,12 @@ class StagedArtifactLoader {
     required ArtifactSpec rules,
     required ArtifactSpec kb,
   }) async {
+    // Checked up front, not inside the parallel downloads, so a bad /config
+    // entry deterministically surfaces as an integrity failure rather than
+    // racing a network error on another artifact.
+    _requireValidMetadata(tokenDict);
+    _requireValidMetadata(rules);
+    _requireValidMetadata(kb);
     progress.value = const BootProgress(step: 1);
     final box = Hive.isBoxOpen(ArtifactCacheKeys.artifactBox)
         ? Hive.box(ArtifactCacheKeys.artifactBox)
@@ -422,13 +505,96 @@ class StagedArtifactLoader {
   /// Downloads facilities in the background — does not block the caller.
   /// Flips [facilitiesReady] or [facilitiesFailed] when done, so any screen
   /// observing this same [instance] (namely the locator) can react.
+  ///
+  /// A repeat call for the same version+hash is ignored (the artifact is
+  /// ~1.7MB). A call for a different version+hash — `/config` moved on since
+  /// the last download in this run — starts afresh, and the older download's
+  /// result is discarded when it lands.
   void loadFacilitiesInBackground(ArtifactSpec spec) {
-    if (_facilitiesDownloadStarted) return;
+    final stamp = _stampOf(spec);
+    if (_facilitiesDownloadStarted && stamp == _facilitiesStartedStamp) return;
     _facilitiesDownloadStarted = true;
+    _facilitiesStartedStamp = stamp;
+    facilitiesReady.value = false;
+    facilitiesFailed.value = false;
+    facilitiesProgress.value = null;
     unawaited(_loadFacilities(spec));
   }
 
+  static String _stampOf(ArtifactSpec spec) =>
+      '${spec.version}|${spec.hash ?? ''}';
+
+  /// The stamp the decoded facility cache must carry to be served, derived
+  /// from a `/config` map. Null — meaning "nothing may be served" — when the
+  /// config, its facilities entry, or that entry's version or hash is
+  /// missing: without both there is nothing to validate the cache against.
+  static String? facilityStampFromConfig(Map<String, dynamic>? config) {
+    final artifacts = config?['artifacts'];
+    if (artifacts is! Map) return null;
+    final entry = artifacts['facilities'];
+    if (entry is! Map) return null;
+    final version = entry['version'];
+    final hash = entry['hash'];
+    if (version is! String || version.isEmpty) return null;
+    if (hash is! String || hash.isEmpty) return null;
+    return '$version|$hash';
+  }
+
+  /// Reads the decoded facility list, but only if it was decoded from the
+  /// artifact [expectedStamp] names. A mismatching, unstamped (written by a
+  /// build before WP-025) or unvalidatable cache is deleted and an empty list
+  /// returned, so the caller falls through to a fresh, hash-verified load.
+  ///
+  /// This is what stops a device that decoded withdrawn facilities v1.1 from
+  /// showing those entries forever after `/config` moved to v1.2.
+  static Future<List<Map<String, dynamic>>> readFacilityCache({
+    required String? expectedStamp,
+  }) async {
+    final box = Hive.isBoxOpen(ArtifactCacheKeys.facilityBox)
+        ? Hive.box(ArtifactCacheKeys.facilityBox)
+        : await Hive.openBox(ArtifactCacheKeys.facilityBox);
+    final stamp = box.get(ArtifactCacheKeys.facilityStamp);
+    if (expectedStamp == null || stamp != expectedStamp) {
+      if (box.containsKey(ArtifactCacheKeys.facilityData) ||
+          box.containsKey(ArtifactCacheKeys.facilityStamp)) {
+        debugPrint(
+          'Decoded facility cache does not match /config — discarding',
+        );
+        await box.delete(ArtifactCacheKeys.facilityData);
+        await box.delete(ArtifactCacheKeys.facilityStamp);
+      }
+      return <Map<String, dynamic>>[];
+    }
+    final raw = box.get(ArtifactCacheKeys.facilityData) as List?;
+    return raw?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ??
+        <Map<String, dynamic>>[];
+  }
+
+  /// Deletes every raw facilities version in [artifactBox] except
+  /// [keepKey], so a superseded (e.g. withdrawn) facilities artifact is not
+  /// kept on the device.
+  ///
+  /// Deliberately facilities-only. Superseded *clinical* artifact versions
+  /// (knowledge base, rules, token dictionary) are kept: locked principle #4
+  /// versions every artifact so `/config` can be rolled back to a previous
+  /// clinical version, and a device that still holds it keeps working
+  /// offline after such a rollback. Facilities carry no clinical logic, and
+  /// a withdrawn facilities version (wrong phone numbers) must not linger.
+  static Future<void> _purgeSupersededFacilityVersions(
+    Box<dynamic> artifactBox,
+    String keepKey,
+  ) async {
+    final prefix = '${ArtifactCacheKeys.facilities}_v';
+    final stale = artifactBox.keys
+        .whereType<String>()
+        .where((String k) => k.startsWith(prefix) && k != keepKey)
+        .toList();
+    if (stale.isEmpty) return;
+    await artifactBox.deleteAll(stale);
+  }
+
   Future<void> _loadFacilities(ArtifactSpec spec) async {
+    final stamp = _stampOf(spec);
     progress.value = const BootProgress(step: 4);
     try {
       final artifactBox = Hive.isBoxOpen(ArtifactCacheKeys.artifactBox)
@@ -451,13 +617,30 @@ class StagedArtifactLoader {
               .toList() ??
           <Map<String, dynamic>>[];
 
+      // A newer download (different version+hash) was started while this
+      // one was in flight: drop this result rather than overwrite it.
+      if (stamp != _facilitiesStartedStamp) return;
+
       final facilityBox = Hive.isBoxOpen(ArtifactCacheKeys.facilityBox)
           ? Hive.box(ArtifactCacheKeys.facilityBox)
           : await Hive.openBox(ArtifactCacheKeys.facilityBox);
+      // Stamp removed first and written last: an interrupted write leaves an
+      // unstamped list, which readFacilityCache discards, never a list
+      // carrying a stamp it was not decoded from.
+      await facilityBox.delete(ArtifactCacheKeys.facilityStamp);
       await facilityBox.put(ArtifactCacheKeys.facilityData, list);
+      final hash = spec.hash;
+      if (hash != null && hash.isNotEmpty) {
+        await facilityBox.put(ArtifactCacheKeys.facilityStamp, stamp);
+      }
+      await _purgeSupersededFacilityVersions(
+        artifactBox,
+        '${spec.cacheKey}_v${spec.version}',
+      );
       facilitiesProgress.value = 1.0;
       facilitiesReady.value = true;
     } catch (_) {
+      if (stamp != _facilitiesStartedStamp) return;
       debugPrint(
         'Facilities background download failed — locator will show empty state',
       );
@@ -473,5 +656,6 @@ class StagedArtifactLoader {
     facilitiesFailed.value = false;
     facilitiesProgress.value = null;
     _facilitiesDownloadStarted = false;
+    _facilitiesStartedStamp = null;
   }
 }

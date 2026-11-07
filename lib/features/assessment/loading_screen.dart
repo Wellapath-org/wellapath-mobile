@@ -48,15 +48,10 @@ class _LoadingScreenState extends State<LoadingScreen> {
     String key,
     String cacheKey,
   ) {
-    final entry = artifacts[key] as Map?;
-    final url = entry?['url'] as String?;
-    if (url == null) return null;
-    return ArtifactSpec(
-      url: url,
-      cacheKey: cacheKey,
-      version: entry?['version'] as String? ?? '1.0',
-      hash: entry?['hash'] as String?,
-    );
+    // No version default: a missing version/hash is rejected by the loader
+    // as an integrity failure (RC-BLK-011), not cached under an invented
+    // '1.0' key.
+    return ArtifactSpec.fromConfigEntry(artifacts[key], cacheKey: cacheKey);
   }
 
   Future<void> _runAssessment() async {
