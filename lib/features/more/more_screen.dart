@@ -18,11 +18,23 @@ import 'package:flutter/material.dart';
 import '../../core/config/build_environment.dart';
 import '../../shared/motion/motion.dart';
 import '../../shared/theme/brand.dart';
+import '../community/ui/community_entry_row.dart';
+import '../community/ui/community_scope.dart';
 import '../help/help_screen.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class MoreScreen extends StatelessWidget {
-  const MoreScreen({super.key});
+  const MoreScreen({super.key, this.community});
+
+  /// Community entry (internal scaffold; `docs/community/FEATURE_FLAG_SPEC.md`).
+  /// Null means the build's own gate. Its row is only put in the tree when
+  /// the compile-time flag is on, and then only renders once the server flag
+  /// allows this account — so a default build never shows or fetches it.
+  final CommunityModule? community;
+
+  /// One gate per app run, so its in-memory cache survives rebuilds.
+  static final CommunityModule _defaultCommunity =
+      CommunityModule.fromEnvironment();
 
   /// Build identity, shown only when the build actually declares it.
   ///
@@ -39,6 +51,7 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final CommunityModule communityModule = community ?? _defaultCommunity;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -91,6 +104,9 @@ class MoreScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
+
+          if (communityModule.gate.compileTimeEnabled)
+            CommunityEntryRow(module: communityModule),
 
           EntranceFade(
             delay: const Duration(milliseconds: 240),

@@ -6652,3 +6652,44 @@ Verified by hand on this branch with no `key.properties` (Flutter 3.44.4):
 the exact gate, the any-release-task match and the no-debug-config rule.
 Profile builds (Flutter's `profile` type is debug-signed) are, like debug, no
 longer blocked by missing release material.
+
+# 2026-11-07 — Community scaffold (internal only, OFF by default)
+
+Founder-authorised, reversible scaffold under ADR-001 §6 ("what may proceed
+before approval"). **Not released, not reachable in any default build.**
+
+* `docs/community/API_CONTRACT.md` (v0.1): REST contract for the backend PoC
+  (`poc/community-auth`): email OTP auth, `/v1/features`, spaces, posts,
+  single-level comments, reports, notifications, profile, professional
+  verification (claim → pending; admin-only verify), moderator endpoints
+  (reason required, server records actor + time), error model, pagination,
+  rate limits. Member payloads never carry an author account id.
+* `docs/community/FEATURE_FLAG_SPEC.md`: two keys — compile-time
+  `COMMUNITY_SCAFFOLD_ENABLED` (default false) AND server flag
+  (`disabled|internal|closed_beta|public`, default disabled, allowlisted).
+  Fail closed on any error; allow-only memory cache ≤5 min; kill switch.
+* `lib/features/community/`: immutable domain models with strict
+  `fromJson`/`toJson` + validation; role/capability matrix as code;
+  repository interfaces + in-memory backend; gate; screens (space list with
+  exactly General Health and Pregnancy / Maternal Health, feed, post detail +
+  comments, text-only compose with display-mode choice, report sheet,
+  notification centre). Persistent banner "Community posts are not medical
+  advice. In an emergency, call 112." marked `CLINICAL REVIEW REQUIRED`.
+* Entry point: a More-tab row built only when the compile flag is on and
+  rendered only when the server allows. Default build: not in the tree, no
+  request made. `more_screen.dart` gains an optional `community` parameter;
+  no existing copy changed.
+* Tests (`test/community/`, 86): import isolation both ways (community ↛
+  engine/assessment/results/question_flow/vocabulary and back; only
+  `more_screen.dart` may import community), emergency screens render no
+  Community navigation, gate matrix (default/disabled/error/not-allowlisted
+  hidden; internal + allowlisted visible; kill switch; cache rules), model
+  round-trips and validation, permission matrix, backend rules.
+* Not built (held): sign-in UI and token storage, HTTP repositories,
+  moderator UI, push, private consultations, prescriptions, payments, doctor
+  chat, image uploads, nested threads, AI replies.
+* Copy that must change before any external tester sees Community: Learn and
+  Help "no sign-up / no account / no profile" statements, More "Your
+  information" panel, `/privacy` and store privacy text, plus clinical review
+  of the banner.
+* Suite: 1,691 / 7 skipped / 0 failed on develop `8865caa` → 1,777 / 7 / 0.

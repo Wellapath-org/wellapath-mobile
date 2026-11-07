@@ -1,0 +1,136 @@
+/// The server's answer from `GET /v1/features`
+/// (`docs/community/FEATURE_FLAG_SPEC.md` §3), and where it comes from.
+library;
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
+enum CommunityFlagState {
+  disabled,
+  internal,
+  closedBeta,
+  public;
+
+  String get wire {
+    switch (this) {
+      case CommunityFlagState.disabled:
+        return 'disabled';
+      case CommunityFlagState.internal:
+        return 'internal';
+      case CommunityFlagState.closedBeta:
+        return 'closed_beta';
+      case CommunityFlagState.public:
+        return 'public';
+    }
+  }
+}
+
+@immutable
+class CommunityFeatures {
+  const CommunityFeatures({required this.state, required this.allowed});
+
+  /// Strict parse: any missing, mistyped or unknown value throws, which the
+  /// gate turns into *hidden*.
+  factory CommunityFeatures.fromJson(Map<String, dynamic> json) {
+    final Object? rawState = json['community'];
+    final Object? rawAllowed = json['community_allowed'];
+    if (rawState is! String || rawAllowed is! bool) {
+      throw const FormatException('malformed /v1/features response');
+    }
+    for (final CommunityFlagState s in CommunityFlagState.values) {
+      if (s.wire == rawState) {
+        return CommunityFeatures(state: s, allowed: rawAllowed);
+      }
+    }
+    throw FormatException('unknown community state "$rawState"');
+  }
+
+  static const CommunityFeatures disabled = CommunityFeatures(
+    state: CommunityFlagState.disabled,
+    allowed: false,
+  );
+
+  final CommunityFlagState state;
+  final bool allowed;
+
+  /// `disabled` hides Community whatever `community_allowed` says.
+  bool get permitsEntry => state != CommunityFlagState.disabled && allowed;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'community': state.wire,
+      'community_allowed': allowed,
+    };
+  }
+}
+
+abstract interface class CommunityFeatureSource {
+  /// Fetches the current flag. May throw; the gate treats any throw as hidden.
+  Future<CommunityFeatures> fetch();
+}
+
+/// A fixed answer, for tests and local development.
+class StaticCommunityFeatureSource implements CommunityFeatureSource {
+  StaticCommunityFeatureSource(this.features);
+
+  CommunityFeatures features;
+  int fetchCount = 0;
+
+  @override
+  Future<CommunityFeatures> fetch() async {
+    fetchCount++;
+    return features;
+  }
+}
+
+/// A source that always fails — used to exercise fail-closed behaviour.
+class FailingCommunityFeatureSource implements CommunityFeatureSource {
+  const FailingCommunityFeatureSource();
+
+  @override
+  Future<CommunityFeatures> fetch() async {
+    throw const CommunityFeatureFetchException('unreachable');
+  }
+}
+
+class CommunityFeatureFetchException implements Exception {
+  const CommunityFeatureFetchException(this.reason);
+
+  final String reason;
+
+  @override
+  String toString() => 'CommunityFeatureFetchException($reason)';
+}
+
+/// `GET /v1/features` over the app's existing HTTP client. Constructed only
+/// when the compile-time flag is on, so a default build never calls it.
+///
+/// Sends no token yet (sign-in is not built), so against a real server in
+/// `internal`/`closed_beta` it always answers `community_allowed: false`.
+class RemoteCommunityFeatureSource implements CommunityFeatureSource {
+  RemoteCommunityFeatureSource(this._dio);
+
+  final Dio Function() _dio;
+
+  static const Duration timeout = Duration(seconds: 5);
+
+  @override
+  Future<CommunityFeatures> fetch() async {
+    final Response<Object?> response = await _dio()
+        .get<Object?>(
+          '/v1/features',
+          options: Options(
+            receiveTimeout: timeout,
+            sendTimeout: timeout,
+            responseType: ResponseType.json,
+            validateStatus: (int? status) => status == 200,
+          ),
+        )
+        .timeout(timeout);
+    final Object? data = response.data;
+    if (data is! Map<String, dynamic>) {
+      throw const CommunityFeatureFetchException('non-object body');
+    }
+    return CommunityFeatures.fromJson(data);
+  }
+}
