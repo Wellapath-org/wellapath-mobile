@@ -240,7 +240,7 @@ piece of clinical behaviour.
 | ID | Finding |
 |---|---|
 | `RC-BLK-008` | ⚠️ **MITIGATED by truthful wording, not resolved as a feature.** No distance cap was added and ranking is unchanged. Every user-visible "nearby" claim is gone — the locator now says "available facilities", distance stays prominent on every card ("X.X km away", emphasised), and the coverage disclosure is retained. Geographic search remains a Product decision. |
-| `RC-BLK-011` | `/config` hash verification **soft-fails on a null/empty hash**. Consider requiring a hash for the three clinical artifacts. |
+| `RC-BLK-011` | 🟡 **FIX IN REVIEW** (`fix/artifact-integrity-hard-fail`, 2026-11-07). A missing, empty or malformed hash, or a missing/malformed version, in any `/config` artifact entry (token dictionary, rules, knowledge base **and facilities**, including the locator-from-home path) is now a hard failure: the artifact is neither downloaded, cached nor served from cache, and the existing integrity-failure / "could not load" states are shown. No version is defaulted to `1.0` any more. Live production `/config` supplies a dotted version and `sha256:` hash for all four artifacts, so behaviour against production is unchanged. Close once merged. Was: hash verification soft-failed on a null/empty hash. |
 | `RC-BLK-012` | `targetSdk`/`compileSdk`/`minSdk` are **not pinned** — they follow whichever Flutter version builds. Pin them so the target SDK is a release decision. |
 | `RC-BLK-013` | **Toolchain drift:** built on Flutter 3.44.4 / Dart 3.12.2; `CLAUDE.md` declares 3.41.5 / 3.11.3. Reconcile and pin CI. |
 | `RC-BLK-014` | Two unused assets ship in the bundle — `illustration_misc.png` and `screenshot_ref.png` (a Figma reference screenshot). |
