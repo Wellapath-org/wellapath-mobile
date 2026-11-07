@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'location_search_radius.dart';
+
 class FacilityLocatorService {
   final List<Map<String, dynamic>> facilities;
 
@@ -42,6 +44,7 @@ class FacilityLocatorService {
     required double userLon,
     required String urgency,
     int maxResults = 30,
+    double maxDistanceKm = kLocationSearchMaxRadiusKm,
   }) {
     final withDistance = facilities.map((facility) {
       final lat = (facility['latitude'] as num?)?.toDouble();
@@ -98,7 +101,22 @@ class FacilityLocatorService {
       }
     }
 
-    return filtered.take(maxResults).toList();
+    // WP-023: a purely technical distance bound, applied last and as a filter
+    // only. Everything above — the urgency type filter, the sparse-coverage
+    // expansion and the emergency_capable-first ordering — is untouched, so
+    // results keep their relative order; the bound only stops a facility
+    // beyond [maxDistanceKm] being listed as if it were close. A record with
+    // no coordinates has an infinite distance and is not listed either: its
+    // distance is unknown, so it cannot be shown in a distance-based list.
+    //
+    // The value of the bound is not decided here — see
+    // location_search_radius.dart (CLINICAL DECISION REQUIRED).
+    return filtered
+        .where(
+          (facility) => (facility['distance_km'] as double) <= maxDistanceKm,
+        )
+        .take(maxResults)
+        .toList();
   }
 
   List<Map<String, dynamic>> getFacilitiesByLocation({

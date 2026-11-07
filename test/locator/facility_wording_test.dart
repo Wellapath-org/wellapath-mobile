@@ -1,19 +1,16 @@
 /// "Nearby" wording — RC-BLK-008, mitigated by truthful wording.
 ///
-/// `getNearbyFacilities` applies **no distance cap**. A user in an uncovered
-/// state is handed the 30 nearest records from Lagos, FCT or Kano, which can be
-/// hundreds of kilometres away. Calling that list "nearby" is not true.
+/// When this wording fix landed, `getNearbyFacilities` applied **no distance
+/// cap**: a user in an uncovered state was handed the 30 nearest records from
+/// Lagos, FCT or Kano, which can be hundreds of kilometres away. Calling that
+/// list "nearby" was not true, so the UI copy was made neutral and every
+/// result carries a prominent distance.
 ///
-/// This step does **not** add a distance cap and does **not** change ranking,
-/// filtering, emergency logic or facility selection — that is a Product
-/// decision about geographic search, and changing ranking is out of scope for a
-/// release-safe fix. What changes is the claim the UI makes: neutral wording
-/// plus a prominent distance on every result, so the user judges proximity from
-/// the number rather than from an adjective.
-///
-/// RC-BLK-008 is therefore **mitigated, not resolved**. The tests below pin the
-/// wording; they deliberately assert nothing about ordering, because nothing
-/// about ordering changed.
+/// WP-023 has since added a maximum search radius
+/// (`location_search_radius.dart`; the value is an open clinical/product
+/// decision) and an explicit out-of-range state. The radius is a placeholder
+/// until signed off, so the neutral wording below is still required: the
+/// tests pin it and deliberately assert nothing about ordering.
 library;
 
 import 'dart:io';
@@ -133,10 +130,14 @@ void main() {
       ).readAsStringSync();
     });
 
-    test('no distance cap was introduced', () {
-      // The mitigation is wording. A cap would change which facilities are
-      // returned, which this step is explicitly not allowed to do.
-      expect(service, isNot(contains('maxDistanceKm')));
+    test('the only distance cap is the WP-023 named constant', () {
+      // This wording step added no cap. WP-023 later added one, as a single
+      // named constant whose value is an open clinical decision; any other
+      // distance limit appearing in the service would bypass that review.
+      expect(
+        service,
+        contains('double maxDistanceKm = kLocationSearchMaxRadiusKm'),
+      );
       expect(service, isNot(contains('_maxDistance')));
     });
 

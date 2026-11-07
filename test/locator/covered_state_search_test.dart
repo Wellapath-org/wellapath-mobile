@@ -231,36 +231,41 @@ void main() {
       expect(results, isEmpty);
     });
 
-    test(
-      'a GPS fix in an uncovered state still returns distant covered records',
-      () {
-        // Documents current behaviour rather than endorsing it: there is no
-        // distance cap, so a user in Enugu is handed Lagos and Kano results.
-        // Changing the ranking is out of scope for this release — the
-        // disclosure is the release-safe mitigation.
-        final results = service.getNearbyFacilities(
-          userLat: 6.5244,
-          userLon: 7.5102,
-          urgency: 'urgent',
-          maxResults: 30,
-        );
+    test('a GPS fix in an uncovered state returns nothing rather than distant '
+        'covered records (WP-023)', () {
+      // Before WP-023 there was no distance cap, so a user in Enugu was
+      // handed Lagos, FCT and Kano results hundreds of kilometres away.
+      // The search now has a maximum radius (location_search_radius.dart;
+      // its value is an open clinical decision) and the locator shows an
+      // explicit out-of-range state instead. The nearest covered record is
+      // still far away, which is what the unbounded call below confirms.
+      final unbounded = service.getNearbyFacilities(
+        userLat: 6.5244,
+        userLon: 7.5102,
+        urgency: 'urgent',
+        maxResults: 30,
+        maxDistanceKm: double.infinity,
+      );
+      expect(unbounded, isNotEmpty);
+      expect(
+        kCoveredStates.contains(unbounded.first['state']),
+        isTrue,
+        reason: 'results can only ever come from covered states',
+      );
+      expect(unbounded.first['distance_km'] as double, greaterThan(100));
 
-        expect(results, isNotEmpty);
-        expect(
-          kCoveredStates.contains(results.first['state']),
-          isTrue,
-          reason: 'results can only ever come from covered states',
-        );
-        expect(
-          results.first['distance_km'] as double,
-          greaterThan(100),
-          reason:
-              'the nearest covered facility really is far away — the reason '
-              'the empty/'
-              'results wording must name the coverage',
-        );
-      },
-    );
+      final results = service.getNearbyFacilities(
+        userLat: 6.5244,
+        userLon: 7.5102,
+        urgency: 'urgent',
+        maxResults: 30,
+      );
+      expect(
+        results,
+        isEmpty,
+        reason: 'distant facilities must not be listed as if they were close',
+      );
+    });
   });
 
   group('empty artifact does not crash the locator', () {

@@ -137,12 +137,16 @@ void main() {
       expect(body, contains('_manualSearchBody('));
     });
 
-    test('both states share one predicate rather than branching apart', () {
+    test('the no-position states share one predicate rather than branching '
+        'apart', () {
       final String src = _source();
+      // WP-023 added a third member: a location with no facility inside the
+      // search radius.
       expect(
         src,
         contains(
-          'bool get _usingManualSearch => _locationDenied || _outsideCoverage;',
+          'bool get _usingManualSearch =>\n'
+          '      _locationDenied || _outsideCoverage || _outOfRange;',
         ),
       );
       expect(src, contains('_usingManualSearch ? _manualResults.length'));
@@ -162,8 +166,10 @@ void main() {
       );
       expect(
         '_manualSearchBody('.allMatches(src).length,
-        3,
-        reason: 'one definition plus exactly two call sites',
+        4,
+        reason:
+            'one definition plus exactly three call sites (location denied, '
+            'out of region, out of range)',
       );
     });
   });
