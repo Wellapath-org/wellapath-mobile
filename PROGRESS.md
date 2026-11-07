@@ -6653,6 +6653,141 @@ the exact gate, the any-release-task match and the no-debug-config rule.
 Profile builds (Flutter's `profile` type is debug-signed) are, like debug, no
 longer blocked by missing release material.
 
+# 2026-11-07 — Build 217 rebuilt with Flutter 3.47.6 and uploaded to TestFlight INTERNAL — INTERNAL TESTING - NOT CLINICALLY CLEARED
+
+**Founder decision:** 0.3.0+217 is approved for **internal testing only**, labelled
+`INTERNAL TESTING - NOT CLINICALLY CLEARED`. SAFETY-01/02/03 P0 clinical holds
+remain. It is not for App Store review, external TestFlight groups, or the Play
+production, closed or open tracks.
+
+**Source:** `8865caa0df08e844ff20a299e64446fd595bcf55` (tree `8c973c31…`, the
+merge of PR #101). It contains #99 (artifact-integrity hard fail), #100
+(versioned facility cache) and #101 (CI Flutter pin + debug-build fix). develop
+has since advanced, but the build deliberately stays on 8865caa.
+
+**Toolchain:** Flutter **3.47.6**, the CI pin.
+- Framework `5fc346839b5d0eef006ed8404392afb4dfae428d`, engine `692136cb65`, Dart **3.13.5**.
+- Installed side by side at `/Users/Shared/sdk/flutter-3.47.6` by a shallow clone of tag 3.47.6. The Homebrew 3.44.4 was untouched.
+- Xcode 26.6 (17F113), OpenJDK 17.0.20.
+- Binary evidence: engine `692136cb…` and `Dart 3.13.5` strings are present in `libflutter.so` (AAB) and in `Flutter.framework` (IPA).
+
+**Built in:** `/Users/Shared/wellapath-build-217-r2/src`, a fresh detached
+worktree under the approved neutral root.
+- Build-local `PUB_CACHE` and a neutral iOS `-derivedDataPath`.
+- `android/key.properties` was **symlinked**. It was never copied, read or printed, and the symlink was deleted after the build.
+- Zero `--dart-define`.
+- pbxproj untouched; `DEVELOPMENT_TEAM=2SCUC2CBBS` passed as a build flag.
+- **Tree note:** `flutter pub get` under 3.47.6 rewrote two files, so the receipt records `git_tree_clean: false`.
+  - `pubspec.lock`: SDK-pinned transitive packages matcher 0.12.20, meta 1.19.0, test_api 0.7.12, vector_math 2.4.4.
+  - `analysis_options.yaml`: the flutter_tools analyzer-exclude migration.
+  - CI's `pub get` on 3.47.6 produces the same changes. No app source changed.
+
+## The 3.44.4 build 217 is SUPERSEDED
+
+The first 217 was built earlier the same day from the same commit with the
+local Flutter 3.44.4 / Dart 3.12.2:
+- AAB `43663c405632752e20a5a8acb5efaf116483fc2845f58b3e4a2813fbad5a46ca`
+- IPA `2527ea9161bde4b7cb4d54b5a02bc1622fb116ca3f197989a0770357d73eba5c`
+
+It **never left the machine**. It is retained, not deleted, in
+`wellapath-release-217/superseded-flutter-3.44.4/` with a `SUPERSEDED.md`.
+Only the 3.47.6 binaries below are distributed. There are two 217 binaries from
+one source and one number, but only one of them was ever given to anyone.
+
+## No clinical change since 216
+
+`git diff --stat 34a331f 8865caa -- lib/core/engine lib/core/constants lib/features/assessment lib/features/results`
+→ one file, `lib/features/assessment/loading_screen.dart` (+4/−9).
+
+The loading screen now builds its artifact spec through
+`ArtifactSpec.fromConfigEntry` instead of inline. It invents no `'1.0'` version
+default, so a missing version or hash is an integrity failure (PR #99). That is
+integrity plumbing, not triage logic. Engine, constants and results code are
+byte-identical to 216.
+
+## Gates on the build tree (Flutter 3.47.6)
+
+| Gate | Result |
+|---|---|
+| `flutter analyze` | No issues found |
+| `dart format --output=none --set-exit-if-changed .` | 223 files, **0 changed**, exit 0. The 3.44.4 drift does not occur on 3.47.6 |
+| Full `flutter test` (macOS, plutil-tagged included) | **1,691 passed · 7 skipped · 0 failed** |
+| `flutter test --tags plutil` | 14 passed |
+| Bundled `.env` | byte-identical to the tracked production file, sha256 `71ad44e3…fb96`, in both artifacts; no `SENTRY_DSN` |
+| Privacy manifest / `ITSAppUsesNonExemptEncryption` | present / `false` |
+
+## Android artifact
+
+| | |
+|---|---|
+| File | `wellapath-release-217/WellaPath-217.aab` |
+| SHA256 | `227c4cbb60f62991ac3be31ee35e805971e13b9d1d34d0ce89ac8a562df70728` |
+| Bytes | 62,927,035 |
+| Identity | `org.wellapath.app` · versionName 0.3.0 · versionCode **217** |
+| Signature | `jar verified.` — `CN=John Oluwaseyi, OU=Engineering, O=Wellapath, L=Lagos, ST=Lagos, C=NG` |
+| Upload cert SHA-256 | `94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36` — **identical to 211, 215 and 216** |
+| Neutral-path scan | **exit 0** — 499 files (extracted AAB + merged native libs), 0 prohibited, 0 input errors |
+| Distribution | **NOT UPLOADED by engineering.** There are no Play Console API credentials on the build machine. The founder uploads it to **Internal testing** only, following `wellapath-release-217/ANDROID_UPLOAD_CHECKLIST_217.md` |
+
+## iOS artifact
+
+| | |
+|---|---|
+| File | `wellapath-release-217/WellaPath-217.ipa` (export-only IPA) |
+| SHA256 | `bcca71ddd3071f16349ea2d0e3ff3ce42306b0bd9a8da788bc013acd7098b853` |
+| Bytes | 26,859,401 |
+| Identity | `org.wellapath.app` · 0.3.0 (**217**) · MinimumOSVersion 15.0 · arm64 |
+| Signing | `Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS)` → WWDR → Apple Root CA, cert SHA-1 `6F191637AA0968B1E1529044D56E93B89AEEF649`; `codesign --verify --deep --strict` valid; `get-task-allow` false |
+| Profile | existing `iOS Team Store Provisioning Profile: org.wellapath.app`, UUID `daebf88b-ed39-45b4-914b-a627cf76831d`, expires 2027-09-25 |
+| Export | `scripts/guarded_export.dart`, options from `export_options_tool.dart generate --mode=internal-testing`, verified CLEAN: `uploadSymbols` **true**, `testFlightInternalTestingOnly` true |
+| Symbols | 4-entry `Symbols/` payload. dSYM UUIDs match the IPA binaries: Runner `2CE7AABE-DFD8-3192-8780-64C7D388BFD1`, App `DA40B675-1210-200D-32BC-807C1CF41800`, Flutter `4C4C4498-5555-3144-A109-8350E0A43C9C`, objective_c `3EAABBE0-7FE2-3C01-B38E-771145253297` |
+| Archive | `/Users/Shared/wellapath-build-217-r2/Runner.xcarchive`, retained per policy §5.6 |
+| Neutral-path scan | **exit 0** — 186 files (IPA + payload + archive), 14 (dSYMs); 0 prohibited |
+
+**Uploaded to App Store Connect for TestFlight INTERNAL testing.**
+- Started 2026-11-07T11:09:23Z. `xcodebuild` reported *"Uploaded package is processing"* and *"Upload succeeded"* at about 11:10:57Z, exit 0.
+- Route: `scripts/guarded_export.dart` with a generated, verified-CLEAN `destination=upload` plist (`testFlightInternalTestingOnly=true`, `uploadSymbols=true`). It authenticated with the Apple ID signed into Xcode.
+- No API key, app-specific password or new credential was used. `-allowProvisioningUpdates` was not passed. No certificate or profile was created.
+- Warning, as for 211/215/216: *"Upload Symbols Failed … Sentry.framework … 43E09D3B-51E2-32E0-94E6-30C513A7C3E3"*. Sentry's prebuilt SPM framework ships no dSYM, and crash reporting is disabled.
+- The uploaded container was repackaged by `xcodebuild` and its hash was not computed. **Do not attribute the IPA hash above to it.**
+- Apple processing and the build's appearance in TestFlight are **not yet confirmed**. That is a founder observation to record later.
+- No external testers were added, and nothing was submitted for Beta App Review or App Store review.
+
+TestFlight "What to Test": *INTERNAL TESTING - NOT CLINICALLY CLEARED. Build
+217: artifact integrity hard-fail, versioned facility cache. Known open clinical
+holds SAFETY-01/02/03.*
+
+## Runtime artifacts expected (live `/config`, read-only `curl` GET, 2026-11-07)
+
+`/config` body sha256 `bbf8024c…2d7b` (1,000 B).
+
+| Artifact | Version | Hash |
+|---|---|---|
+| kb | 2.4 | `6c00d825…ec2b` |
+| rules | 2.2 | `1d27e854…d1c4` |
+| token_dictionary | 1.1 | `0cc47ad9…c019` |
+| facilities | 1.2 | `94f162e4…7788` |
+
+All are on the `r2.dev` host, unchanged from the 3.44.4 record.
+
+## Receipts
+
+`wellapath-release-217/RELEASE_RECEIPT_217_android.json` and
+`RELEASE_RECEIPT_217_ios.json` were written by
+`scripts/make_release_receipt.dart` (schema `wellapath.release_receipt.v1`, run
+from develop @ `f3dc740` against the 217 artifacts).
+`RELEASE_RECEIPT_217.json` wraps both with toolchain, signing and distribution
+evidence. Release notes: `RELEASE_NOTES_217.md`.
+
+## Build-number state
+
+**217 is consumed.** The registry entry and the advance to **218** are in
+`test/release/build_identity_test.dart`, with `pubspec.yaml` at `0.3.0+218`.
+
+**Still open, unchanged by this entry:** SAFETY-01/02/03 (P0); CB_211
+(RC-BLK-016); WP-027; locator distance cap and 112 fallback absent; artifacts
+served from an `r2.dev` host.
+
 # 2026-11-07 — Community scaffold (internal only, OFF by default)
 
 Founder-authorised, reversible scaffold under ADR-001 §6 ("what may proceed
