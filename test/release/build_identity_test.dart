@@ -361,8 +361,11 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'D7C7D0C6-785D-D65E-4BE3-94C943E6592F). Neutral-path scan CLEAN (AAB 477 '
       'files, IPA + payload + archive 185). Signing material referenced by '
       'symlink only and removed after the build; nothing created or '
-      'replaced. DISTRIBUTION: TestFlight Internal Testing and Play Internal '
-      'testing only; no external testers, no review submission, no '
+      'replaced. DISTRIBUTION: iOS UPLOADED to App Store Connect for '
+      'TestFlight INTERNAL testing only on 2026-11-08 (guarded export, '
+      'destination upload, testFlightInternalTestingOnly true); Android '
+      'uploaded by the founder to Play Internal testing only on 2026-11-08. '
+      'No external testers, no review submission, no closed, open or '
       'production track. NOT CLINICALLY CLEARED: SAFETY-01, SAFETY-02 and '
       'SAFETY-03 remain open. The number is consumed because signed release '
       'artifacts exist, independently of any upload',
