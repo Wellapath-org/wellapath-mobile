@@ -22,9 +22,12 @@ const List<String> _clinical = [
 
 const String _community = 'lib/features/community';
 
-/// The only files outside the module allowed to import it (the gated entry).
+/// The only files outside the module allowed to import it (the gated entry
+/// points on the More and Home screens; both build it only when the
+/// compile-time flag is on).
 const Set<String> _allowedCommunityImporters = {
   'lib/features/more/more_screen.dart',
+  'lib/features/home/home_screen.dart',
 };
 
 /// The one Community file allowed to spell clinical words: the outbound
@@ -143,20 +146,23 @@ void main() {
     expect(offenders, isEmpty);
   });
 
-  test('only the gated More-tab entry imports community from outside', () {
-    final List<String> offenders = [];
-    for (final File f in _dartFiles('lib')) {
-      final String path = f.path;
-      if (_under(path, _community)) continue;
-      final bool importsCommunity = _resolvedImports(
-        f,
-      ).any((String t) => _under(t, _community));
-      if (importsCommunity && !_allowedCommunityImporters.contains(path)) {
-        offenders.add(path);
+  test(
+    'only the gated More and Home entries import community from outside',
+    () {
+      final List<String> offenders = [];
+      for (final File f in _dartFiles('lib')) {
+        final String path = f.path;
+        if (_under(path, _community)) continue;
+        final bool importsCommunity = _resolvedImports(
+          f,
+        ).any((String t) => _under(t, _community));
+        if (importsCommunity && !_allowedCommunityImporters.contains(path)) {
+          offenders.add(path);
+        }
       }
-    }
-    expect(offenders, isEmpty);
-  });
+      expect(offenders, isEmpty);
+    },
+  );
 
   test('community source never mentions assessment data concepts', () {
     // Not a ban on words in comments — a ban on code identifiers that would

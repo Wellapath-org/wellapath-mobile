@@ -39,6 +39,31 @@ enum CommunityGateDecision {
   open,
 }
 
+/// Why the gate did not open. Only used to word the message a user sees after
+/// tapping the entry; it never changes what the gate allows.
+enum CommunityUnavailableReason {
+  /// Not compiled in, or no Community API configured.
+  notConfigured,
+
+  /// The server mode is `disabled` (kill switch) or unknown.
+  disabled,
+
+  /// Signed in, mode enabled, but this account is not allowed (allowlist).
+  notAllowed,
+
+  /// `/v1/features` could not be fetched or parsed (fail closed).
+  unreachable,
+}
+
+/// A gate decision plus, when it is [CommunityGateDecision.hidden], why.
+@immutable
+class CommunityGateResult {
+  const CommunityGateResult(this.decision, [this.reason]);
+
+  final CommunityGateDecision decision;
+  final CommunityUnavailableReason? reason;
+}
+
 class CommunityGate {
   CommunityGate({
     required this.compileTimeEnabled,
@@ -85,36 +110,60 @@ class CommunityGate {
   }
 
   Future<CommunityGateDecision> evaluate({bool fresh = false}) async {
-    if (!compileTimeEnabled) return CommunityGateDecision.hidden;
+    return (await check(fresh: fresh)).decision;
+  }
+
+  /// [evaluate] with the reason for a [CommunityGateDecision.hidden] result.
+  /// The decision is identical to [evaluate]'s in every case.
+  Future<CommunityGateResult> check({bool fresh = false}) async {
+    if (!compileTimeEnabled) {
+      return const CommunityGateResult(
+        CommunityGateDecision.hidden,
+        CommunityUnavailableReason.notConfigured,
+      );
+    }
     final CommunityFeatureSource? source = _source;
-    if (source == null) return CommunityGateDecision.hidden;
+    if (source == null) {
+      return const CommunityGateResult(
+        CommunityGateDecision.hidden,
+        CommunityUnavailableReason.notConfigured,
+      );
+    }
 
     final DateTime now = _clock();
     final DateTime? until = _allowedUntil;
     if (!fresh && until != null && now.isBefore(until)) {
-      return CommunityGateDecision.open;
+      return const CommunityGateResult(CommunityGateDecision.open);
     }
 
     _allowedUntil = null;
     try {
       final CommunityFeatures features = await source.fetch();
       if (features.state == CommunityFlagState.disabled) {
-        return CommunityGateDecision.hidden;
+        return const CommunityGateResult(
+          CommunityGateDecision.hidden,
+          CommunityUnavailableReason.disabled,
+        );
       }
       if (features.allowed) {
         _allowedUntil = now.add(cacheTtl);
-        return CommunityGateDecision.open;
+        return const CommunityGateResult(CommunityGateDecision.open);
       }
       final Future<bool> Function()? probe = _isSignedIn;
       if (probe != null && !await probe()) {
-        return CommunityGateDecision.signInRequired;
+        return const CommunityGateResult(CommunityGateDecision.signInRequired);
       }
-      return CommunityGateDecision.hidden;
+      return const CommunityGateResult(
+        CommunityGateDecision.hidden,
+        CommunityUnavailableReason.notAllowed,
+      );
     } catch (e) {
-      // Fail closed. The error is not shown to the user: Community simply is
-      // not there, exactly as in a default build.
+      // Fail closed. The error itself is never shown to the user.
       debugPrint('community gate: closed (${e.runtimeType})');
-      return CommunityGateDecision.hidden;
+      return const CommunityGateResult(
+        CommunityGateDecision.hidden,
+        CommunityUnavailableReason.unreachable,
+      );
     }
   }
 

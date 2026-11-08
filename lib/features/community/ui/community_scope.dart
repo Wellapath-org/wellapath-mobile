@@ -79,6 +79,10 @@ class CommunityModule {
     required this.createServices,
   });
 
+  /// The one module per app run, shared by every entry point (Home, More) so
+  /// they share a session and the gate's in-memory cache.
+  static final CommunityModule shared = CommunityModule.fromEnvironment();
+
   /// Production wiring. Unless the compile flag is on **and**
   /// `COMMUNITY_API_BASE_URL` is set, nothing is constructed: no client, no
   /// secure-storage access, no request.

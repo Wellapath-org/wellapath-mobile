@@ -13,6 +13,7 @@ import 'package:wellapath_mobile/features/community/ui/community_entry_row.dart'
 import 'package:wellapath_mobile/features/community/ui/community_safety_banner.dart';
 import 'package:wellapath_mobile/features/community/ui/community_scope.dart';
 import 'package:wellapath_mobile/features/community/ui/sign_in_screen.dart';
+import 'package:wellapath_mobile/features/community/ui/space_list_screen.dart';
 import 'package:wellapath_mobile/features/more/more_screen.dart';
 import 'package:wellapath_mobile/features/shell/app_shell.dart';
 
@@ -122,9 +123,12 @@ void main() {
   });
 
   group('compile flag on, server decides', () {
-    Future<void> expectHidden(
+    // The row is visible whenever the scaffold is compiled in; the server
+    // decides what a tap opens. A refused tap opens nothing and says why.
+    Future<void> expectRefused(
       WidgetTester tester,
       CommunityFeatureSource source,
+      String message,
     ) async {
       await _pumpMore(
         tester,
@@ -132,20 +136,30 @@ void main() {
           CommunityGate(compileTimeEnabled: true, source: source),
         ),
       );
-      expect(find.text(CommunityEntryRow.label), findsNothing);
+      expect(find.text(CommunityEntryRow.label), findsOneWidget);
+      await tester.tap(find.text(CommunityEntryRow.label));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('General Health'), findsNothing);
+      expect(find.byType(SpaceListScreen), findsNothing);
+      expect(find.text(message), findsOneWidget);
+      expect(find.text(CommunityEntryRow.label), findsOneWidget);
     }
 
-    testWidgets('server disabled -> hidden', (tester) async {
-      await expectHidden(
+    testWidgets('server disabled -> tap opens nothing, says unavailable', (
+      tester,
+    ) async {
+      await expectRefused(
         tester,
         StaticCommunityFeatureSource(CommunityFeatures.disabled),
+        CommunityEntryRow.disabledMessage,
       );
     });
 
-    testWidgets('server disabled with allowed=true -> still hidden', (
+    testWidgets('server disabled with allowed=true -> still refused', (
       tester,
     ) async {
-      await expectHidden(
+      await expectRefused(
         tester,
         StaticCommunityFeatureSource(
           const CommunityFeatures(
@@ -153,15 +167,20 @@ void main() {
             allowed: true,
           ),
         ),
+        CommunityEntryRow.disabledMessage,
       );
     });
 
-    testWidgets('fetch error -> hidden (fail closed)', (tester) async {
-      await expectHidden(tester, const FailingCommunityFeatureSource());
+    testWidgets('fetch error -> refused (fail closed)', (tester) async {
+      await expectRefused(
+        tester,
+        const FailingCommunityFeatureSource(),
+        CommunityEntryRow.unreachableMessage,
+      );
     });
 
-    testWidgets('internal but not allowlisted -> hidden', (tester) async {
-      await expectHidden(
+    testWidgets('internal but not allowlisted -> refused', (tester) async {
+      await expectRefused(
         tester,
         StaticCommunityFeatureSource(
           const CommunityFeatures(
@@ -169,15 +188,20 @@ void main() {
             allowed: false,
           ),
         ),
+        CommunityEntryRow.notAllowedMessage,
       );
     });
 
-    testWidgets('no source configured -> hidden', (tester) async {
+    testWidgets('no source configured -> refused, no request', (tester) async {
       await _pumpMore(
         tester,
         module: _module(CommunityGate(compileTimeEnabled: true)),
       );
-      expect(find.text(CommunityEntryRow.label), findsNothing);
+      await tester.tap(find.text(CommunityEntryRow.label));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(SpaceListScreen), findsNothing);
+      expect(find.text(CommunityEntryRow.disabledMessage), findsOneWidget);
     });
 
     testWidgets('internal + allowlisted -> visible, opens the two spaces', (
@@ -221,7 +245,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('General Health'), findsNothing);
-      expect(find.text(CommunityEntryRow.label), findsNothing);
+      expect(find.text(CommunityEntryRow.disabledMessage), findsOneWidget);
     });
   });
 
@@ -327,7 +351,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('General Health'), findsNothing);
-      expect(find.text(CommunityEntryRow.label), findsNothing);
+      expect(find.byType(SpaceListScreen), findsNothing);
     });
 
     testWidgets('recovery entry explains lost device and lost email', (

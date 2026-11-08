@@ -28,13 +28,9 @@ class MoreScreen extends StatelessWidget {
 
   /// Community entry (internal scaffold; `docs/community/FEATURE_FLAG_SPEC.md`).
   /// Null means the build's own gate. Its row is only put in the tree when
-  /// the compile-time flag is on, and then only renders once the server flag
-  /// allows this account — so a default build never shows or fetches it.
+  /// the compile-time flag is on, so a default build never shows or fetches
+  /// it. The server decides what a tap opens (CommunityEntryRow).
   final CommunityModule? community;
-
-  /// One gate per app run, so its in-memory cache survives rebuilds.
-  static final CommunityModule _defaultCommunity =
-      CommunityModule.fromEnvironment();
 
   /// Build identity, shown only when the build actually declares it.
   ///
@@ -51,7 +47,7 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final CommunityModule communityModule = community ?? _defaultCommunity;
+    final CommunityModule communityModule = community ?? CommunityModule.shared;
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -105,8 +101,10 @@ class MoreScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          if (communityModule.gate.compileTimeEnabled)
+          if (communityModule.gate.compileTimeEnabled) ...[
             CommunityEntryRow(module: communityModule),
+            const SizedBox(height: 14),
+          ],
 
           EntranceFade(
             delay: const Duration(milliseconds: 240),
