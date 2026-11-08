@@ -322,18 +322,62 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'decision required) remain open, as does CB_211 (RC-BLK-016). The '
       'number is consumed because signed release artifacts exist, '
       'independently of any upload',
+  218:
+      'INTERNAL TESTING - NOT CLINICALLY CLEARED — 0.3.0+218, INTERNAL '
+      'TESTING ONLY - STAGING BACKEND - NOT PUBLIC RELEASE (founder F-076, '
+      '2026-11-08): the first Community internal-test build. Source develop @ '
+      '4b4e591ac68fc11bd07ccb79b255e7cbec6a9a18 (tree a2391b1f…, the merge of '
+      'PR #103, Community scaffold), Mobile CI green. Built 2026-11-08 with '
+      'Flutter 3.47.6 (the CI pin) in the neutral root '
+      '/Users/Shared/wellapath-build-218 with a build-local PUB_CACHE and a '
+      'neutral iOS -derivedDataPath. STAGING CONFIGURATION through the '
+      'existing mechanism, not committed: the build tree\'s bundled .env was '
+      'edited locally to APP_ENV=staging and API_BASE_URL='
+      'https://wellapath-backend-staging.onrender.com (telemetry flags '
+      'false; .env sha256 02a1ea0a… identical in both artifacts), and two '
+      'dart-defines were passed: COMMUNITY_SCAFFOLD_ENABLED=true and '
+      'COMMUNITY_API_BASE_URL=https://wellapath-backend-staging.onrender.com. '
+      'The tracked .env stays the production configuration. Artifact '
+      'inspection: the staging host is in the bundled .env and twice in the '
+      'compiled Dart code (libapp.so every ABI, App.framework); '
+      'api.wellapath.org appears only in a .env comment and as the '
+      'BuildEnvironment.kProductionHosts allowlist constant, never as the main '
+      'or Community API. No clinical change since 217: git diff '
+      '8865caa..4b4e591 over lib/core/engine, lib/core/constants, '
+      'lib/features/assessment and lib/features/results is empty. Signed '
+      'Android AAB sha256 '
+      '3b51b6681ac5e64430a9e5ca336175d3935af2aff832a0de97592429df02c227 '
+      '(64,173,218 B), versionCode 218 / versionName 0.3.0, jar verified, '
+      'upload certificate SHA-256 '
+      '94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36 '
+      '— identical to 211, 215, 216 and 217. Signed iOS IPA sha256 '
+      '65278c9c350e9b7890a148fc9d46ac556887089f098ca447b9c7023533c08014 '
+      '(27,209,981 B), 0.3.0 (218), min iOS 15.0, Apple Distribution: Pixus '
+      'Uganda - SMC LTD (2SCUC2CBBS) cert SHA-1 '
+      '6F191637AA0968B1E1529044D56E93B89AEEF649, existing profile '
+      'daebf88b-ed39-45b4-914b-a627cf76831d, get-task-allow false; guarded '
+      'export (internal-testing, verified CLEAN); 4-entry Symbols payload '
+      '(Runner DBD0F1D5-819C-32A9-B00D-607C4CFDF1DB, App '
+      'D7C7D0C6-785D-D65E-4BE3-94C943E6592F). Neutral-path scan CLEAN (AAB 477 '
+      'files, IPA + payload + archive 185). Signing material referenced by '
+      'symlink only and removed after the build; nothing created or '
+      'replaced. DISTRIBUTION: iOS UPLOADED to App Store Connect for '
+      'TestFlight INTERNAL testing only on 2026-11-08 (guarded export, '
+      'destination upload, testFlightInternalTestingOnly true); Android '
+      'uploaded by the founder to Play Internal testing only on 2026-11-08. '
+      'No external testers, no review submission, no closed, open or '
+      'production track. NOT CLINICALLY CLEARED: SAFETY-01, SAFETY-02 and '
+      'SAFETY-03 remain open. The number is consumed because signed release '
+      'artifacts exist, independently of any upload',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 218 has never been attached to anything: it appears in no tag, no CI
+/// 219 has never been attached to anything: it appears in no tag, no CI
 /// release identifier, no rollback record, no Sentry release and no
-/// registry entry above. 217 was consumed on 2026-11-07 the moment a
-/// signed release AAB existed (the superseded Flutter 3.44.4 build); its
-/// distributed binaries are the same-source Flutter 3.47.6 rebuild. Rebuilding
-/// 217 from different source could produce two artifacts that crash triage
-/// and Play both treat as the same build.
-const int kCurrentBuildNumber = 218;
+/// registry entry above. 218 was consumed on 2026-11-08 when its signed
+/// staging Community internal-test artifacts were built (F-076).
+const int kCurrentBuildNumber = 219;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';
