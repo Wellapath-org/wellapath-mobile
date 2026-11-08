@@ -373,15 +373,29 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'production track. NOT CLINICALLY CLEARED: SAFETY-01, SAFETY-02 and '
       'SAFETY-03 remain open. The number is consumed because signed release '
       'artifacts exist, independently of any upload',
+  219:
+      'INTERNAL TESTING - NOT CLINICALLY CLEARED — 0.3.0+219, INTERNAL TESTING ONLY - STAGING BACKEND - NOT PUBLIC RELEASE (founder F-076). '
+      'The Community internal-test build that testers install; it supersedes 218 for Community testing (discoverability). '
+      'Source a0ab330ab0d92dabfce725546931b0a8fb18338d (PR #110 head; tree 608c16ed3bd1b5e5ab5fa6e7aef3df75508005db, identical to the develop merge 79645703). '
+      'Change since 218: a Community row on Home (below the clinical and emergency actions) and in More, always visible when the scaffold is compiled in; access gates unchanged. '
+      'No clinical change: assessment/, results/, engine and constants identical to 218. '
+      'Tests on a0ab330: analyze clean, format 0 changed, full suite 2,006 passed, 7 skipped, 0 failed. '
+      'Built 2026-11-09 with Flutter 3.47.6 in /Users/Shared/wellapath-build-219 with the same staging configuration as 218: uncommitted build-tree .env (APP_ENV=staging, API_BASE_URL=https://wellapath-backend-staging.onrender.com; sha256 02a1ea0a…, identical to 218) and COMMUNITY_SCAFFOLD_ENABLED=true, COMMUNITY_API_BASE_URL=https://wellapath-backend-staging.onrender.com. '
+      'Artifact inspection: staging host in .env and compiled code; the Community entry copy and key present in libapp.so (all ABIs) and App.framework; api.wellapath.org only in a .env comment and the kProductionHosts allowlist. '
+      'Signed Android AAB sha256 3c1304ec047e52aefaa541d3788aebbb0be0b880e1effe2b10001e28c160046f (64,136,681 B), versionCode 219 / versionName 0.3.0, jar verified, upload certificate SHA-256 94:E7:C5:74:89:9C:42:99:55:1D:40:23:B7:FA:0D:E9:24:DE:3F:ED:BA:F0:A3:4D:A3:18:C1:A8:90:83:D8:36 — identical to 211, 215, 216, 217 and 218. '
+      'Signed iOS IPA sha256 e17f0fb6eeb0c7561f92dd5a9a5700fdf5f3981a20aaaf69423cd314b253b149 (27,201,929 B), 0.3.0 (219), min iOS 15.0, Apple Distribution: Pixus Uganda - SMC LTD (2SCUC2CBBS) cert SHA-1 6F191637AA0968B1E1529044D56E93B89AEEF649, existing profile daebf88b-ed39-45b4-914b-a627cf76831d, get-task-allow false; guarded export (internal-testing, verified CLEAN); 4-entry Symbols payload (Runner 2703BA44-BB15-3E7E-868A-A51F86A57221, App 4162E8D5-8AAE-84FB-AA04-B47390BE24B2). '
+      'Neutral-path scan CLEAN (AAB 477 files, IPA + payload + archive 185). Signing material referenced by symlink only and removed after the build. '
+      'DISTRIBUTION: TestFlight Internal Testing and Play Internal testing only; no external testers, no review submission, no closed, open or production track. '
+      'NOT CLINICALLY CLEARED: SAFETY-01, SAFETY-02 and SAFETY-03 remain open. The number is consumed because signed release artifacts exist, independently of any upload',
 };
 
 /// The build number this candidate ships. Must exceed every known entry.
 ///
-/// 219 has never been attached to anything: it appears in no tag, no CI
+/// 220 has never been attached to anything: it appears in no tag, no CI
 /// release identifier, no rollback record, no Sentry release and no
-/// registry entry above. 218 was consumed on 2026-11-08 when its signed
+/// registry entry above. 219 was consumed on 2026-11-09 when its signed
 /// staging Community internal-test artifacts were built (F-076).
-const int kCurrentBuildNumber = 219;
+const int kCurrentBuildNumber = 220;
 
 /// The version name this candidate ships.
 const String kCurrentVersionName = '0.3.0';
