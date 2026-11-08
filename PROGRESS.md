@@ -6787,3 +6787,149 @@ evidence. Release notes: `RELEASE_NOTES_217.md`.
 **Still open, unchanged by this entry:** SAFETY-01/02/03 (P0); CB_211
 (RC-BLK-016); WP-027; locator distance cap and 112 fallback absent; artifacts
 served from an `r2.dev` host.
+
+# 2026-11-07 — Community scaffold (internal only, OFF by default)
+
+Founder-authorised, reversible scaffold under ADR-001 §6 ("what may proceed
+before approval"). **Not released, not reachable in any default build.**
+
+* `docs/community/API_CONTRACT.md` (v0.1): REST contract for the backend PoC
+  (`poc/community-auth`): email OTP auth, `/v1/features`, spaces, posts,
+  single-level comments, reports, notifications, profile, professional
+  verification (claim → pending; admin-only verify), moderator endpoints
+  (reason required, server records actor + time), error model, pagination,
+  rate limits. Member payloads never carry an author account id.
+* `docs/community/FEATURE_FLAG_SPEC.md`: two keys — compile-time
+  `COMMUNITY_SCAFFOLD_ENABLED` (default false) AND server flag
+  (`disabled|internal|closed_beta|public`, default disabled, allowlisted).
+  Fail closed on any error; allow-only memory cache ≤5 min; kill switch.
+* `lib/features/community/`: immutable domain models with strict
+  `fromJson`/`toJson` + validation; role/capability matrix as code;
+  repository interfaces + in-memory backend; gate; screens (space list with
+  exactly General Health and Pregnancy / Maternal Health, feed, post detail +
+  comments, text-only compose with display-mode choice, report sheet,
+  notification centre). Persistent banner "Community posts are not medical
+  advice. In an emergency, call 112." marked `CLINICAL REVIEW REQUIRED`.
+* Entry point: a More-tab row built only when the compile flag is on and
+  rendered only when the server allows. Default build: not in the tree, no
+  request made. `more_screen.dart` gains an optional `community` parameter;
+  no existing copy changed.
+* Tests (`test/community/`, 86): import isolation both ways (community ↛
+  engine/assessment/results/question_flow/vocabulary and back; only
+  `more_screen.dart` may import community), emergency screens render no
+  Community navigation, gate matrix (default/disabled/error/not-allowlisted
+  hidden; internal + allowlisted visible; kill switch; cache rules), model
+  round-trips and validation, permission matrix, backend rules.
+* Not built (held): sign-in UI and token storage, HTTP repositories,
+  moderator UI, push, private consultations, prescriptions, payments, doctor
+  chat, image uploads, nested threads, AI replies.
+* Copy that must change before any external tester sees Community: Learn and
+  Help "no sign-up / no account / no profile" statements, More "Your
+  information" panel, `/privacy` and store privacy text, plus clinical review
+  of the banner.
+* Suite: 1,691 / 7 skipped / 0 failed on develop `8865caa` → 1,777 / 7 / 0.
+
+# 2026-11-07 — Community: PR #103 moved onto the canonical contract v1.0-draft
+
+Draft PR #103 (`feat/community-scaffold`) now implements the canonical
+`WELLAPATH_ENGINEERING/COMMUNITY_API_CONTRACT.md` v1.0-draft (markdown wins)
+and `community_api_v1.openapi.yaml`, under ADR-001 §8 (A2). Still internal
+only and **OFF by default**: Community needs the compile define
+`COMMUNITY_SCAFFOLD_ENABLED=true` **and** a non-empty
+`COMMUNITY_API_BASE_URL` **and** the server flag. Every failure is hidden.
+`origin/develop` (`f3dc740`) was merged in first, keeping every PROGRESS
+entry.
+
+* **Contract §15 "mobile must change" rows, done:** 404 `not_found` for every
+  non-visible item (no 410, `content_removed` dropped, row 14); moderators
+  may suspend/reinstate members, admin only for privileged targets (row 49);
+  restricted accounts may still report and delete their own content (row 37);
+  verification lives under `/admin/*` by verification id, and the app sends no
+  `/mod`, `/admin` or TOTP request at all (rows 43, 51); export and deletion
+  added (rows 57, 58); `TokenPair` with both expiries and `account_created`
+  (row 3); access token in memory, refresh token in secure storage (row 5);
+  single-flight refresh with `device_id` and `refresh_race` handling (row 2);
+  `mfa_*` and the other new error codes (row 8); identity-key rejection also
+  covers `author_email`, `email`, `reporter_id`, at any depth, and not on
+  `Me`/`TokenPair`/export (row 64); `content_restored`/`account_reinstated`
+  notices (row 38); `unverified` dropped as a wire value (row 42); space name
+  "Pregnancy and Maternal Health" (row 29); UUID-shaped ids in tests (row 32);
+  `Idempotency-Key` on post, comment, report and claim, reused on retry of the
+  same intent (row 31).
+* **Auth:** email OTP sign-in/sign-up screen (one flow), account-recovery
+  entry (lost device: sign in again, then "Sign out other devices"; lost
+  email: support), `CommunitySessionManager` (A1–A4), device list and revoke
+  others (A5/A6). `flutter_secure_storage` ^11.2.0 added; only two keys,
+  `wellapath.community.refresh_token` and `wellapath.community.device_id`.
+  401 `token_expired` refreshes once and retries once; 401 `unauthenticated`
+  clears the session; 429 shows the `Retry-After` wait and never
+  auto-retries; sign-out clears the refresh token (the install `device_id`
+  stays; account deletion erases it too). No TOTP or privileged UI.
+* **HTTP:** one dedicated Dio client (`community_http_client.dart`) that
+  refuses, before sending, any body or query carrying a §5 prohibited key,
+  logs only method + route template + status, and maps the error envelope
+  and kill switch. `HttpCommunityRepository` covers every member-facing
+  operation. The in-memory backend stays for tests and dev
+  (`COMMUNITY_DATA_SOURCE=in_memory`).
+* **Contract tests:** the OpenAPI file is copied to
+  `docs/community/community_api_v1.openapi.yaml` (hash recorded in
+  `docs/community/API_CONTRACT.md`, now a pointer to the canonical files).
+  `community_contract_test.dart` (package:yaml, dev dependency) checks every
+  request against an operation in the spec, validates bodies, queries and
+  required headers, requires every member-facing operation to be implemented
+  and none of the privileged ones, and decodes rich and minimal fixtures
+  generated from the spec's own schemas.
+* **Isolation, extended:** the clinical-identifier scan now exempts exactly
+  one file, the prohibited-key guard, which is itself checked to hold only
+  the guard. New checks: nothing in Community uses `ApiClient`, Dio outside
+  the guarded client, or `LogInterceptor`; no `/mod`, `/admin` or TOTP
+  routes; nothing out of scope (consultations, prescriptions, payments,
+  uploads, images); secrets only under `wellapath.community.*`. Emergency
+  screens are unchanged and still show no Community navigation.
+* **Copy:** no user-facing copy outside Community changed. New
+  safety/health strings are marked `// CLINICAL REVIEW REQUIRED` (space
+  descriptions, report reasons, the "not an emergency, call 112" report
+  note, the sign-in health-check separation note).
+* **Verification (Flutter 3.47.6, the CI pin):** `flutter analyze`: no
+  issues. `dart format`: 0 changed. `flutter test`: develop `f3dc740`
+  baseline **1,733 passed / 7 skipped / 0 failed**; this branch after the
+  merge, before the change **1,819 / 7 / 0**; with this change
+  **1,954 / 7 / 0** (Community tests 86 → 221). A deliberate mutation
+  (adding a prohibited key to `PostDraft.toJson`) failed 8 tests.
+* **Proposed contract changes** (not applied silently; see the sprint
+  deliverable): the export row in the §2.1 matrix contradicts M7; the §1.3
+  "404 on a list route" rule should name C1/C2/N1/N2 (C6 404 means only that
+  the post is gone); signed-out discovery needs a documented sign-in state;
+  YAML `if/then` for `verified_at` and `notice`; `TokenPair.expires_in`
+  minimum and refresh-token pattern; logout without a bearer; the
+  "≥ 7 digits" display-name rule needs a precise definition.
+
+# 2026-11-08 — Community: refresh-token-only sign-out (contract P6 adopted)
+
+The founder approved P6 on 2026-11-07; the canonical contract (A4, §4.2) and
+OpenAPI `logout` operation were amended and the copy here re-pinned
+(`docs/community/API_CONTRACT.md` records the new hashes).
+
+* **Client:** `CommunityAuthApi.logout(refreshToken:)` sends
+  `POST /v1/auth/logout` `{refresh_token}` with **no** `Authorization`
+  header; `logoutWithBearer` is used only when no refresh token is stored.
+  `CommunitySessionManager.signOut` no longer refreshes first (that rotated
+  a token just to throw it away, and failed when refresh failed). Any 2xx
+  (the server's neutral `204`) is success; local tokens are cleared whatever
+  the answer; `device_id` is kept (P8).
+* **Tests:** the contract test asserts the spec's `security` is bearer *or*
+  none, the body is optional in the schema, success is 204, and the client's
+  sign-out request carries no bearer; session tests cover sign-out with no
+  access token in memory (no refresh call) and the header-free request.
+* **Verification (Flutter 3.47.6):** `flutter analyze` no issues;
+  `dart format` 0 changed; `flutter test --exclude-tags plutil`
+  1,943 passed / 7 skipped; `--tags plutil` 14 passed.
+
+# 2026-11-08 — Community: P6 follow-up (founder decisions)
+
+Logout rate limits approved as implemented; the cross-account combined
+logout is not approved (a bearer of one account never revokes anything on
+the strength of another account's refresh token). Server-side only: the
+client already signs out with its own refresh token and no bearer, so no
+client change. Re-copied the amended canonical OpenAPI file and updated the
+hashes in `docs/community/API_CONTRACT.md`.
