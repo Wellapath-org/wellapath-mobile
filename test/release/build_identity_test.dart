@@ -323,6 +323,10 @@ const Map<int, String> kKnownDistributedBuilds = <int, String>{
       'number is consumed because signed release artifacts exist, '
       'independently of any upload',
   218:
+      'SUPERSEDED FOR COMMUNITY TESTING - DISCOVERABILITY UX MISSING '
+      '(founder, 2026-11-09: the Community entry was only in the More tab and '
+      'hid itself whenever /v1/features was slow or refused; testers install '
+      '219 instead; 218 stays in the stores, valid as an internal artifact). '
       'INTERNAL TESTING - NOT CLINICALLY CLEARED — 0.3.0+218, INTERNAL '
       'TESTING ONLY - STAGING BACKEND - NOT PUBLIC RELEASE (founder F-076, '
       '2026-11-08): the first Community internal-test build. Source develop @ '

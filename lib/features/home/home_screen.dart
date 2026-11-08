@@ -9,6 +9,8 @@ import '../../core/telemetry/telemetry.dart';
 import '../../shared/widgets/confirmation_dialog.dart';
 import '../assessment/assessment_controller.dart';
 import '../assessment/intro_screen.dart';
+import '../community/ui/community_entry_row.dart';
+import '../community/ui/community_scope.dart';
 import '../help/help_screen.dart';
 import '../learn/learn_screen.dart';
 import '../learn/wella_today_card.dart';
@@ -16,7 +18,13 @@ import '../locator/locator_screen.dart';
 import '../shell/app_shell.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.community});
+
+  /// Community entry (internal scaffold; `docs/community/FEATURE_FLAG_SPEC.md`).
+  /// Null means the build's own module. The row is only put in the tree when
+  /// the compile-time flag is on, so a default build never shows or fetches
+  /// it; the server decides what a tap opens.
+  final CommunityModule? community;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -152,6 +160,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final CommunityModule community =
+        widget.community ?? CommunityModule.shared;
     return Scaffold(
       backgroundColor: Brand.surface,
       body: SafeArea(
@@ -207,7 +217,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: Brand.space3),
 
-                  // 5 and 6.
+                  // 5 — Community, only in builds that include the scaffold.
+                  // Deliberately below the clinical actions and the
+                  // emergency row, never beside them.
+                  if (community.gate.compileTimeEnabled) ...[
+                    EntranceFade(
+                      delay: const Duration(milliseconds: 220),
+                      child: CommunityEntryRow(module: community),
+                    ),
+                    const SizedBox(height: Brand.space2),
+                  ],
+
+                  // 6 and 7.
                   EntranceFade(
                     delay: const Duration(milliseconds: 240),
                     child: _ActionRow(
