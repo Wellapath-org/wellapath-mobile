@@ -320,8 +320,10 @@ mitigated and measured. What remains:
    which increases either way.
 3. **Get signing material to a second location** — `RC-BLK-002-FOLLOWON`. The
    build now fails closed instead of producing a debug-signed APK, but the
-   keystore exists on **exactly one machine**, is not in any CI secret, and
-   Play App Signing is **not** enrolled, so Google holds no copy. An Android
+   keystore exists on **exactly one machine** and is not in any CI secret.
+   Play App Signing was recorded as **not** enrolled before the first Play
+   upload. Builds 211 onward were uploaded as AABs, so enrolment is likely but
+   **unverified** (founder check: `SIGNING_CONTINUITY.md` §6.1). An Android
    signing key cannot be regenerated. Full analysis, required actions and the
    authorization matrix: [`SIGNING_CONTINUITY.md`](./SIGNING_CONTINUITY.md).
    Enrolling in Play App Signing at or before first upload is the primary

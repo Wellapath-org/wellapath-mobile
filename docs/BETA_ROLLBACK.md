@@ -18,21 +18,45 @@ without engineering lead approval.**
 | facilities | **1.1** | `25684c714367abf2f3c305c8a5597b5f7eb0d11baaf658c5b9e2f8f5e2982398` |
 
 Verified against `GET /config` on `wellapath-backend-staging.onrender.com`.
+
+> **Correction, 2026-11-07 (WP-031).** This table is the E9.1 freeze and is kept
+> as history. `/config` now serves facilities **1.2**
+> (`94f162e492fa91f7d9d3cf2ca33fcf0598a031a2510aa900aa717a581bdb7788`, backend
+> PR #39). Facilities **1.1 was deleted from R2 on 2026-09-29** (HTTP 404,
+> withdrawn NHFR phone numbers) and must never be served or rolled back to.
 The same three core hashes are pinned in
 `test/engine/case_bank/artifact_fixtures.dart`, which fails loudly if a
 fixture and its published hash ever drift apart.
 
-### Previous versions, still resolvable for rollback
+### Valid rollback targets (re-verified 2026-11-07 21:44Z)
 
-R2 is append-only by policy — artifacts are never overwritten, only added —
-so every prior version remains fetchable at its own URL:
+**Not every prior version is still fetchable with its original hash.** The
+earlier claim here, that R2 is append-only so every prior version remains
+fetchable, is false:
 
-| Artifact | Previous | Notes |
+- facilities 1.1 was deleted;
+- kb 2.0, kb 2.1 and rules 2.0 were edited in place after `/config` served
+  them, so their bytes no longer match the served hash, and the app's
+  integrity check would reject them.
+
+Each version below was checked by anonymous GET on the public R2 URL. Its
+sha256 equals the hash `/config` served:
+
+| Artifact | Valid targets | Retired: never use |
 |---|---|---|
-| knowledge_base | 2.3 | Pre-E8.2 headache weight (3 rather than 6) |
-| rules | 2.1 | Includes dead `rf_147`, retired in 2.2 |
+| knowledge_base | 2.3 (`cb0e43fc…`, pre-E8.2 headache weight), 2.2 (`80c39e7e…`, R2-only) | 2.1, 2.0 (edited in place) |
+| rules | 2.1 (`57da3ff5…`, includes dead `rf_147`) | 2.0 (edited in place) |
+| token_dictionary | 1.0 (`773006de…`) | none |
+| facilities | 1.0 (`1c7b9391…`, backend PR #40) | 1.1 (deleted, 404) |
 
-This is what makes artifact rollback possible without a client release.
+Canonical list: the knowledge base's `docs/ROLLBACK_TARGETS.md` and
+`publication/published_artifacts_registry_v1.json`. Backend CI enforces it
+(`tests/regression/rollback-targets-guard.test.ts`). A hash-valid target is
+not automatically a clinically valid combination. Run the case bank against
+the exact set of versions before declaring a rollback good (§2, step 4).
+
+Artifact rollback without a client release is still possible, but only to the
+valid targets above.
 
 ---
 
@@ -107,6 +131,12 @@ exists solely in a CI cache is not a rollback plan.
 ---
 
 ## 4. Open risks against this plan
+
+> **Superseded, 2026-11-07.** The debug-key risk below was closed by
+> `RC-BLK-002`: release signing now fails closed, and builds 211 onward are
+> signed with the upload key. The remaining risk is continuity, because the
+> upload keystore is on one machine (`RC-BLK-002-FOLLOWON`). See
+> [`release/SIGNING_CONTINUITY.md`](release/SIGNING_CONTINUITY.md) §6.
 
 **The release APK is signed with debug keys.**
 `android/app/build.gradle.kts` still carries Flutter's scaffold
